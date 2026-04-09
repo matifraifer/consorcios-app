@@ -134,6 +134,68 @@ export async function createPropietario({ dni, nombre, apellido, id_consorcio })
   return data
 }
 
+export async function importarPropietarios(filas, id_consorcio) {
+  // Traer departamentos del consorcio para poder vincular por numeracion
+  const { data: deptos, error: dErr } = await supabase
+    .from('departamentos')
+    .select('id, numeracion')
+    .eq('id_consorcio', id_consorcio)
+  if (dErr) throw dErr
+
+  const deptoMap = Object.fromEntries(
+    deptos.map(d => [d.numeracion.trim().toLowerCase(), d.id])
+  )
+
+  const resultados = []
+  for (const fila of filas) {
+    try {
+      // Parsear nombre y apellido desde el campo "Propietario"
+      let nombre, apellido
+      if (fila.propietario.includes(',')) {
+        const [ap, nom] = fila.propietario.split(',').map(s => s.trim())
+        apellido = ap
+        nombre = nom || ''
+      } else {
+        const parts = fila.propietario.trim().split(/\s+/)
+        apellido = parts[0] ?? ''
+        nombre = parts.slice(1).join(' ')
+      }
+
+      const { data: prop, error: pErr } = await supabase
+        .from('propietarios')
+        .insert([{ nombre, apellido, dni: fila.dni, id_consorcio }])
+        .select()
+        .single()
+      if (pErr) throw pErr
+
+      // Vincular al departamento; si no existe, crearlo
+      let deptoId = deptoMap[fila.unidad.trim().toLowerCase()]
+      let deptoCreado = false
+      if (deptoId) {
+        await supabase
+          .from('departamentos')
+          .update({ id_propietario: prop.id })
+          .eq('id', deptoId)
+      } else if (fila.unidad.trim()) {
+        const { data: nuevoDep, error: depErr } = await supabase
+          .from('departamentos')
+          .insert([{ numeracion: fila.unidad.trim(), id_consorcio, id_propietario: prop.id }])
+          .select()
+          .single()
+        if (depErr) throw depErr
+        deptoMap[fila.unidad.trim().toLowerCase()] = nuevoDep.id
+        deptoId = nuevoDep.id
+        deptoCreado = true
+      }
+
+      resultados.push({ ...fila, ok: true, vinculado: !!deptoId, deptoCreado })
+    } catch (err) {
+      resultados.push({ ...fila, ok: false, error: err.message })
+    }
+  }
+  return resultados
+}
+
 // ---- RECLAMOS ----
 
 export async function getReclamos(usuario_id) {
@@ -233,20 +295,30 @@ export async function getGastosByPeriodo(periodo_id) {
   return data
 }
 
-export async function createGasto({ periodo_id, nombre, monto, categoria, tipo, proveedor, comprobante }) {
+export async function createGasto({ periodo_id, nombre, monto, categoria, tipo, proveedor, comprobante, departamentos_ids }) {
   const { data, error } = await supabase
     .from('gastos')
-    .insert([{ periodo_id, nombre, monto, categoria, tipo, proveedor: proveedor || null, comprobante: comprobante || null }])
+    .insert([{
+      periodo_id, nombre, monto, categoria, tipo,
+      proveedor: proveedor || null,
+      comprobante: comprobante || null,
+      departamentos_ids: departamentos_ids?.length ? departamentos_ids : null,
+    }])
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateGasto(id, { nombre, monto, categoria, tipo, proveedor, comprobante }) {
+export async function updateGasto(id, { nombre, monto, categoria, tipo, proveedor, comprobante, departamentos_ids }) {
   const { data, error } = await supabase
     .from('gastos')
-    .update({ nombre, monto, categoria, tipo, proveedor: proveedor || null, comprobante: comprobante || null })
+    .update({
+      nombre, monto, categoria, tipo,
+      proveedor: proveedor || null,
+      comprobante: comprobante || null,
+      departamentos_ids: departamentos_ids?.length ? departamentos_ids : null,
+    })
     .eq('id', id)
     .select()
     .single()

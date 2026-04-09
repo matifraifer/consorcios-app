@@ -17,26 +17,36 @@ import {
   Divider,
   Chip,
   IconButton,
+  TextField,
+  Snackbar,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import { getConsorcios, getConsorcioById, getDepartamentosByConsorcio } from '../services/supabase'
+import { getConsorcios, getConsorcioById, getDepartamentosByConsorcio, createConsorcio } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const DRAWER_WIDTH = 520
 
 export default function Consorcios() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
   const [consorcios, setConsorcios] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const navigate = useNavigate()
-  const { user } = useAuth()
 
-  // Drawer
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  // Drawer detalle
+  const [detalleOpen, setDetalleOpen] = useState(false)
   const [detalle, setDetalle] = useState(null)
   const [departamentos, setDepartamentos] = useState([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
   const [errorDetalle, setErrorDetalle] = useState(null)
+
+  // Drawer nuevo consorcio
+  const [nuevoOpen, setNuevoOpen] = useState(false)
+  const [nombre, setNombre] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     getConsorcios(user.id)
@@ -46,7 +56,7 @@ export default function Consorcios() {
   }, [user.id])
 
   function openDetalle(id) {
-    setDrawerOpen(true)
+    setDetalleOpen(true)
     setDetalle(null)
     setDepartamentos([])
     setErrorDetalle(null)
@@ -60,8 +70,31 @@ export default function Consorcios() {
       .finally(() => setLoadingDetalle(false))
   }
 
-  function closeDrawer() {
-    setDrawerOpen(false)
+  function openNuevo() {
+    setNombre('')
+    setFormError(null)
+    setNuevoOpen(true)
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!nombre.trim()) return
+    setSaving(true)
+    setFormError(null)
+    try {
+      await createConsorcio({ nombre: nombre.trim(), id_administrador: user.id })
+      setSuccess(true)
+      setNuevoOpen(false)
+      // Recargar lista
+      setLoading(true)
+      const data = await getConsorcios(user.id)
+      setConsorcios(data)
+    } catch (err) {
+      setFormError(err.message)
+    } finally {
+      setSaving(false)
+      setLoading(false)
+    }
   }
 
   if (loading) return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
@@ -73,7 +106,7 @@ export default function Consorcios() {
         <Typography variant="h5" fontWeight="bold">
           Consorcios
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/consorcios/nuevo')}>
+        <Button variant="contained" onClick={openNuevo}>
           + Nuevo Consorcio
         </Button>
       </Box>
@@ -100,11 +133,7 @@ export default function Consorcios() {
                   <TableCell>{c.nombre}</TableCell>
                   <TableCell>{c.usuarios?.nombre_usuario ?? '-'}</TableCell>
                   <TableCell>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => openDetalle(c.id)}
-                    >
+                    <Button size="small" variant="outlined" onClick={() => openDetalle(c.id)}>
                       Ver Detalle
                     </Button>
                   </TableCell>
@@ -115,18 +144,61 @@ export default function Consorcios() {
         </Table>
       </TableContainer>
 
-      {/* Drawer lateral */}
+      {/* Drawer Nuevo Consorcio */}
       <Drawer
         anchor="right"
-        open={drawerOpen}
-        onClose={closeDrawer}
+        open={nuevoOpen}
+        onClose={() => setNuevoOpen(false)}
+        PaperProps={{ sx: { width: 400, p: 3 } }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6" fontWeight="bold">Nuevo Consorcio</Typography>
+          <IconButton onClick={() => setNuevoOpen(false)}><CloseIcon /></IconButton>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+
+        {formError && <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>}
+
+        <form onSubmit={handleSubmit}>
+          <TextField
+            label="Nombre del Consorcio"
+            fullWidth
+            margin="normal"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            required
+            autoFocus
+            placeholder="Ej: Edificio San Martin"
+          />
+
+          <Box mt={3} display="flex" gap={2}>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={saving}
+              startIcon={saving ? <CircularProgress size={18} color="inherit" /> : null}
+            >
+              {saving ? 'Guardando...' : 'Crear Consorcio'}
+            </Button>
+            <Button variant="outlined" onClick={() => setNuevoOpen(false)}>
+              Cancelar
+            </Button>
+          </Box>
+        </form>
+      </Drawer>
+
+      {/* Drawer Detalle */}
+      <Drawer
+        anchor="right"
+        open={detalleOpen}
+        onClose={() => setDetalleOpen(false)}
         PaperProps={{ sx: { width: DRAWER_WIDTH, p: 3 } }}
       >
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" fontWeight="bold">
             {detalle?.nombre ?? 'Detalle del consorcio'}
           </Typography>
-          <IconButton onClick={closeDrawer}>
+          <IconButton onClick={() => setDetalleOpen(false)}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -152,22 +224,13 @@ export default function Consorcios() {
                 <Typography variant="subtitle1" fontWeight="bold">Departamentos</Typography>
                 <Chip label={departamentos.length} size="small" color="primary" />
               </Box>
-              <Box display="flex" gap={1}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => navigate(`/propietarios/nuevo?consorcio=${detalle.id}`)}
-                >
-                  + Propietario
-                </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={() => navigate(`/consorcios/${detalle.id}/departamentos/nuevo`)}
-                >
-                  + Departamento
-                </Button>
-              </Box>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => navigate(`/consorcios/${detalle.id}/departamentos/nuevo`)}
+              >
+                + Departamento
+              </Button>
             </Box>
 
             <TableContainer component={Paper} variant="outlined">
@@ -207,6 +270,14 @@ export default function Consorcios() {
           </>
         )}
       </Drawer>
+
+      <Snackbar
+        open={success}
+        autoHideDuration={3000}
+        onClose={() => setSuccess(false)}
+        message="Consorcio creado exitosamente"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   )
 }

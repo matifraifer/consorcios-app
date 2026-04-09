@@ -6,6 +6,7 @@ import Login             from './pages/Login'
 import Dashboard         from './pages/Dashboard'
 import Consorcios        from './pages/Consorcios'
 import ConsorcioDetalle  from './pages/ConsorcioDetalle'
+import NuevoConsorcio    from './pages/NuevoConsorcio'
 import NuevoDepartamento       from './pages/NuevoDepartamento'
 import NuevoDepartamentoGlobal from './pages/NuevoDepartamentoGlobal'
 import Departamentos           from './pages/Departamentos'
@@ -27,6 +28,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard"                          element={<Dashboard />} />
           <Route path="/consorcios"                         element={<Consorcios />} />
+          <Route path="/consorcios/nuevo"                   element={<NuevoConsorcio />} />
           <Route path="/consorcios/:id"                     element={<ConsorcioDetalle />} />
           <Route path="/consorcios/:id/departamentos/nuevo" element={<NuevoDepartamento />} />
           <Route path="/departamentos"                      element={<Departamentos />} />

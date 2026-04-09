@@ -28,6 +28,9 @@ import {
   IconButton,
   Tooltip,
   InputAdornment,
+  OutlinedInput,
+  Checkbox,
+  ListItemText,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import EditIcon from '@mui/icons-material/Edit'
@@ -57,7 +60,65 @@ function fmt(value) {
   return `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-const GASTO_VACIO = { nombre: '', monto: '', categoria: 'sueldos', tipo: 'ordinario', proveedor: '', comprobante: '' }
+const GASTO_VACIO = { nombre: '', monto: '', categoria: 'sueldos', tipo: 'ordinario', proveedor: '', comprobante: '', departamentos_ids: [] }
+
+// Calcula el monto que le corresponde a cada departamento considerando
+// la asignación por gasto y la distribución por coeficiente o igualitaria
+function calcLiquidacion(departamentos, gastos) {
+  return departamentos.map(dep => {
+    let monto_ord = 0
+    let monto_ext = 0
+
+    for (const g of gastos) {
+      // Subconjunto de departamentos asignados a este gasto
+      const asignados = (!g.departamentos_ids?.length)
+        ? departamentos
+        : departamentos.filter(d => g.departamentos_ids.includes(d.id))
+
+      // ¿Este departamento participa en este gasto?
+      if (!asignados.some(d => d.id === dep.id)) continue
+
+      const someHaveCoef = asignados.some(d => d.coeficiente)
+
+      let share
+      if (!someHaveCoef) {
+        // Distribución igualitaria dentro del subconjunto
+        share = Number(g.monto) / (asignados.length || 1)
+      } else if (!dep.coeficiente) {
+        // Este dept no tiene coeficiente pero otros sí → excluido de este gasto
+        continue
+      } else {
+        // Distribución por coeficiente, normalizado al subconjunto
+        const totalCoef = asignados
+          .filter(d => d.coeficiente)
+          .reduce((s, d) => s + Number(d.coeficiente), 0)
+        share = totalCoef > 0 ? Number(g.monto) * (Number(dep.coeficiente) / totalCoef) : 0
+      }
+
+      if (g.tipo === 'ordinario') monto_ord += share
+      else monto_ext += share
+    }
+
+    // ¿El dept queda excluido de algún gasto al que estaba asignado?
+    const hasProblematicGastos = gastos.some(g => {
+      const asig = (!g.departamentos_ids?.length)
+        ? departamentos
+        : departamentos.filter(d => g.departamentos_ids.includes(d.id))
+      return asig.some(d => d.id === dep.id) && asig.some(d => d.coeficiente) && !dep.coeficiente
+    })
+
+    return {
+      departamento_id:      dep.id,
+      numeracion:           dep.numeracion,
+      propietario:          dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : '-',
+      coeficiente:          dep.coeficiente,
+      monto_ordinario:      monto_ord,
+      monto_extraordinario: monto_ext,
+      monto_total:          monto_ord + monto_ext,
+      hasProblematicGastos,
+    }
+  })
+}
 
 export default function ExpensasDetalle() {
   const { id } = useParams()
@@ -108,57 +169,35 @@ export default function ExpensasDetalle() {
 
   // Computed
   const abierto = periodo?.estado === 'abierto'
-  const totalOrd = gastos.filter(g => g.tipo === 'ordinario').reduce((s, g) => s + Number(g.monto), 0)
-  const totalExt = gastos.filter(g => g.tipo === 'extraordinario').reduce((s, g) => s + Number(g.monto), 0)
+  const totalOrd  = gastos.filter(g => g.tipo === 'ordinario').reduce((s, g) => s + Number(g.monto), 0)
+  const totalExt  = gastos.filter(g => g.tipo === 'extraordinario').reduce((s, g) => s + Number(g.monto), 0)
   const totalGral = totalOrd + totalExt
 
-  const ningunCoeficiente = departamentos.length > 0 && departamentos.every(dep => !dep.coeficiente)
-  const nDeps = departamentos.length || 1
-
-  const liquidacion = departamentos.map(dep => {
-    if (ningunCoeficiente) {
-      return {
-        departamento_id:      dep.id,
-        numeracion:           dep.numeracion,
-        propietario:          dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : '-',
-        coeficiente:          null,
-        distribucionIgual:    true,
-        monto_ordinario:      totalOrd / nDeps,
-        monto_extraordinario: totalExt / nDeps,
-        monto_total:          totalGral / nDeps,
-      }
-    }
-    return {
-      departamento_id:      dep.id,
-      numeracion:           dep.numeracion,
-      propietario:          dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : '-',
-      coeficiente:          dep.coeficiente,
-      distribucionIgual:    false,
-      monto_ordinario:      dep.coeficiente ? totalOrd * (Number(dep.coeficiente) / 100) : null,
-      monto_extraordinario: dep.coeficiente ? totalExt * (Number(dep.coeficiente) / 100) : null,
-      monto_total:          dep.coeficiente ? totalGral * (Number(dep.coeficiente) / 100) : null,
-    }
-  })
-
-  const depsSinCoeficiente = ningunCoeficiente ? [] : liquidacion.filter(l => !l.coeficiente)
-
+  const liquidacion = calcLiquidacion(departamentos, gastos)
+  const depsExcluidos = liquidacion.filter(l => l.hasProblematicGastos)
   const pagadoMap = Object.fromEntries(expensasDep.map(e => [e.departamento_id, e]))
+
+  // Map id → numeracion para mostrar en la tabla de gastos
+  const deptoNumMap = Object.fromEntries(departamentos.map(d => [d.id, d.numeracion]))
 
   // --- Gasto modal ---
   function openNuevoGasto() {
-    setGastoForm(GASTO_VACIO)
+    setGastoForm({ ...GASTO_VACIO, departamentos_ids: departamentos.map(d => d.id) })
     setGastoModal({ open: true, gasto: null })
     setGastoError(null)
   }
 
   function openEditGasto(gasto) {
     setGastoForm({
-      nombre:      gasto.nombre,
-      monto:       gasto.monto,
-      categoria:   gasto.categoria,
-      tipo:        gasto.tipo,
-      proveedor:   gasto.proveedor || '',
-      comprobante: gasto.comprobante || '',
+      nombre:           gasto.nombre,
+      monto:            gasto.monto,
+      categoria:        gasto.categoria,
+      tipo:             gasto.tipo,
+      proveedor:        gasto.proveedor || '',
+      comprobante:      gasto.comprobante || '',
+      departamentos_ids: gasto.departamentos_ids?.length
+        ? gasto.departamentos_ids
+        : departamentos.map(d => d.id),
     })
     setGastoModal({ open: true, gasto })
     setGastoError(null)
@@ -206,7 +245,13 @@ export default function ExpensasDetalle() {
   function openPagoModal(l) {
     const entry = pagadoMap[l.departamento_id]
     setPagoModal({ open: true, item: l })
-    setMontoPagadoInput(entry?.monto_pagado != null ? String(entry.monto_pagado) : l.monto_total != null ? String(Number(l.monto_total).toFixed(2)) : '')
+    setMontoPagadoInput(
+      entry?.monto_pagado != null
+        ? String(entry.monto_pagado)
+        : l.monto_total != null
+          ? String(Number(l.monto_total).toFixed(2))
+          : ''
+    )
   }
 
   function closePagoModal() {
@@ -219,7 +264,9 @@ export default function ExpensasDetalle() {
     setSavingPago(true)
     try {
       await registrarPago(entry.id, { pagado: true, monto_pagado: Number(montoPagadoInput) })
-      setExpensasDep(prev => prev.map(e => e.id === entry.id ? { ...e, pagado: true, monto_pagado: Number(montoPagadoInput) } : e))
+      setExpensasDep(prev => prev.map(e =>
+        e.id === entry.id ? { ...e, pagado: true, monto_pagado: Number(montoPagadoInput) } : e
+      ))
       closePagoModal()
     } catch (err) {
       setError(err.message)
@@ -233,7 +280,9 @@ export default function ExpensasDetalle() {
     if (!entry) return
     try {
       await registrarPago(entry.id, { pagado: false, monto_pagado: null })
-      setExpensasDep(prev => prev.map(e => e.id === entry.id ? { ...e, pagado: false, monto_pagado: null } : e))
+      setExpensasDep(prev => prev.map(e =>
+        e.id === entry.id ? { ...e, pagado: false, monto_pagado: null } : e
+      ))
       closePagoModal()
     } catch (err) {
       setError(err.message)
@@ -244,17 +293,15 @@ export default function ExpensasDetalle() {
   async function handleSaveLiquidacion() {
     setSavingLiquidacion(true)
     try {
-      const items = liquidacion
-        .filter(l => l.coeficiente || l.distribucionIgual)
-        .map(l => ({
-          periodo_id:           Number(id),
-          departamento_id:      l.departamento_id,
-          monto_ordinario:      l.monto_ordinario,
-          monto_extraordinario: l.monto_extraordinario,
-          monto_total:          l.monto_total,
-          pagado:               pagadoMap[l.departamento_id]?.pagado ?? false,
-          monto_pagado:         pagadoMap[l.departamento_id]?.monto_pagado ?? null,
-        }))
+      const items = liquidacion.map(l => ({
+        periodo_id:           Number(id),
+        departamento_id:      l.departamento_id,
+        monto_ordinario:      l.monto_ordinario,
+        monto_extraordinario: l.monto_extraordinario,
+        monto_total:          l.monto_total,
+        pagado:               pagadoMap[l.departamento_id]?.pagado ?? false,
+        monto_pagado:         pagadoMap[l.departamento_id]?.monto_pagado ?? null,
+      }))
       await saveExpensasDepartamento(id, items)
       const newExpensasDep = await getExpensasDepartamento(id)
       setExpensasDep(newExpensasDep)
@@ -298,12 +345,8 @@ export default function ExpensasDetalle() {
       startY: 52,
       head: [['Nombre', 'Categoría', 'Tipo', 'Proveedor', 'Comprobante', 'Monto']],
       body: gastos.map(g => [
-        g.nombre,
-        g.categoria,
-        g.tipo,
-        g.proveedor || '-',
-        g.comprobante || '-',
-        fmt(g.monto),
+        g.nombre, g.categoria, g.tipo,
+        g.proveedor || '-', g.comprobante || '-', fmt(g.monto),
       ]),
       foot: [
         ['Total Ordinario', '', '', '', '', fmt(totalOrd)],
@@ -319,10 +362,10 @@ export default function ExpensasDetalle() {
     autoTable(doc, {
       startY: y + 4,
       head: [['Depto.', 'Propietario', 'Coeficiente', 'Ordinario', 'Extraordinario', 'Total']],
-      body: liquidacion.filter(l => l.coeficiente || l.distribucionIgual).map(l => [
+      body: liquidacion.map(l => [
         l.numeracion,
         l.propietario,
-        l.distribucionIgual ? 'Igualitaria' : `${l.coeficiente}%`,
+        l.coeficiente ? `${l.coeficiente}%` : 'Igualitaria',
         fmt(l.monto_ordinario),
         fmt(l.monto_extraordinario),
         fmt(l.monto_total),
@@ -333,16 +376,8 @@ export default function ExpensasDetalle() {
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
       doc.setFontSize(8)
-      doc.text(
-        'Documento generado por el sistema de administración',
-        14,
-        doc.internal.pageSize.height - 10
-      )
-      doc.text(
-        `Página ${i} de ${pageCount}`,
-        doc.internal.pageSize.width - 40,
-        doc.internal.pageSize.height - 10
-      )
+      doc.text('Documento generado por el sistema de administración', 14, doc.internal.pageSize.height - 10)
+      doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 40, doc.internal.pageSize.height - 10)
     }
 
     doc.save(`expensas-${nombreConsorcio}-${periodo.mes}-${periodo.anio}.pdf`)
@@ -405,6 +440,7 @@ export default function ExpensasDetalle() {
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nombre</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Categoría</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Tipo</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Departamentos</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Proveedor</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Comprobante</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="right">Monto</TableCell>
@@ -414,37 +450,46 @@ export default function ExpensasDetalle() {
               <TableBody>
                 {gastos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={abierto ? 7 : 6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={abierto ? 8 : 7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                       No hay gastos cargados.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  gastos.map((g) => (
-                    <TableRow key={g.id}>
-                      <TableCell>{g.nombre}</TableCell>
-                      <TableCell sx={{ textTransform: 'capitalize' }}>{g.categoria}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={g.tipo}
-                          size="small"
-                          color={g.tipo === 'ordinario' ? 'success' : 'warning'}
-                        />
-                      </TableCell>
-                      <TableCell>{g.proveedor || '-'}</TableCell>
-                      <TableCell>{g.comprobante || '-'}</TableCell>
-                      <TableCell align="right">{fmt(g.monto)}</TableCell>
-                      {abierto && (
-                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          <IconButton size="small" onClick={() => openEditGasto(g)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleDeleteGasto(g.id)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                  gastos.map((g) => {
+                    const todosAsignados = !g.departamentos_ids?.length || g.departamentos_ids.length === departamentos.length
+                    return (
+                      <TableRow key={g.id}>
+                        <TableCell>{g.nombre}</TableCell>
+                        <TableCell sx={{ textTransform: 'capitalize' }}>{g.categoria}</TableCell>
+                        <TableCell>
+                          <Chip label={g.tipo} size="small" color={g.tipo === 'ordinario' ? 'success' : 'warning'} />
                         </TableCell>
-                      )}
-                    </TableRow>
-                  ))
+                        <TableCell>
+                          {todosAsignados
+                            ? <Chip label="Todos" size="small" color="primary" variant="outlined" />
+                            : <Box display="flex" gap={0.5} flexWrap="wrap">
+                                {g.departamentos_ids.map(depId => (
+                                  <Chip key={depId} label={deptoNumMap[depId] ?? depId} size="small" variant="outlined" />
+                                ))}
+                              </Box>
+                          }
+                        </TableCell>
+                        <TableCell>{g.proveedor || '-'}</TableCell>
+                        <TableCell>{g.comprobante || '-'}</TableCell>
+                        <TableCell align="right">{fmt(g.monto)}</TableCell>
+                        {abierto && (
+                          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                            <IconButton size="small" onClick={() => openEditGasto(g)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => handleDeleteGasto(g.id)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -469,22 +514,16 @@ export default function ExpensasDetalle() {
       {/* ── Tab Liquidacion ── */}
       {tab === 1 && (
         <Box>
-          {ningunCoeficiente && departamentos.length > 0 && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Ningún departamento tiene coeficiente asignado. Los gastos se distribuirán en partes iguales entre los {departamentos.length} departamentos.
-            </Alert>
-          )}
-
-          {depsSinCoeficiente.length > 0 && (
+          {depsExcluidos.length > 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Los siguientes departamentos no tienen coeficiente y no se incluiran en el calculo:{' '}
-              <strong>{depsSinCoeficiente.map(d => d.numeracion).join(', ')}</strong>
+              Los siguientes departamentos no tienen coeficiente y quedan excluidos de algunos gastos:{' '}
+              <strong>{depsExcluidos.map(d => d.numeracion).join(', ')}</strong>
             </Alert>
           )}
 
           {liquidacionGuardada && gastosCambiados && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Los gastos fueron modificados. La liquidacion guardada puede estar desactualizada — guarda nuevamente para actualizarla.
+              Los gastos fueron modificados. Guardá nuevamente la liquidación para actualizarla.
             </Alert>
           )}
 
@@ -510,15 +549,17 @@ export default function ExpensasDetalle() {
                   </TableRow>
                 ) : (
                   liquidacion.map((l) => (
-                    <TableRow key={l.departamento_id} sx={{ opacity: (l.coeficiente || l.distribucionIgual) ? 1 : 0.4 }}>
+                    <TableRow key={l.departamento_id}>
                       <TableCell>
                         <Chip label={l.numeracion} size="small" variant="outlined" />
                       </TableCell>
                       <TableCell>{l.propietario}</TableCell>
-                      <TableCell align="right">{l.distribucionIgual ? 'Igualitaria' : l.coeficiente ? `${l.coeficiente}%` : '-'}</TableCell>
-                      <TableCell align="right">{l.monto_ordinario != null ? fmt(l.monto_ordinario) : '-'}</TableCell>
-                      <TableCell align="right">{l.monto_extraordinario != null ? fmt(l.monto_extraordinario) : '-'}</TableCell>
-                      <TableCell align="right">{l.monto_total != null ? fmt(l.monto_total) : '-'}</TableCell>
+                      <TableCell align="right">
+                        {l.coeficiente ? `${l.coeficiente}%` : 'Igualitaria'}
+                      </TableCell>
+                      <TableCell align="right">{fmt(l.monto_ordinario)}</TableCell>
+                      <TableCell align="right">{fmt(l.monto_extraordinario)}</TableCell>
+                      <TableCell align="right">{fmt(l.monto_total)}</TableCell>
                       <TableCell align="center">
                         <Tooltip title={
                           abierto
@@ -555,7 +596,6 @@ export default function ExpensasDetalle() {
             <Button variant="outlined" onClick={handleExportPDF}>
               Exportar PDF
             </Button>
-
             {abierto && (
               <Button variant="outlined" color="error" onClick={() => setConfirmClose(true)}>
                 Cerrar Período
@@ -581,7 +621,6 @@ export default function ExpensasDetalle() {
             required
             autoFocus
           />
-
           <TextField
             label="Monto"
             name="monto"
@@ -591,9 +630,8 @@ export default function ExpensasDetalle() {
             value={gastoForm.monto}
             onChange={handleGastoFormChange}
             required
-            inputProps={{ min: 0, step: '0.01' }}
+            slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
           />
-
           <FormControl fullWidth margin="normal" required>
             <InputLabel>Categoría</InputLabel>
             <Select name="categoria" value={gastoForm.categoria} label="Categoría" onChange={handleGastoFormChange}>
@@ -602,12 +640,65 @@ export default function ExpensasDetalle() {
               ))}
             </Select>
           </FormControl>
-
           <FormControl fullWidth margin="normal" required>
             <InputLabel>Tipo</InputLabel>
             <Select name="tipo" value={gastoForm.tipo} label="Tipo" onChange={handleGastoFormChange}>
               {TIPOS.map((t) => (
                 <MenuItem key={t} value={t} sx={{ textTransform: 'capitalize' }}>{t}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Multi-select departamentos */}
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Departamentos asignados</InputLabel>
+            <Select
+              multiple
+              value={gastoForm.departamentos_ids}
+              onChange={(e) => {
+                const val = e.target.value
+                // "__all__" es el valor especial del item de seleccionar/deseleccionar
+                if (val.includes('__all__')) {
+                  setGastoForm(prev => ({
+                    ...prev,
+                    departamentos_ids: prev.departamentos_ids.length === departamentos.length
+                      ? []
+                      : departamentos.map(d => d.id),
+                  }))
+                } else {
+                  setGastoForm(prev => ({ ...prev, departamentos_ids: val }))
+                }
+              }}
+              input={<OutlinedInput label="Departamentos asignados" />}
+              renderValue={(selected) => {
+                if (selected.length === 0) return 'Ninguno seleccionado'
+                if (selected.length === departamentos.length) return 'Todos los departamentos'
+                return (
+                  <Box display="flex" gap={0.5} flexWrap="wrap">
+                    {selected.map(id => (
+                      <Chip key={id} label={deptoNumMap[id] ?? id} size="small" />
+                    ))}
+                  </Box>
+                )
+              }}
+            >
+              <MenuItem value="__all__">
+                <Checkbox
+                  checked={gastoForm.departamentos_ids.length === departamentos.length}
+                  indeterminate={gastoForm.departamentos_ids.length > 0 && gastoForm.departamentos_ids.length < departamentos.length}
+                />
+                <ListItemText
+                  primary={gastoForm.departamentos_ids.length === departamentos.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                />
+              </MenuItem>
+              {departamentos.map((dep) => (
+                <MenuItem key={dep.id} value={dep.id}>
+                  <Checkbox checked={gastoForm.departamentos_ids.includes(dep.id)} />
+                  <ListItemText
+                    primary={dep.numeracion}
+                    secondary={dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : 'Sin propietario'}
+                  />
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -620,7 +711,6 @@ export default function ExpensasDetalle() {
             value={gastoForm.proveedor}
             onChange={handleGastoFormChange}
           />
-
           <TextField
             label="Comprobante"
             name="comprobante"
@@ -658,7 +748,7 @@ export default function ExpensasDetalle() {
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" mb={2}>
-                Monto esperado: <strong>{pagoModal.item.monto_total != null ? fmt(pagoModal.item.monto_total) : '-'}</strong>
+                Monto esperado: <strong>{fmt(pagoModal.item.monto_total)}</strong>
               </Typography>
               {pagadoMap[pagoModal.item.departamento_id]?.pagado && (
                 <Alert severity="success" sx={{ mb: 2 }}>
@@ -671,8 +761,10 @@ export default function ExpensasDetalle() {
                 fullWidth
                 value={montoPagadoInput}
                 onChange={e => setMontoPagadoInput(e.target.value)}
-                inputProps={{ min: 0, step: '0.01' }}
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                slotProps={{
+                  htmlInput: { min: 0, step: '0.01' },
+                  input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+                }}
                 autoFocus
               />
             </Box>
