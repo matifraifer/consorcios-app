@@ -1,0 +1,99 @@
+CONSORCIO APP — DESCRIPCION DEL PROYECTO
+=========================================
+
+PROPOSITO
+---------
+Aplicacion web para administradores de consorcios. Permite gestionar edificios,
+departamentos, propietarios, expensas y reclamos desde un unico panel de control.
+
+AUTENTICACION
+-------------
+El login se realiza contra una tabla de usuarios en Airtable. El sistema compara
+usuario y contrasena en el cliente. Una vez autenticado, el usuario accede a todas
+las funcionalidades segun su rol.
+
+MODULOS Y FUNCIONALIDADES
+--------------------------
+
+1. DASHBOARD
+   - Pantalla principal tras el login.
+   - Muestra KPIs: cantidad de departamentos con expensas pendientes y monto total adeudado.
+   - Tabla de cobros pendientes: lista departamentos que no pagaron sus expensas en periodos cerrados.
+   - Filtros por periodo (mes/anio) y por consorcio.
+   - Al hacer click en una fila navega al modulo de Expensas.
+
+2. CONSORCIOS
+   - Lista todos los consorcios del administrador logueado.
+   - Permite crear un nuevo consorcio desde un drawer lateral (sin salir de la pagina).
+   - Al hacer click en "Ver Detalle" abre un drawer con la informacion del consorcio
+     y la lista de departamentos que tiene registrados.
+   - Desde el detalle se puede navegar a agregar un nuevo departamento.
+
+3. DEPARTAMENTOS
+   - Gestion de departamentos por consorcio.
+   - Cada departamento tiene: numeracion, propietario asignado, inquilino y coeficiente.
+   - El coeficiente se usa para distribuir los gastos de expensas proporcionalmente.
+   - Se pueden agregar departamentos de forma individual o de manera masiva via importacion Excel.
+
+4. PROPIETARIOS
+   - Lista de propietarios registrados con su consorcio asignado.
+   - Alta de propietario individual desde un drawer lateral (nombre, apellido, DNI, consorcio).
+   - Importacion masiva desde archivo Excel (.xlsx):
+     * Columnas requeridas: Unidad, Propietario (Apellido Nombre), DNI.
+     * Si la unidad no existe en el consorcio, se crea automaticamente.
+     * Muestra progreso y resultado de cada fila importada.
+   - Se puede descargar una plantilla Excel de ejemplo.
+
+5. EXPENSAS
+   - Gestion de periodos de expensas por consorcio (mes/anio).
+   - Cada periodo tiene estado: abierto o cerrado.
+   - Al ingresar a un periodo se accede al detalle con tres pestanas:
+
+   a) GASTOS
+      - Lista de todos los gastos del periodo (nombre, monto, categoria, tipo, proveedor, comprobante).
+      - Categorias disponibles: sueldos, limpieza, mantenimiento, seguros, servicios, administracion, otros.
+      - Tipos: ordinario o extraordinario.
+      - Cada gasto puede asignarse a todos los departamentos o a un subconjunto especifico.
+      - Se pueden crear, editar y eliminar gastos.
+
+   b) LIQUIDACION
+      - Calcula automaticamente cuanto le corresponde pagar a cada departamento.
+      - Distribucion por coeficiente normalizado al subconjunto de departamentos asignados al gasto.
+      - Si ningun departamento tiene coeficiente, la distribucion es igualitaria.
+      - Muestra monto ordinario, extraordinario y total por departamento.
+      - Boton para guardar la liquidacion en la base de datos.
+      - Permite exportar la liquidacion a PDF.
+      - Al cerrar el periodo se bloquean los cambios.
+
+   c) PAGOS
+      - Lista el estado de pago de cada departamento: pagado o pendiente.
+      - Permite registrar el pago de un departamento indicando el monto abonado.
+      - Muestra monto total, monto pagado y saldo restante.
+
+6. RECLAMOS
+   - Registro de reclamos de propietarios o inquilinos.
+   - Cada reclamo tiene: descripcion, estado (pendiente / resuelto / descartado), fecha,
+     propietario, consorcio y departamento asociados.
+   - Se puede ver el detalle de cada reclamo y actualizar su estado.
+   - Alta de nuevo reclamo desde formulario dedicado.
+
+TECNOLOGIAS UTILIZADAS
+-----------------------
+- Frontend: React + Vite
+- UI: Material UI (MUI v5)
+- Navegacion: React Router v6
+- Base de datos: Supabase (PostgreSQL) — CRUD completo
+- Autenticacion: Airtable — solo para el login
+- Exportacion PDF: jsPDF + jspdf-autotable
+- Importacion Excel: SheetJS (xlsx)
+
+ESTRUCTURA DE NAVEGACION
+-------------------------
+/                   -> Dashboard (cobros pendientes)
+/consorcios         -> Lista y gestion de consorcios
+/departamentos      -> Lista de departamentos
+/propietarios       -> Lista y alta de propietarios
+/expensas           -> Lista de periodos de expensas
+/expensas/:id       -> Detalle de un periodo (gastos, liquidacion, pagos)
+/reclamos           -> Lista de reclamos
+/reclamos/:id       -> Detalle de un reclamo

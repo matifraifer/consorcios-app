@@ -123,6 +123,7 @@ function calcLiquidacion(departamentos, gastos) {
 export default function ExpensasDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search))
 
   const [periodo, setPeriodo] = useState(null)
   const [gastos, setGastos] = useState([])
@@ -130,7 +131,8 @@ export default function ExpensasDetalle() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const [tab, setTab] = useState(0)
+  const initialTab = searchParams.get('tab') === 'liquidacion' ? 1 : 0
+  const [tab, setTab] = useState(initialTab)
 
   // Modal gasto
   const [gastoModal, setGastoModal] = useState({ open: false, gasto: null })

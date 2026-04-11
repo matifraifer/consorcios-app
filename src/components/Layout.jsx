@@ -4,9 +4,9 @@ import Sidebar from './Sidebar'
 
 export default function Layout() {
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8FAFC' }}>
       <Sidebar />
-      <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 4, minHeight: '100vh' }}>
         <Outlet />
       </Box>
     </Box>

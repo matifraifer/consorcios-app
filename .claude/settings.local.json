@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install jspdf jspdf-autotable)"
+      "Bash(npm install jspdf jspdf-autotable)",
+      "Read(//usr/local/**)",
+      "Read(//opt/homebrew/**)",
+      "Read(//Users/mfraifer/.nvm/versions/**)"
     ]
   }
 }

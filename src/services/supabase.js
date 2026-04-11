@@ -124,6 +124,16 @@ export async function getPropietariosByConsorcio(id_consorcio) {
   return data
 }
 
+export async function getPropietariosConDetalle(id_consorcio) {
+  const { data, error } = await supabase
+    .from('propietarios')
+    .select('id, nombre, apellido, dni, departamentos(numeracion)')
+    .eq('id_consorcio', id_consorcio)
+    .order('apellido', { ascending: true })
+  if (error) throw error
+  return data
+}
+
 export async function createPropietario({ dni, nombre, apellido, id_consorcio }) {
   const { data, error } = await supabase
     .from('propietarios')
@@ -341,6 +351,39 @@ export async function getDepartamentosConCoeficiente(consorcio_id) {
     .order('numeracion', { ascending: true })
   if (error) throw error
   return data
+}
+
+export async function getDashboardDeuda(usuario_id) {
+  const { data: periodos, error: perErr } = await supabase
+    .from('periodos_expensas')
+    .select('id, mes, anio, consorcio_id, consorcios(id, nombre)')
+    .eq('usuario_id', usuario_id)
+    .eq('estado', 'cerrado')
+    .order('anio', { ascending: false })
+    .order('mes', { ascending: false })
+  if (perErr) throw perErr
+  if (!periodos.length) return { items: [], periodos: [] }
+
+  const periodoIds = periodos.map(p => p.id)
+
+  const { data: expensas, error: expErr } = await supabase
+    .from('expensas_departamento')
+    .select('id, periodo_id, departamento_id, monto_total, monto_pagado, pagado, departamentos(id, numeracion, inquilino, propietarios(nombre, apellido))')
+    .in('periodo_id', periodoIds)
+    .eq('pagado', false)
+  if (expErr) throw expErr
+
+  const periodoMap = Object.fromEntries(periodos.map(p => [p.id, p]))
+
+  const items = expensas
+    .map(e => ({
+      ...e,
+      periodo: periodoMap[e.periodo_id],
+      saldo: Math.max(0, Number(e.monto_total ?? 0) - Number(e.monto_pagado ?? 0)),
+    }))
+    .filter(e => e.saldo > 0)
+
+  return { items, periodos }
 }
 
 export async function getExpensasPendientes(usuario_id) {
