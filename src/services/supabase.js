@@ -425,6 +425,161 @@ export async function registrarPago(id, { pagado, monto_pagado }) {
   return data
 }
 
+// ---- CRM PROSPECTOS ----
+
+export async function getEtapasCRM() {
+  const { data, error } = await supabase.from('etapas_crm').select('*').order('orden')
+  if (error) throw error
+  return data
+}
+
+export async function getProspectos({ tipo_operacion, includeCierreNegativo = false }) {
+  const { data, error } = await supabase
+    .from('prospectos')
+    .select('*, propiedades(id, titulo, precio_publicacion, moneda)')
+    .eq('tipo_operacion', tipo_operacion)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data.filter(p => {
+    if (!p.cerrado) return true
+    if (p.cerrado && p.cierre_exitoso === false && includeCierreNegativo) return true
+    return false
+  })
+}
+
+export async function createProspecto(data) {
+  const { data: result, error } = await supabase
+    .from('prospectos').insert([data])
+    .select('*, propiedades(id, titulo)').single()
+  if (error) throw error
+  return result
+}
+
+export async function updateProspectoEtapa(id, etapa_id) {
+  const { error } = await supabase
+    .from('prospectos')
+    .update({ etapa_id, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function cerrarProspecto(id, exitoso, propiedad_id = null) {
+  const { error } = await supabase
+    .from('prospectos')
+    .update({ cerrado: true, cierre_exitoso: exitoso, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+  if (exitoso && propiedad_id) {
+    const { error: pErr } = await supabase
+      .from('propiedades')
+      .update({ estado: 'Vendida', updated_at: new Date().toISOString() })
+      .eq('id', propiedad_id)
+    if (pErr) throw pErr
+  }
+}
+
+export async function getVisitasByProspecto(prospecto_id) {
+  const { data, error } = await supabase
+    .from('visitas')
+    .select('*, propiedades(id, titulo, direccion, localidad)')
+    .eq('prospecto_id', prospecto_id)
+    .order('fecha').order('hora')
+  if (error) throw error
+  return data
+}
+
+export async function createVisita({ prospecto_id, propiedad_id, fecha, hora }) {
+  const { data, error } = await supabase
+    .from('visitas')
+    .insert([{ prospecto_id, propiedad_id, fecha, hora }])
+    .select('*, propiedades(id, titulo, direccion, localidad)').single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteVisita(id) {
+  const { error } = await supabase.from('visitas').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getPropiedadesInteresByProspecto(prospecto_id) {
+  const { data, error } = await supabase
+    .from('propiedades_interes')
+    .select('*, propiedades(id, titulo, precio_publicacion, moneda, localidad)')
+    .eq('prospecto_id', prospecto_id)
+  if (error) throw error
+  return data
+}
+
+export async function addPropiedadInteres({ prospecto_id, propiedad_id }) {
+  const { data, error } = await supabase
+    .from('propiedades_interes')
+    .insert([{ prospecto_id, propiedad_id }])
+    .select('*, propiedades(id, titulo, precio_publicacion, moneda, localidad)').single()
+  if (error) throw error
+  return data
+}
+
+export async function updatePropiedadInteres(id, { monto_propuesto, forma_pago }) {
+  const { data, error } = await supabase
+    .from('propiedades_interes')
+    .update({ monto_propuesto: monto_propuesto || null, forma_pago: forma_pago || null })
+    .eq('id', id)
+    .select('*, propiedades(id, titulo, precio_publicacion, moneda, localidad)').single()
+  if (error) throw error
+  return data
+}
+
+export async function deletePropiedadInteres(id) {
+  const { error } = await supabase.from('propiedades_interes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---- PROPIEDADES ----
+
+export async function getPropiedades({ includeBaja = false } = {}) {
+  let query = supabase
+    .from('propiedades')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (!includeBaja) query = query.neq('estado', 'Baja')
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function createPropiedad(data) {
+  const { data: result, error } = await supabase
+    .from('propiedades')
+    .insert([data])
+    .select()
+    .single()
+  if (error) throw error
+  return result
+}
+
+export async function updatePropiedad(id, data) {
+  const { data: result, error } = await supabase
+    .from('propiedades')
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return result
+}
+
+export async function darDeBajaPropiedad(id) {
+  const { data, error } = await supabase
+    .from('propiedades')
+    .update({ estado: 'Baja', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function saveExpensasDepartamento(periodo_id, items) {
   const { error: deleteError } = await supabase
     .from('expensas_departamento')

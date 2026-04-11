@@ -2,6 +2,8 @@ import { Box, Tooltip, Typography } from '@mui/material'
 import HomeIcon from '@mui/icons-material/Home'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import HomeWorkIcon from '@mui/icons-material/HomeWork'
+import OtherHousesIcon from '@mui/icons-material/OtherHouses'
+import GroupIcon from '@mui/icons-material/Group'
 import ReportProblemIcon from '@mui/icons-material/ReportProblem'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import LogoutIcon from '@mui/icons-material/Logout'
@@ -24,6 +26,8 @@ const navItems = [
   { label: 'Inicio',        path: '/dashboard',      icon: <HomeIcon sx={{ fontSize: 19 }} /> },
   { label: 'Consorcios',    path: '/consorcios',     icon: <ApartmentIcon sx={{ fontSize: 19 }} /> },
   { label: 'Departamentos', path: '/departamentos',  icon: <HomeWorkIcon sx={{ fontSize: 19 }} /> },
+  { label: 'Propiedades',   path: '/propiedades',    icon: <OtherHousesIcon sx={{ fontSize: 19 }} /> },
+  { label: 'Prospectos',    path: '/prospectos',     icon: <GroupIcon sx={{ fontSize: 19 }} /> },
   { label: 'Expensas',      path: '/expensas',       icon: <ReceiptLongIcon sx={{ fontSize: 19 }} /> },
   { label: 'Reclamos',      path: '/reclamos',       icon: <ReportProblemIcon sx={{ fontSize: 19 }} /> },
 ]
@@ -209,7 +213,6 @@ export default function Sidebar() {
               mb: 1,
             }}
           >
-            Menu
           </Typography>
         )}
         {navItems.map(item => (
