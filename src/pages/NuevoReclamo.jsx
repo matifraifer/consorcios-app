@@ -30,7 +30,7 @@ function todayDate() {
 
 export default function NuevoReclamo() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [propietarios, setPropietarios] = useState([])
@@ -51,11 +51,11 @@ export default function NuevoReclamo() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch((err) => setError(err.message))
       .finally(() => setLoadingConsorcios(false))
-  }, [user.id])
+  }, [clienteId])
 
   async function handleChange(e) {
     const { name, value } = e.target
@@ -91,7 +91,7 @@ export default function NuevoReclamo() {
     setLoading(true)
     setError(null)
     try {
-      await createReclamo({ ...form, usuario_id: user.id })
+      await createReclamo({ ...form, cliente_id: clienteId })
       setSuccess(true)
       setTimeout(() => navigate('/reclamos'), 1500)
     } catch (err) {

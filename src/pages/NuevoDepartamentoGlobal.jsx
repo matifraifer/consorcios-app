@@ -20,7 +20,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function NuevoDepartamentoGlobal() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [propietarios, setPropietarios] = useState([])
@@ -32,11 +32,11 @@ export default function NuevoDepartamentoGlobal() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch((err) => setError(err.message))
       .finally(() => setLoadingConsorcios(false))
-  }, [user.id])
+  }, [clienteId])
 
   // Cuando cambia el consorcio, recarga los propietarios
   useEffect(() => {

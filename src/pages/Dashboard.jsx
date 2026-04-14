@@ -1,30 +1,38 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Alert, Box, CircularProgress, Typography } from '@mui/material'
+import { Alert, Box, CircularProgress, Divider, Typography } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
-import { getDashboardDeuda } from '../services/supabase'
+import { getDashboardDeuda, getCRMDashboardData } from '../services/supabase'
 import DashboardFiltros from '../components/dashboard/DashboardFiltros'
 import DashboardKPIs from '../components/dashboard/DashboardKPIs'
 import DeudaPorConsorcioTable from '../components/dashboard/DeudaPorConsorcioTable'
+import CRMSection from '../components/dashboard/CRMSection'
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [allItems, setAllItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const [crmData, setCrmData] = useState({ prospectos: [], etapas: [], visitas: [] })
 
   // Filtros
   const [filtroConsorcio, setFiltroConsorcio] = useState('')
   const [filtroPeriodo, setFiltroPeriodo] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
 
-
   useEffect(() => {
-    getDashboardDeuda(user.id)
-      .then(({ items }) => setAllItems(items))
+    Promise.all([
+      getDashboardDeuda(clienteId),
+      getCRMDashboardData(clienteId),
+    ])
+      .then(([{ items }, crm]) => {
+        setAllItems(items)
+        setCrmData(crm)
+      })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   // Opciones únicas de consorcio
   const consorcioOptions = useMemo(() => {
@@ -167,6 +175,14 @@ export default function Dashboard() {
       <DashboardKPIs kpis={kpis} />
 
       <DeudaPorConsorcioTable rows={deudaPorConsorcio} />
+
+      <Divider sx={{ my: 6, borderColor: '#F3F4F6' }} />
+
+      <CRMSection
+        prospectos={crmData.prospectos}
+        etapas={crmData.etapas}
+        visitas={crmData.visitas}
+      />
     </Box>
   )
 }

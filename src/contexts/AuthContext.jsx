@@ -44,8 +44,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY)
   }
 
+  const clienteId = user?.cliente_id ?? null
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, error }}>
+    <AuthContext.Provider value={{ user, clienteId, login, logout, loading, error }}>
       {children}
     </AuthContext.Provider>
   )

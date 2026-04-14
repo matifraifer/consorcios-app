@@ -42,7 +42,7 @@ function Label({ children }) {
   return <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>{children}</Typography>
 }
 
-export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, propiedades = [], onSaved }) {
+export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, propiedades = [], onSaved, asignadoNombre, clienteId }) {
   const [tipoOp, setTipoOp] = useState('venta')
   const [form, setForm] = useState(FORM_VENTA)
   const [saving, setSaving] = useState(false)
@@ -86,6 +86,8 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
         email: form.email.trim() || null,
         tipo_operacion: tipoOp,
         etapa_id: defaultEtapaId,
+        asignado_nombre: asignadoNombre || null,
+        cliente_id: clienteId,
         ...(tipoOp === 'venta' && {
           presupuesto: form.presupuesto ? Number(form.presupuesto) : null,
           zona: form.zona || null,

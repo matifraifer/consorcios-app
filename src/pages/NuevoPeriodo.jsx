@@ -33,7 +33,7 @@ const MESES = [
 
 export default function NuevoPeriodo() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [loadingConsorcios, setLoadingConsorcios] = useState(true)
@@ -46,11 +46,11 @@ export default function NuevoPeriodo() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch((err) => setError(err.message))
       .finally(() => setLoadingConsorcios(false))
-  }, [user.id])
+  }, [clienteId])
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -63,7 +63,7 @@ export default function NuevoPeriodo() {
     setLoading(true)
     setError(null)
     try {
-      const periodo = await createPeriodo({ ...form, usuario_id: user.id })
+      const periodo = await createPeriodo({ ...form, cliente_id: clienteId })
       navigate(`/expensas/${periodo.id}`)
     } catch (err) {
       if (err.message?.includes('duplicate') || err.message?.includes('unique') || err.code === '23505') {

@@ -92,7 +92,7 @@ const selectSx = {
 }
 
 export default function Propiedades() {
-  const { user } = useAuth()
+  const { user, clienteId } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
 
   const [propiedades, setPropiedades] = useState([])
@@ -131,7 +131,7 @@ export default function Propiedades() {
   async function load() {
     setLoading(true)
     try {
-      const data = await getPropiedades({ includeBaja })
+      const data = await getPropiedades({ includeBaja, cliente_id: clienteId })
       setPropiedades(data)
     } catch (err) {
       setError(err.message)
@@ -456,7 +456,7 @@ export default function Propiedades() {
 
                       {/* Acciones */}
                       <TableCell align="right" sx={{ py: 1.5, pr: 2 }}>
-                        <Box className="row-actions" sx={{ opacity: 0, transition: 'opacity 0.15s', display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <Box className="row-actions" sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
                           <Tooltip title="Ver detalle">
                             <IconButton size="small" onClick={e => { e.stopPropagation(); openDetalle(p) }}
                               sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
@@ -513,6 +513,7 @@ export default function Propiedades() {
         mode={formMode}
         propiedad={editTarget}
         onSaved={handleSaved}
+        clienteId={clienteId}
       />
 
       <PropiedadDetalleDrawer

@@ -36,7 +36,7 @@ const estadoColor = {
 export default function ReclamoDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [propietarios, setPropietarios] = useState([])
@@ -49,7 +49,7 @@ export default function ReclamoDetalle() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    Promise.all([getReclamoById(id), getConsorcios(user.id)])
+    Promise.all([getReclamoById(id), getConsorcios(clienteId)])
       .then(([reclamo, cons]) =>
         Promise.all([
           getPropietariosByConsorcio(reclamo.consorcio_id),

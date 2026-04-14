@@ -1,4 +1,4 @@
-import { Box, Tooltip, Typography } from '@mui/material'
+import { Box, Collapse, Tooltip, Typography } from '@mui/material'
 import HomeIcon from '@mui/icons-material/Home'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import HomeWorkIcon from '@mui/icons-material/HomeWork'
@@ -9,30 +9,40 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState } from 'react'
 
-const DRAWER_WIDTH = 232
+const DRAWER_WIDTH    = 240
 const DRAWER_COLLAPSED = 64
 
-const ACTIVE_COLOR = '#065F46'
-const ACTIVE_BG = '#ECFDF5'
-const TEXT_DEFAULT = '#6B7280'
-const TEXT_HOVER = '#111827'
-const BORDER_COLOR = '#E5E7EB'
+const BG          = '#ffffff'
+const BG_HOVER    = '#142B21'
+const BG_ACTIVE   = '#1A3D2C'
+const TEXT_MUTED  = '#142B21'
+const TEXT_DEFAULT = '#1A3D2C'
+const TEXT_ACTIVE  = '#E2F0E8'
+const ACCENT       = '#10B981'
+const BORDER       = 'rgba(16,185,129,0.12)'
 
-const navItems = [
-  { label: 'Inicio',        path: '/dashboard',      icon: <HomeIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Consorcios',    path: '/consorcios',     icon: <ApartmentIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Departamentos', path: '/departamentos',  icon: <HomeWorkIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Propiedades',   path: '/propiedades',    icon: <OtherHousesIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Prospectos',    path: '/prospectos',     icon: <GroupIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Expensas',      path: '/expensas',       icon: <ReceiptLongIcon sx={{ fontSize: 19 }} /> },
-  { label: 'Reclamos',      path: '/reclamos',       icon: <ReportProblemIcon sx={{ fontSize: 19 }} /> },
+const adminItems = [
+  { label: 'Listado de consorcios', path: '/consorcios', icon: <ApartmentIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Departamentos', path: '/departamentos', icon: <HomeWorkIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Expensas',      path: '/expensas',      icon: <ReceiptLongIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Reclamos',      path: '/reclamos',      icon: <ReportProblemIcon sx={{ fontSize: 18 }} /> },
 ]
 
-function NavItem({ item, active, collapsed, onClick }) {
+const topItems = [
+  { label: 'Inicio', path: '/dashboard', icon: <HomeIcon sx={{ fontSize: 18 }} /> },
+]
+
+const bottomItems = [
+  { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Prospectos',           path: '/prospectos',  icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+]
+
+function NavItem({ item, active, collapsed, onClick, indented = false }) {
   const button = (
     <Box
       onClick={onClick}
@@ -40,44 +50,46 @@ function NavItem({ item, active, collapsed, onClick }) {
         display: 'flex',
         alignItems: 'center',
         gap: 1.5,
-        px: collapsed ? 0 : 1.5,
-        py: 1,
+        px: collapsed ? 0 : indented ? 2 : 1.5,
+        py: 0.875,
         mx: collapsed ? 'auto' : 1,
         mb: 0.25,
         width: collapsed ? 40 : 'auto',
-        height: 40,
+        height: 38,
         justifyContent: collapsed ? 'center' : 'flex-start',
         borderRadius: '8px',
         cursor: 'pointer',
         position: 'relative',
-        color: active ? ACTIVE_COLOR : TEXT_DEFAULT,
-        bgcolor: active ? ACTIVE_BG : 'transparent',
-        fontWeight: active ? 600 : 400,
+        color: active ? TEXT_ACTIVE : TEXT_DEFAULT,
+        bgcolor: active ? BG_ACTIVE : 'transparent',
         transition: 'all 0.15s ease',
         '&:hover': {
-          bgcolor: active ? ACTIVE_BG : '#F9FAFB',
-          color: active ? ACTIVE_COLOR : TEXT_HOVER,
+          bgcolor: active ? BG_ACTIVE : BG_HOVER,
+          color: active ? TEXT_ACTIVE : '#BDD9C8',
         },
         ...(active && !collapsed && {
           '&::before': {
             content: '""',
             position: 'absolute',
-            left: -8,
+            left: 0,
             top: '50%',
             transform: 'translateY(-50%)',
             width: 3,
-            height: 20,
+            height: 18,
             borderRadius: '0 3px 3px 0',
-            bgcolor: ACTIVE_COLOR,
+            bgcolor: ACCENT,
+            boxShadow: `0 0 10px ${ACCENT}70`,
           },
         }),
       }}
     >
-      <Box sx={{ display: 'flex', flexShrink: 0 }}>{item.icon}</Box>
+      <Box sx={{ display: 'flex', flexShrink: 0, color: active ? ACCENT : 'inherit' }}>
+        {item.icon}
+      </Box>
       {!collapsed && (
         <Typography
           sx={{
-            fontSize: '0.82rem',
+            fontSize: '0.8rem',
             fontWeight: active ? 600 : 400,
             color: 'inherit',
             letterSpacing: '0.01em',
@@ -92,17 +104,22 @@ function NavItem({ item, active, collapsed, onClick }) {
   )
 
   return collapsed ? (
-    <Tooltip title={item.label} placement="right">
+    <Tooltip title={item.label} placement="right" arrow
+      slotProps={{ tooltip: { sx: { bgcolor: BG_ACTIVE, color: TEXT_ACTIVE, fontSize: '0.75rem', border: `1px solid ${BORDER}` } }, arrow: { sx: { color: BG_ACTIVE } } }}>
       {button}
     </Tooltip>
   ) : button
 }
 
 export default function Sidebar() {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
+
+  const [adminOpen, setAdminOpen] = useState(true)
+
+  const [comercialOpen, setComercialOpen] = useState(true)
 
   function handleLogout() {
     logout()
@@ -123,14 +140,15 @@ export default function Sidebar() {
         width,
         flexShrink: 0,
         height: '100vh',
-        bgcolor: 'white',
+        bgcolor: BG,
         display: 'flex',
         flexDirection: 'column',
         position: 'sticky',
         top: 0,
-        borderRight: `1px solid ${BORDER_COLOR}`,
+        borderRight: `1px solid ${BORDER}`,
         transition: 'width 0.2s ease',
         overflow: 'hidden',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.25)',
       }}
     >
       {/* Header */}
@@ -141,7 +159,7 @@ export default function Sidebar() {
           justifyContent: collapsed ? 'center' : 'space-between',
           px: collapsed ? 0 : 2,
           height: 60,
-          borderBottom: `1px solid ${BORDER_COLOR}`,
+          borderBottom: `1px solid ${BORDER}`,
           flexShrink: 0,
         }}
       >
@@ -149,23 +167,24 @@ export default function Sidebar() {
           <Box display="flex" alignItems="center" gap={1}>
             <Box
               sx={{
-                width: 26,
-                height: 26,
-                borderRadius: '6px',
-                bgcolor: ACTIVE_COLOR,
+                width: 28,
+                height: 28,
+                borderRadius: '7px',
+                bgcolor: ACCENT,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                boxShadow: `0 0 14px ${ACCENT}50`,
               }}
             >
-              <ApartmentIcon sx={{ fontSize: 15, color: 'white' }} />
+              <ApartmentIcon sx={{ fontSize: 15, color: '#fff' }} />
             </Box>
             <Typography
               sx={{
                 fontSize: '0.9rem',
                 fontWeight: 700,
-                color: '#111827',
+                color: TEXT_ACTIVE,
                 letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap',
               }}
@@ -185,37 +204,34 @@ export default function Sidebar() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#9CA3AF',
+              color: TEXT_MUTED,
               cursor: 'pointer',
               transition: 'all 0.15s',
-              '&:hover': { bgcolor: '#F3F4F6', color: '#374151' },
+              '&:hover': { bgcolor: BG_HOVER, color: TEXT_DEFAULT },
             }}
           >
             {collapsed
-              ? <ChevronRightIcon sx={{ fontSize: 18 }} />
-              : <ChevronLeftIcon sx={{ fontSize: 18 }} />
+              ? <ChevronRightIcon sx={{ fontSize: 17 }} />
+              : <ChevronLeftIcon sx={{ fontSize: 17 }} />
             }
           </Box>
         </Tooltip>
       </Box>
 
       {/* Nav */}
-      <Box sx={{ flex: 1, pt: 1.5, overflowY: 'auto', overflowX: 'hidden' }}>
-        {!collapsed && (
-          <Typography
-            sx={{
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: '#D1D5DB',
-              px: 2.5,
-              mb: 1,
-            }}
-          >
-          </Typography>
-        )}
-        {navItems.map(item => (
+      <Box
+        sx={{
+          flex: 1,
+          pt: 1.5,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          '&::-webkit-scrollbar': { width: 3 },
+          '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+          '&::-webkit-scrollbar-thumb': { bgcolor: BORDER, borderRadius: 4 },
+        }}
+      >
+        {/* Inicio */}
+        {topItems.map(item => (
           <NavItem
             key={item.path}
             item={item}
@@ -224,44 +240,234 @@ export default function Sidebar() {
             onClick={() => navigate(item.path)}
           />
         ))}
+
+        {/* Grupo: Consorcios */}
+        {collapsed ? (
+          adminItems.map(item => (
+            <NavItem
+              key={item.path}
+              item={item}
+              active={location.pathname === item.path}
+              collapsed={true}
+              onClick={() => navigate(item.path)}
+            />
+          ))
+        ) : (
+          <>
+            <Box
+              onClick={() => setAdminOpen(prev => !prev)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                px: 2,
+                pt: 1.75,
+                pb: 0.75,
+                cursor: 'pointer',
+                userSelect: 'none',
+                '&:hover .g-label': { color: TEXT_DEFAULT },
+                '&:hover .g-icon': { color: TEXT_DEFAULT },
+              }}
+            >
+              <Typography
+                className="g-label"
+                sx={{
+                  fontSize: '0.58rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: TEXT_MUTED,
+                  transition: 'color 0.15s',
+                }}
+              >
+                Consorcios
+              </Typography>
+              <ExpandMoreIcon
+                className="g-icon"
+                sx={{
+                  fontSize: 14,
+                  color: TEXT_MUTED,
+                  transition: 'transform 0.2s ease, color 0.15s',
+                  transform: adminOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
+            </Box>
+
+            <Collapse in={adminOpen}>
+              {adminItems.map(item => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  active={location.pathname === item.path}
+                  collapsed={false}
+                  indented
+                  onClick={() => navigate(item.path)}
+                />
+              ))}
+            </Collapse>
+          </>
+        )}
+
+        {/* Divisor */}
+        <Box
+          sx={{
+            mx: collapsed ? 1.25 : 2,
+            my: 1.5,
+            height: '1px',
+            bgcolor: BORDER,
+          }}
+        />
+
+        {/* Grupo: Gestión comercial */}
+        {collapsed ? (
+          bottomItems.map(item => (
+            <NavItem
+              key={item.path}
+              item={item}
+              active={location.pathname === item.path}
+              collapsed={true}
+              onClick={() => navigate(item.path)}
+            />
+          ))
+        ) : (
+          <>
+            <Box
+              onClick={() => setComercialOpen(prev => !prev)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                px: 2,
+                pt: 1.75,
+                pb: 0.75,
+                cursor: 'pointer',
+                userSelect: 'none',
+                '&:hover .gc-label': { color: TEXT_DEFAULT },
+                '&:hover .gc-icon': { color: TEXT_DEFAULT },
+              }}
+            >
+              <Typography
+                className="gc-label"
+                sx={{
+                  fontSize: '0.58rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: TEXT_MUTED,
+                  transition: 'color 0.15s',
+                }}
+              >
+                Gestión comercial
+              </Typography>
+              <ExpandMoreIcon
+                className="gc-icon"
+                sx={{
+                  fontSize: 14,
+                  color: TEXT_MUTED,
+                  transition: 'transform 0.2s ease, color 0.15s',
+                  transform: comercialOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
+            </Box>
+
+            <Collapse in={comercialOpen}>
+              {bottomItems.map(item => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  active={location.pathname === item.path}
+                  collapsed={false}
+                  indented
+                  onClick={() => navigate(item.path)}
+                />
+              ))}
+            </Collapse>
+          </>
+        )}
       </Box>
 
       {/* Footer */}
       <Box
         sx={{
-          borderTop: `1px solid ${BORDER_COLOR}`,
+          borderTop: `1px solid ${BORDER}`,
           p: collapsed ? 1 : 1.5,
           flexShrink: 0,
         }}
       >
         {!collapsed && (
-          <Box display="flex" alignItems="center" gap={1.25} mb={1.5}>
+          <>
+            {user?.cliente_nombre && (
+              <Box
+                sx={{
+                  bgcolor: 'rgba(16,185,129,0.07)',
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: '8px',
+                  px: 1.5,
+                  py: 1,
+                  mb: 1.5,
+                }}
+              >
+                <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEXT_MUTED, mb: 0.25 }}>
+                  Cliente
+                </Typography>
+                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_ACTIVE }}>
+                  {user.cliente_nombre}
+                </Typography>
+              </Box>
+            )}
+
+            <Box display="flex" alignItems="center" gap={1.25} mb={1.5}>
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  bgcolor: BG_ACTIVE,
+                  border: `1px solid ${BORDER}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
+                  {initials}
+                </Typography>
+              </Box>
+              <Box overflow="hidden">
+                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_ACTIVE, lineHeight: 1.2 }}>
+                  {user?.nombre_usuario}
+                </Typography>
+                <Typography noWrap sx={{ fontSize: '0.65rem', color: TEXT_MUTED, textTransform: 'capitalize' }}>
+                  {user?.rol}
+                </Typography>
+              </Box>
+            </Box>
+          </>
+        )}
+
+        {collapsed && user && (
+          <Tooltip title={user.nombre_usuario ?? ''} placement="right">
             <Box
               sx={{
                 width: 32,
                 height: 32,
                 borderRadius: '8px',
-                bgcolor: ACTIVE_BG,
-                border: `1px solid #A7F3D0`,
+                bgcolor: BG_ACTIVE,
+                border: `1px solid ${BORDER}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flexShrink: 0,
+                mx: 'auto',
+                mb: 1,
+                cursor: 'default',
               }}
             >
-              <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACTIVE_COLOR }}>
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
                 {initials}
               </Typography>
             </Box>
-            <Box overflow="hidden">
-              <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: '#111827', lineHeight: 1.2 }}>
-                {user?.nombre_usuario}
-              </Typography>
-              <Typography noWrap sx={{ fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'capitalize' }}>
-                {user?.rol}
-              </Typography>
-            </Box>
-          </Box>
+          </Tooltip>
         )}
 
         <Tooltip title={collapsed ? 'Cerrar sesion' : ''} placement="right">
@@ -276,9 +482,9 @@ export default function Sidebar() {
               borderRadius: '8px',
               cursor: 'pointer',
               justifyContent: collapsed ? 'center' : 'flex-start',
-              color: '#F87171',
+              color: '#6B7C74',
               transition: 'all 0.15s',
-              '&:hover': { bgcolor: '#FEF2F2', color: '#EF4444' },
+              '&:hover': { bgcolor: 'rgba(239,68,68,0.08)', color: '#F87171' },
             }}
           >
             <LogoutIcon sx={{ fontSize: 17 }} />

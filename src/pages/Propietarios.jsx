@@ -39,7 +39,7 @@ const IMPORT_DRAWER_WIDTH = 620
 const FORM_INICIAL = { dni: '', nombre: '', apellido: '', id_consorcio: '' }
 
 export default function Propietarios() {
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const fileInputRef = useRef(null)
 
   const [propietarios, setPropietarios] = useState([])
@@ -66,11 +66,11 @@ export default function Propietarios() {
   const [importError, setImportError] = useState(null)
 
   useEffect(() => {
-    getPropietarios(user.id)
+    getPropietarios(clienteId)
       .then(setPropietarios)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   // ── Drawer nuevo propietario ──────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ export default function Propietarios() {
     setFormError(null)
     setDrawerOpen(true)
     setLoadingConsorcios(true)
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch((err) => setFormError(err.message))
       .finally(() => setLoadingConsorcios(false))
@@ -99,7 +99,7 @@ export default function Propietarios() {
       setSuccess(true)
       setDrawerOpen(false)
       setLoading(true)
-      const data = await getPropietarios(user.id)
+      const data = await getPropietarios(clienteId)
       setPropietarios(data)
     } catch (err) {
       setFormError(err.message)
@@ -118,7 +118,7 @@ export default function Propietarios() {
     setImportError(null)
     setImportOpen(true)
     setLoadingImportConsorcios(true)
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setImportConsorcios)
       .catch((err) => setImportError(err.message))
       .finally(() => setLoadingImportConsorcios(false))

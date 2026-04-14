@@ -34,15 +34,15 @@ export default function Reclamos() {
   const [reclamos, setReclamos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    getReclamos(user.id)
+    getReclamos(clienteId)
       .then(setReclamos)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   if (loading) return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
   if (error) return <Alert severity="error">{error}</Alert>

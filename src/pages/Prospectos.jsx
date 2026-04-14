@@ -13,7 +13,8 @@ import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   useDraggable, useDroppable,
 } from '@dnd-kit/core'
-import { getEtapasCRM, getProspectos, updateProspectoEtapa, getPropiedades } from '../services/supabase'
+import { getEtapasCRM, getProspectos, updateProspectoEtapa, getPropiedades, getUsuarios, addHistorialProspecto } from '../services/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import ProspectoFormDrawer from '../components/prospectos/ProspectoFormDrawer'
 import ContactoDrawer from '../components/prospectos/ContactoDrawer'
 import VisitaDrawer from '../components/prospectos/VisitaDrawer'
@@ -34,7 +35,7 @@ function getEtapaConfig(orden) {
 }
 
 // ── Kanban card (draggable) ───────────────────────────────────────────────────
-function ProspectoCard({ prospecto, etapaOrden, onAction, isOverlay = false }) {
+function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = false }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: prospecto.id,
     disabled: prospecto.cerrado || isOverlay,
@@ -47,12 +48,15 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, isOverlay = false }) {
   const isNegativo = prospecto.cerrado && prospecto.cierre_exitoso === false
 
   const actionIcon = useMemo(() => {
-    if (etapaOrden === 1) return <InfoOutlinedIcon sx={{ fontSize: 14, color: '#0369A1' }} />
     if (etapaOrden === 2) return <CalendarMonthIcon sx={{ fontSize: 14, color: '#D97706' }} />
     if (etapaOrden === 3) return <MonetizationOnIcon sx={{ fontSize: 14, color: '#7C3AED' }} />
     if (etapaOrden === 4 && !prospecto.cerrado) return <CheckCircleOutlineIcon sx={{ fontSize: 14, color: ACCENT }} />
     return null
   }, [etapaOrden, prospecto.cerrado])
+
+  const initials = prospecto.asignado_nombre
+    ? prospecto.asignado_nombre.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : null
 
   return (
     <Box
@@ -91,26 +95,44 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, isOverlay = false }) {
 
         <Box display="flex" alignItems="center" gap={0.5} flexShrink={0} ml={1}>
           {isNegativo && <CancelIcon sx={{ fontSize: 14, color: '#EF4444' }} />}
-          {actionIcon && !prospecto.cerrado && (
+          {/* Info icon — siempre visible */}
+          {!isOverlay && (
+            <Box
+              onClick={e => { e.stopPropagation(); onInfo(prospecto) }}
+              sx={{ width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', bgcolor: '#F0F9FF', border: '1px solid #BAE6FD', '&:hover': { bgcolor: '#E0F2FE' } }}
+            >
+              <InfoOutlinedIcon sx={{ fontSize: 13, color: '#0369A1' }} />
+            </Box>
+          )}
+          {/* Acción de etapa */}
+          {actionIcon && !prospecto.cerrado && !isOverlay && (
             <Box
               onClick={e => { e.stopPropagation(); onAction(prospecto) }}
-              sx={{
-                width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', bgcolor: '#F9FAFB', border: '1px solid #E5E7EB',
-                '&:hover': { bgcolor: '#F3F4F6' },
-              }}
+              sx={{ width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', '&:hover': { bgcolor: '#F3F4F6' } }}
             >
               {actionIcon}
             </Box>
           )}
         </Box>
       </Box>
+
+      {/* Asignado */}
+      {initials && (
+        <Box display="flex" alignItems="center" gap={0.75} mt={1.25}>
+          <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569' }}>{initials}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {prospecto.asignado_nombre}
+          </Typography>
+        </Box>
+      )}
     </Box>
   )
 }
 
 // ── Kanban column (droppable) ─────────────────────────────────────────────────
-function KanbanColumn({ etapa, prospectos, onAction }) {
+function KanbanColumn({ etapa, prospectos, onAction, onInfo }) {
   const config = getEtapaConfig(etapa.orden)
   const { setNodeRef, isOver } = useDroppable({ id: String(etapa.id) })
 
@@ -163,6 +185,7 @@ function KanbanColumn({ etapa, prospectos, onAction }) {
             prospecto={p}
             etapaOrden={etapa.orden}
             onAction={onAction}
+            onInfo={onInfo}
           />
         ))}
       </Box>
@@ -172,9 +195,11 @@ function KanbanColumn({ etapa, prospectos, onAction }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Prospectos() {
+  const { user, clienteId } = useAuth()
   const [etapas, setEtapas] = useState([])
   const [prospectos, setProspectos] = useState([])
   const [propiedades, setPropiedades] = useState([])
+  const [usuarios, setUsuarios] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [snackMsg, setSnackMsg] = useState('')
@@ -200,18 +225,23 @@ export default function Prospectos() {
   }
 
   async function loadProspectos() {
-    const data = await getProspectos({ tipo_operacion: tipoFiltro, includeCierreNegativo: showNegativo })
+    const data = await getProspectos({ tipo_operacion: tipoFiltro, includeCierreNegativo: showNegativo, cliente_id: clienteId })
     setProspectos(data)
   }
 
   async function loadPropiedades() {
-    const data = await getPropiedades({ includeBaja: false })
+    const data = await getPropiedades({ includeBaja: false, cliente_id: clienteId })
     setPropiedades(data)
+  }
+
+  async function loadUsuarios() {
+    const data = await getUsuarios(clienteId)
+    setUsuarios(data)
   }
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([loadEtapas(), loadPropiedades()])
+    Promise.all([loadEtapas(), loadPropiedades(), loadUsuarios()])
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
@@ -247,6 +277,7 @@ export default function Prospectos() {
     setProspectos(prev => prev.map(p => p.id === prospecto.id ? { ...p, etapa_id: targetEtapa.id } : p))
     try {
       await updateProspectoEtapa(prospecto.id, targetEtapa.id)
+      addHistorialProspecto(prospecto.id, user?.nombre_usuario ?? 'Sistema', `Pasó a "${targetEtapa.nombre}"`).catch(() => {})
     } catch {
       setProspectos(prev => prev.map(p => p.id === prospecto.id ? { ...p, etapa_id: prospecto.etapa_id } : p))
       setSnackMsg('Error al mover el prospecto.')
@@ -272,6 +303,7 @@ export default function Prospectos() {
     setProspectos(prev => prev.map(p => p.id === prospectoId ? { ...p, etapa_id: newEtapaId } : p))
     try {
       await updateProspectoEtapa(prospectoId, newEtapaId)
+      addHistorialProspecto(prospectoId, user?.nombre_usuario ?? 'Sistema', `Pasó a "${toEtapa?.nombre}"`).catch(() => {})
     } catch {
       setProspectos(prev => prev.map(p => p.id === prospectoId ? { ...p, etapa_id: current.etapa_id } : p))
       setSnackMsg('Error al mover el prospecto.')
@@ -287,8 +319,7 @@ export default function Prospectos() {
   function handleAction(prospecto) {
     const etapa = etapas.find(e => e.id === prospecto.etapa_id)
     if (!etapa) return
-    if (etapa.orden === 1) setContactoTarget(prospecto)
-    else if (etapa.orden === 2) setVisitaTarget(prospecto)
+    if (etapa.orden === 2) setVisitaTarget(prospecto)
     else if (etapa.orden === 3) setNegociacionTarget(prospecto)
     else if (etapa.orden === 4) setCierreTarget(prospecto)
   }
@@ -296,6 +327,11 @@ export default function Prospectos() {
   function handleProspectoSaved(p) {
     setProspectos(prev => [p, ...prev])
     setSnackMsg(`Prospecto "${p.nombre} ${p.apellido}" creado.`)
+    addHistorialProspecto(p.id, user?.nombre_usuario ?? 'Sistema', 'Creó el prospecto').catch(() => {})
+  }
+
+  function handleAsignadoChange(prospectoId, newNombre) {
+    setProspectos(prev => prev.map(p => p.id === prospectoId ? { ...p, asignado_nombre: newNombre } : p))
   }
 
   function handleClosed(id, exitoso) {
@@ -382,6 +418,7 @@ export default function Prospectos() {
                 etapa={etapa}
                 prospectos={grouped[etapa.id] ?? []}
                 onAction={handleAction}
+                onInfo={p => setContactoTarget(p)}
               />
             ))}
           </Box>
@@ -406,12 +443,17 @@ export default function Prospectos() {
         defaultEtapaId={defaultEtapaId}
         propiedades={propiedades}
         onSaved={handleProspectoSaved}
+        asignadoNombre={user?.nombre_usuario}
+        clienteId={clienteId}
       />
 
       <ContactoDrawer
         open={!!contactoTarget}
         onClose={() => setContactoTarget(null)}
         prospecto={contactoTarget}
+        usuarios={usuarios}
+        currentUser={user}
+        onAsignadoChange={handleAsignadoChange}
         onPassToNextEtapa={() => {
           if (contactoTarget) handlePassToEtapa(contactoTarget, 2)
           setContactoTarget(null)

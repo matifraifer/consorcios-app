@@ -22,7 +22,7 @@ export default function NuevoPropietario() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const consorcioParam = searchParams.get('consorcio') || ''
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [form, setForm] = useState({
@@ -37,11 +37,11 @@ export default function NuevoPropietario() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch((err) => setError(err.message))
       .finally(() => setLoadingConsorcios(false))
-  }, [user.id])
+  }, [clienteId])
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))

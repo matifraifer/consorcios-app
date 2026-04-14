@@ -66,7 +66,7 @@ function ConsorcioAvatar({ nombre }) {
 }
 
 export default function Consorcios() {
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const navigate = useNavigate()
 
   const [consorcios, setConsorcios] = useState([])
@@ -82,11 +82,11 @@ export default function Consorcios() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    getConsorcios(user.id)
+    getConsorcios(clienteId)
       .then(setConsorcios)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   function openNuevo() {
     setNombre('')
@@ -100,11 +100,11 @@ export default function Consorcios() {
     setSaving(true)
     setFormError(null)
     try {
-      await createConsorcio({ nombre: nombre.trim(), id_administrador: user.id })
+      await createConsorcio({ nombre: nombre.trim(), cliente_id: clienteId })
       setSuccess(true)
       setNuevoOpen(false)
       setLoading(true)
-      const data = await getConsorcios(user.id)
+      const data = await getConsorcios(clienteId)
       setConsorcios(data)
     } catch (err) {
       setFormError(err.message)

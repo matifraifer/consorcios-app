@@ -22,15 +22,15 @@ export default function Departamentos() {
   const [departamentos, setDepartamentos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    getDepartamentos(user.id)
+    getDepartamentos(clienteId)
       .then(setDepartamentos)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   if (loading) return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
   if (error) return <Alert severity="error">{error}</Alert>

@@ -14,7 +14,7 @@ import { createConsorcio } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function NuevoConsorcio() {
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const navigate = useNavigate()
   const [nombre, setNombre] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,7 +28,7 @@ export default function NuevoConsorcio() {
     setLoading(true)
     setError(null)
     try {
-      await createConsorcio({ nombre: nombre.trim(), id_administrador: user.id })
+      await createConsorcio({ nombre: nombre.trim(), cliente_id: clienteId })
       setSuccess(true)
       setTimeout(() => navigate('/consorcios'), 1500)
     } catch (err) {
@@ -61,15 +61,6 @@ export default function NuevoConsorcio() {
             required
             autoFocus
             placeholder="Ej: Edificio San Martin"
-          />
-          <TextField
-            label="ID Administrador"
-            fullWidth
-            margin="normal"
-            value={user?.id || ''}
-            InputProps={{ readOnly: true }}
-            helperText="Asignado automaticamente al usuario actual"
-            sx={{ '& input': { color: 'text.secondary', fontSize: '0.8rem' } }}
           />
 
           <Box mt={3} display="flex" gap={2}>

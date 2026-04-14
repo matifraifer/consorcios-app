@@ -240,7 +240,7 @@ function PeriodoRow({ periodo, onClick }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Expensas() {
-  const { user } = useAuth()
+  const { clienteId } = useAuth()
   const navigate = useNavigate()
 
   const [periodos, setPeriodos]         = useState([])
@@ -262,11 +262,11 @@ export default function Expensas() {
   const [successMsg, setSuccessMsg]     = useState(false)
 
   useEffect(() => {
-    Promise.all([getPeriodos(user.id), getConsorcios(user.id)])
+    Promise.all([getPeriodos(clienteId), getConsorcios(clienteId)])
       .then(([per, cons]) => { setPeriodos(per); setConsorcios(cons) })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user.id])
+  }, [clienteId])
 
   function openDrawer() {
     setForm({ consorcio_id: '', mes: new Date().getMonth() + 1, anio: new Date().getFullYear() })
@@ -274,7 +274,7 @@ export default function Expensas() {
     setDrawerOpen(true)
     if (consorcios.length === 0) {
       setLoadingCons(true)
-      getConsorcios(user.id)
+      getConsorcios(clienteId)
         .then(setConsorcios)
         .catch(err => setFormError(err.message))
         .finally(() => setLoadingCons(false))
@@ -287,7 +287,7 @@ export default function Expensas() {
     setCreating(true)
     setFormError(null)
     try {
-      const periodo = await createPeriodo({ ...form, usuario_id: user.id })
+      const periodo = await createPeriodo({ ...form, cliente_id: clienteId })
       setDrawerOpen(false)
       navigate(`/expensas/${periodo.id}`)
     } catch (err) {

@@ -10,23 +10,29 @@ export const supabase = createClient(
 export async function loginWithSupabase(username, password) {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id, nombre_usuario, rol, password')
+    .select('id, nombre_usuario, rol, password, cliente_id, clientes_servicio(nombre)')
     .eq('nombre_usuario', username)
     .single()
 
   if (error || !data) return null
   if (data.password !== password) return null
 
-  return { id: data.id, nombre_usuario: data.nombre_usuario, rol: data.rol }
+  return {
+    id: data.id,
+    nombre_usuario: data.nombre_usuario,
+    rol: data.rol,
+    cliente_id: data.cliente_id,
+    cliente_nombre: data.clientes_servicio?.nombre ?? null,
+  }
 }
 
 // ---- CONSORCIOS ----
 
-export async function getConsorcios(id_administrador) {
+export async function getConsorcios(cliente_id) {
   const { data, error } = await supabase
     .from('consorcios')
-    .select('id, nombre, usuarios(nombre_usuario)')
-    .eq('id_administrador', id_administrador)
+    .select('id, nombre')
+    .eq('cliente_id', cliente_id)
     .order('nombre', { ascending: true })
   if (error) throw error
   return data
@@ -42,10 +48,10 @@ export async function getConsorcioById(id) {
   return data
 }
 
-export async function createConsorcio({ nombre, id_administrador }) {
+export async function createConsorcio({ nombre, cliente_id }) {
   const { data, error } = await supabase
     .from('consorcios')
-    .insert([{ nombre, id_administrador }])
+    .insert([{ nombre, cliente_id }])
     .select()
     .single()
   if (error) throw error
@@ -54,11 +60,11 @@ export async function createConsorcio({ nombre, id_administrador }) {
 
 // ---- DEPARTAMENTOS ----
 
-export async function getDepartamentos(id_administrador) {
+export async function getDepartamentos(cliente_id) {
   const { data: consorcios, error: consError } = await supabase
     .from('consorcios')
     .select('id')
-    .eq('id_administrador', id_administrador)
+    .eq('cliente_id', cliente_id)
   if (consError) throw consError
 
   const ids = consorcios.map((c) => c.id)
@@ -95,11 +101,11 @@ export async function createDepartamento({ numeracion, inquilino, id_propietario
 
 // ---- PROPIETARIOS ----
 
-export async function getPropietarios(id_administrador) {
+export async function getPropietarios(cliente_id) {
   const { data: consorcios, error: consError } = await supabase
     .from('consorcios')
     .select('id')
-    .eq('id_administrador', id_administrador)
+    .eq('cliente_id', cliente_id)
   if (consError) throw consError
 
   const ids = consorcios.map((c) => c.id)
@@ -208,11 +214,11 @@ export async function importarPropietarios(filas, id_consorcio) {
 
 // ---- RECLAMOS ----
 
-export async function getReclamos(usuario_id) {
+export async function getReclamos(cliente_id) {
   const { data, error } = await supabase
     .from('reclamos')
     .select('id, descripcion, estado, fecha, propietarios(nombre, apellido), consorcios(nombre), departamentos(numeracion)')
-    .eq('usuario_id', usuario_id)
+    .eq('cliente_id', cliente_id)
     .order('fecha', { ascending: false })
   if (error) throw error
   return data
@@ -228,10 +234,10 @@ export async function getReclamoById(id) {
   return data
 }
 
-export async function createReclamo({ propietario_id, consorcio_id, departamento_id, descripcion, estado, fecha, usuario_id }) {
+export async function createReclamo({ propietario_id, consorcio_id, departamento_id, descripcion, estado, fecha, cliente_id }) {
   const { data, error } = await supabase
     .from('reclamos')
-    .insert([{ propietario_id, consorcio_id, departamento_id, descripcion, estado, fecha, usuario_id }])
+    .insert([{ propietario_id, consorcio_id, departamento_id, descripcion, estado, fecha, cliente_id }])
     .select()
     .single()
   if (error) throw error
@@ -251,11 +257,11 @@ export async function updateReclamo(id, { propietario_id, consorcio_id, departam
 
 // ---- PERIODOS EXPENSAS ----
 
-export async function getPeriodos(usuario_id) {
+export async function getPeriodos(cliente_id) {
   const { data, error } = await supabase
     .from('periodos_expensas')
     .select('*, consorcios(nombre), gastos(monto)')
-    .eq('usuario_id', usuario_id)
+    .eq('cliente_id', cliente_id)
     .order('anio', { ascending: false })
     .order('mes', { ascending: false })
   if (error) throw error
@@ -272,10 +278,10 @@ export async function getPeriodoById(id) {
   return data
 }
 
-export async function createPeriodo({ consorcio_id, mes, anio, usuario_id }) {
+export async function createPeriodo({ consorcio_id, mes, anio, cliente_id }) {
   const { data, error } = await supabase
     .from('periodos_expensas')
-    .insert([{ consorcio_id, mes, anio, estado: 'abierto', usuario_id }])
+    .insert([{ consorcio_id, mes, anio, estado: 'abierto', cliente_id }])
     .select()
     .single()
   if (error) throw error
@@ -353,11 +359,11 @@ export async function getDepartamentosConCoeficiente(consorcio_id) {
   return data
 }
 
-export async function getDashboardDeuda(usuario_id) {
+export async function getDashboardDeuda(cliente_id) {
   const { data: periodos, error: perErr } = await supabase
     .from('periodos_expensas')
     .select('id, mes, anio, consorcio_id, consorcios(id, nombre)')
-    .eq('usuario_id', usuario_id)
+    .eq('cliente_id', cliente_id)
     .eq('estado', 'cerrado')
     .order('anio', { ascending: false })
     .order('mes', { ascending: false })
@@ -386,11 +392,11 @@ export async function getDashboardDeuda(usuario_id) {
   return { items, periodos }
 }
 
-export async function getExpensasPendientes(usuario_id) {
+export async function getExpensasPendientes(cliente_id) {
   const { data: periodos, error: periodosError } = await supabase
     .from('periodos_expensas')
     .select('id')
-    .eq('usuario_id', usuario_id)
+    .eq('cliente_id', cliente_id)
     .eq('estado', 'cerrado')
   if (periodosError) throw periodosError
   if (!periodos.length) return []
@@ -433,11 +439,12 @@ export async function getEtapasCRM() {
   return data
 }
 
-export async function getProspectos({ tipo_operacion, includeCierreNegativo = false }) {
+export async function getProspectos({ tipo_operacion, includeCierreNegativo = false, cliente_id }) {
   const { data, error } = await supabase
     .from('prospectos')
     .select('*, propiedades(id, titulo, precio_publicacion, moneda)')
     .eq('tipo_operacion', tipo_operacion)
+    .eq('cliente_id', cliente_id)
     .order('created_at', { ascending: false })
   if (error) throw error
   return data.filter(p => {
@@ -535,12 +542,120 @@ export async function deletePropiedadInteres(id) {
   if (error) throw error
 }
 
+export async function getUsuarios(cliente_id) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre_usuario, rol')
+    .eq('cliente_id', cliente_id)
+    .order('nombre_usuario')
+  if (error) throw error
+  return data
+}
+
+export async function updateProspectoAsignado(id, asignado_nombre) {
+  const { error } = await supabase
+    .from('prospectos')
+    .update({ asignado_nombre, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function addHistorialProspecto(prospecto_id, usuario_nombre, accion) {
+  const { error } = await supabase
+    .from('historial_prospectos')
+    .insert([{ prospecto_id, usuario_nombre, accion }])
+  if (error) throw error
+}
+
+export async function getHistorialByProspecto(prospecto_id) {
+  const { data, error } = await supabase
+    .from('historial_prospectos')
+    .select('*')
+    .eq('prospecto_id', prospecto_id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function getCRMDashboardData(cliente_id) {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [{ data: prospectos, error: e1 }, { data: etapas, error: e2 }, { data: visitas, error: e3 }] =
+    await Promise.all([
+      supabase
+        .from('prospectos')
+        .select('id, nombre, apellido, etapa_id, asignado_nombre, cerrado, cierre_exitoso, etapas_crm(id, nombre, orden)')
+        .eq('cliente_id', cliente_id),
+      supabase
+        .from('etapas_crm')
+        .select('*')
+        .order('orden'),
+      supabase
+        .from('visitas')
+        .select('id, fecha, hora, propiedades(id, titulo, direccion, localidad), prospectos!inner(id, nombre, apellido, asignado_nombre, cliente_id)')
+        .eq('prospectos.cliente_id', cliente_id)
+        .gte('fecha', today)
+        .order('fecha')
+        .order('hora')
+        .limit(8),
+    ])
+
+  if (e1) throw e1
+  if (e2) throw e2
+  if (e3) throw e3
+
+  return { prospectos: prospectos ?? [], etapas: etapas ?? [], visitas: visitas ?? [] }
+}
+
+// ---- PROPIEDADES PÚBLICAS (sin auth) ----
+
+export async function getPropiedadPublica(id) {
+  const { data, error } = await supabase
+    .from('propiedades')
+    .select('*')
+    .eq('id', id)
+    .neq('estado', 'Baja')
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function createProspectoPublico({
+  nombre, apellido, telefono, email,
+  presupuesto, zona_interes, tipo_inmueble, credito_hipotecario,
+  propiedad_id, cliente_id,
+}) {
+  const { data: etapas } = await supabase
+    .from('etapas_crm').select('id').order('orden').limit(1)
+  const etapa_id = etapas?.[0]?.id ?? null
+
+  const { data: prospecto, error } = await supabase
+    .from('prospectos')
+    .insert([{
+      nombre, apellido, telefono, email: email || null,
+      etapa_id, cliente_id, cerrado: false,
+      presupuesto: presupuesto || null,
+      zona_interes: zona_interes || null,
+      tipo_inmueble: tipo_inmueble || null,
+      credito_hipotecario: credito_hipotecario ?? null,
+    }])
+    .select().single()
+  if (error) throw error
+
+  if (propiedad_id) {
+    await supabase.from('propiedades_interes').insert([{ prospecto_id: prospecto.id, propiedad_id }])
+  }
+
+  return prospecto
+}
+
 // ---- PROPIEDADES ----
 
-export async function getPropiedades({ includeBaja = false } = {}) {
+export async function getPropiedades({ includeBaja = false, cliente_id } = {}) {
   let query = supabase
     .from('propiedades')
     .select('*')
+    .eq('cliente_id', cliente_id)
     .order('created_at', { ascending: false })
   if (!includeBaja) query = query.neq('estado', 'Baja')
   const { data, error } = await query
@@ -567,6 +682,45 @@ export async function updatePropiedad(id, data) {
     .single()
   if (error) throw error
   return result
+}
+
+// ---- PROPIEDADES IMAGENES ----
+
+const IMAGE_BUCKET = 'propiedades-imagenes'
+
+export function getPublicImageUrl(storagePath) {
+  const { data } = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(storagePath)
+  return data.publicUrl
+}
+
+export async function uploadPropiedadImagen(clienteId, propiedadId, file) {
+  const ext = file.name.split('.').pop()
+  const path = `${clienteId}/${propiedadId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, file)
+  if (error) throw error
+  return path
+}
+
+export async function insertPropiedadImagenes(propiedadId, paths) {
+  const rows = paths.map((storage_path, i) => ({ propiedad_id: propiedadId, storage_path, orden: i }))
+  const { error } = await supabase.from('propiedades_imagenes').insert(rows)
+  if (error) throw error
+}
+
+export async function getPropiedadImagenes(propiedadId) {
+  const { data, error } = await supabase
+    .from('propiedades_imagenes')
+    .select('id, storage_path, orden')
+    .eq('propiedad_id', propiedadId)
+    .order('orden')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function deletePropiedadImagen(id, storagePath) {
+  await supabase.storage.from(IMAGE_BUCKET).remove([storagePath])
+  const { error } = await supabase.from('propiedades_imagenes').delete().eq('id', id)
+  if (error) throw error
 }
 
 export async function darDeBajaPropiedad(id) {

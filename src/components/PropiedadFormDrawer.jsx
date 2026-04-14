@@ -1,12 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Box, Typography, Drawer, Divider, IconButton, TextField,
+  Box, Typography, Drawer, IconButton, TextField,
   Button, Alert, CircularProgress, Select, MenuItem,
-  FormControl, Grid, Checkbox, FormControlLabel,
+  FormControl, Grid, LinearProgress,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import SellIcon from '@mui/icons-material/Sell'
-import { createPropiedad, updatePropiedad } from '../services/supabase'
+import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
+import imageCompression from 'browser-image-compression'
+import {
+  createPropiedad, updatePropiedad,
+  uploadPropiedadImagen, insertPropiedadImagenes,
+  getPropiedadImagenes, deletePropiedadImagen, getPublicImageUrl,
+} from '../services/supabase'
+
+const MAX_SIZE_MB = 15
+const COMPRESS_OPTIONS = {
+  maxSizeMB: 1,
+  maxWidthOrHeight: 1920,
+  useWebWorker: true,
+}
 
 const ACCENT = '#065F46'
 
@@ -75,13 +88,27 @@ function SectionTitle({ children }) {
   )
 }
 
-export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, onSaved }) {
+export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, onSaved, clienteId }) {
   const [form, setForm] = useState(FORM_EMPTY)
   const [saving, setSaving] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(null) // null | { current, total }
   const [error, setError] = useState(null)
 
+  // Imágenes
+  const fileInputRef = useRef(null)
+  const [newFiles, setNewFiles] = useState([])          // { file, preview }[]
+  const [existingImages, setExistingImages] = useState([]) // { id, storage_path, publicUrl }[]
+  const [toDelete, setToDelete] = useState([])          // { id, storage_path }[]
+  const [loadingImages, setLoadingImages] = useState(false)
+
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      newFiles.forEach(f => URL.revokeObjectURL(f.preview))
+      setNewFiles([])
+      setExistingImages([])
+      setToDelete([])
+      return
+    }
     if (mode === 'edit' && propiedad) {
       setForm({
         titulo: propiedad.titulo ?? '',
@@ -108,6 +135,15 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         fecha_venta: propiedad.fecha_venta ?? '',
         precio_final_venta: propiedad.precio_final_venta ?? '',
       })
+      setLoadingImages(true)
+      getPropiedadImagenes(propiedad.id)
+        .then(rows => setExistingImages(rows.map(r => ({
+          id: r.id,
+          storage_path: r.storage_path,
+          publicUrl: getPublicImageUrl(r.storage_path),
+        }))))
+        .catch(() => {})
+        .finally(() => setLoadingImages(false))
     } else {
       setForm(FORM_EMPTY)
     }
@@ -116,6 +152,39 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleFilesSelected(e) {
+    const raw = Array.from(e.target.files)
+    e.target.value = ''
+
+    // Opción B: rechazar archivos que superen el límite
+    const oversized = raw.filter(f => f.size > MAX_SIZE_MB * 1024 * 1024)
+    if (oversized.length > 0) {
+      setError(`${oversized.map(f => `"${f.name}"`).join(', ')} supera${oversized.length > 1 ? 'n' : ''} los ${MAX_SIZE_MB} MB permitidos.`)
+      return
+    }
+
+    // Opción A: comprimir cada imagen antes de generar la preview
+    const entries = await Promise.all(
+      raw.map(async file => {
+        const compressed = await imageCompression(file, COMPRESS_OPTIONS)
+        return { file: compressed, preview: URL.createObjectURL(compressed) }
+      })
+    )
+    setNewFiles(prev => [...prev, ...entries])
+  }
+
+  function removeNewFile(index) {
+    setNewFiles(prev => {
+      URL.revokeObjectURL(prev[index].preview)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  function removeExistingImage(img) {
+    setExistingImages(prev => prev.filter(i => i.id !== img.id))
+    setToDelete(prev => [...prev, img])
   }
 
   function validate() {
@@ -162,8 +231,26 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       if (mode === 'edit') {
         result = await updatePropiedad(propiedad.id, payload)
       } else {
-        result = await createPropiedad(payload)
+        result = await createPropiedad({ ...payload, cliente_id: clienteId })
       }
+
+      // Eliminar imágenes marcadas para borrar
+      for (const img of toDelete) {
+        await deletePropiedadImagen(img.id, img.storage_path)
+      }
+
+      // Subir imágenes nuevas
+      if (newFiles.length > 0) {
+        const paths = []
+        for (let i = 0; i < newFiles.length; i++) {
+          setUploadProgress({ current: i + 1, total: newFiles.length })
+          const path = await uploadPropiedadImagen(clienteId, result.id, newFiles[i].file)
+          paths.push(path)
+        }
+        await insertPropiedadImagenes(result.id, paths)
+        setUploadProgress(null)
+      }
+
       onSaved(result)
       onClose()
     } catch (err) {
@@ -355,6 +442,94 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
               onChange={e => set('propietario_id', e.target.value)} placeholder="Nombre o referencia del propietario (opcional)" sx={fieldSx} />
           </Box>
 
+          {/* ── Fotos ── */}
+          <SectionTitle>Fotos</SectionTitle>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFilesSelected}
+          />
+
+          {/* Imágenes existentes (modo editar) */}
+          {loadingImages && (
+            <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+              <CircularProgress size={14} sx={{ color: '#9CA3AF' }} />
+              <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Cargando fotos...</Typography>
+            </Box>
+          )}
+
+          {(existingImages.length > 0 || newFiles.length > 0) && (
+            <Box display="flex" flexWrap="wrap" gap={1.5} mb={1.5}>
+              {existingImages.map(img => (
+                <Box
+                  key={img.id}
+                  sx={{ position: 'relative', width: 96, height: 72, borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', flexShrink: 0 }}
+                >
+                  <Box
+                    component="img"
+                    src={img.publicUrl}
+                    alt=""
+                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => removeExistingImage(img)}
+                    sx={{
+                      position: 'absolute', top: 2, right: 2,
+                      bgcolor: 'rgba(0,0,0,0.55)', color: '#fff', p: 0.25,
+                      '&:hover': { bgcolor: 'rgba(239,68,68,0.85)' },
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 12 }} />
+                  </IconButton>
+                </Box>
+              ))}
+
+              {newFiles.map((f, i) => (
+                <Box
+                  key={i}
+                  sx={{ position: 'relative', width: 96, height: 72, borderRadius: '8px', overflow: 'hidden', border: '1px dashed #10B981', flexShrink: 0 }}
+                >
+                  <Box
+                    component="img"
+                    src={f.preview}
+                    alt=""
+                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => removeNewFile(i)}
+                    sx={{
+                      position: 'absolute', top: 2, right: 2,
+                      bgcolor: 'rgba(0,0,0,0.55)', color: '#fff', p: 0.25,
+                      '&:hover': { bgcolor: 'rgba(239,68,68,0.85)' },
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 12 }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          <Button
+            variant="outlined"
+            startIcon={<AddPhotoAlternateIcon sx={{ fontSize: 16 }} />}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{
+              mb: 3,
+              borderColor: '#E5E7EB', color: '#6B7280', borderRadius: '8px',
+              textTransform: 'none', fontSize: '0.8rem', fontWeight: 500,
+              '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#F0FDF4' },
+            }}
+          >
+            Agregar fotos
+          </Button>
+
           {/* ── Datos de venta (solo si Vendida) ── */}
           {isVendida && (
             <>
@@ -402,7 +577,28 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       </Box>
 
       {/* Footer fijo */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
+      <Box sx={{ borderTop: '1px solid #E5E7EB', flexShrink: 0 }}>
+        {uploadProgress && (
+          <Box sx={{ px: 3, pt: 1.5 }}>
+            <Box display="flex" justifyContent="space-between" mb={0.5}>
+              <Typography sx={{ fontSize: '0.7rem', color: '#6B7280' }}>
+                Subiendo foto {uploadProgress.current} de {uploadProgress.total}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+                {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={(uploadProgress.current / uploadProgress.total) * 100}
+              sx={{
+                borderRadius: 4, height: 4, bgcolor: '#E5E7EB',
+                '& .MuiLinearProgress-bar': { bgcolor: '#065F46', borderRadius: 4 },
+              }}
+            />
+          </Box>
+        )}
+        <Box sx={{ px: 3, py: 2, display: 'flex', gap: 1.5 }}>
         <Button
           type="submit"
           form="prop-form"
@@ -415,7 +611,10 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
             '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
           }}
         >
-          {saving ? 'Guardando...' : mode === 'edit' ? 'Guardar cambios' : 'Crear propiedad'}
+          {uploadProgress
+        ? `Subiendo foto ${uploadProgress.current} de ${uploadProgress.total}...`
+        : saving ? 'Guardando...' : mode === 'edit' ? 'Guardar cambios' : 'Crear propiedad'
+      }
         </Button>
         <Button
           variant="outlined"
@@ -428,6 +627,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         >
           Cancelar
         </Button>
+        </Box>
       </Box>
     </Drawer>
   )

@@ -20,11 +20,13 @@ import Prospectos       from './pages/Prospectos'
 import Expensas         from './pages/Expensas'
 import NuevoPeriodo     from './pages/NuevoPeriodo'
 import ExpensasDetalle  from './pages/ExpensasDetalle'
+import PropiedadPublica from './pages/PropiedadPublica'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/p/:id" element={<PropiedadPublica />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

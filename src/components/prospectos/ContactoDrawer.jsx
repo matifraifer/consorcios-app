@@ -1,9 +1,26 @@
-import { Box, Typography, Drawer, IconButton, Button } from '@mui/material'
+import { useEffect, useState } from 'react'
+import {
+  Box, Typography, Drawer, IconButton, Button, CircularProgress,
+  Select, MenuItem, FormControl, Divider,
+} from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import PersonIcon from '@mui/icons-material/Person'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import HistoryIcon from '@mui/icons-material/History'
+import {
+  updateProspectoAsignado,
+  addHistorialProspecto,
+  getHistorialByProspecto,
+} from '../../services/supabase'
 
 const ACCENT = '#065F46'
+
+const selectSx = {
+  fontSize: '0.82rem', borderRadius: '8px',
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
+}
 
 function InfoRow({ label, value }) {
   if (value === null || value === undefined || value === '') return null
@@ -15,14 +32,64 @@ function InfoRow({ label, value }) {
   )
 }
 
-export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextEtapa }) {
+function Initials({ nombre }) {
+  const text = (nombre ?? '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  return (
+    <Box sx={{ width: 26, height: 26, borderRadius: '50%', bgcolor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#475569' }}>{text}</Typography>
+    </Box>
+  )
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
+export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextEtapa, usuarios = [], currentUser, onAsignadoChange }) {
+  const [asignado, setAsignado] = useState('')
+  const [savingAsignado, setSavingAsignado] = useState(false)
+  const [historial, setHistorial] = useState([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [historialError, setHistorialError] = useState(false)
+
+  useEffect(() => {
+    if (!open || !prospecto) return
+    setAsignado(prospecto.asignado_nombre ?? '')
+    setHistorialError(false)
+    setLoadingHistorial(true)
+    getHistorialByProspecto(prospecto.id)
+      .then(data => setHistorial(data))
+      .catch(() => { setHistorial([]); setHistorialError(true) })
+      .finally(() => setLoadingHistorial(false))
+  }, [open, prospecto?.id])
+
+  async function handleAsignadoChange(newNombre) {
+    if (newNombre === asignado) return
+    setSavingAsignado(true)
+    try {
+      await updateProspectoAsignado(prospecto.id, newNombre)
+      await addHistorialProspecto(prospecto.id, currentUser?.nombre_usuario ?? 'Sistema', `Reasignó a ${newNombre}`)
+      setAsignado(newNombre)
+      onAsignadoChange?.(prospecto.id, newNombre)
+      const data = await getHistorialByProspecto(prospecto.id)
+      setHistorial(data)
+    } catch {
+      // silencioso
+    } finally {
+      setSavingAsignado(false)
+    }
+  }
+
   if (!prospecto) return null
 
   const esVenta = prospecto.tipo_operacion === 'venta'
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      slotProps={{ paper: { sx: { width: 420, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}>
+      slotProps={{ paper: { sx: { width: 440, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}>
 
       {/* Header */}
       <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -39,6 +106,7 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 3 }}>
+
         {/* Tipo de operación */}
         <Box mb={3}>
           <Box sx={{
@@ -51,6 +119,31 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
               {esVenta ? 'Venta / Compra' : 'Alquiler'}
             </Typography>
           </Box>
+        </Box>
+
+        {/* Asignado a */}
+        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1.5 }}>
+          Asignado a
+        </Typography>
+        <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+          <Initials nombre={asignado || '?'} />
+          <FormControl size="small" sx={{ flex: 1 }}>
+            <Select
+              value={asignado}
+              displayEmpty
+              onChange={e => handleAsignadoChange(e.target.value)}
+              disabled={savingAsignado}
+              sx={selectSx}
+            >
+              <MenuItem value="" sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>Sin asignar</MenuItem>
+              {usuarios.map(u => (
+                <MenuItem key={u.id} value={u.nombre_usuario} sx={{ fontSize: '0.82rem' }}>
+                  {u.nombre_usuario}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {savingAsignado && <CircularProgress size={16} sx={{ color: ACCENT, flexShrink: 0 }} />}
         </Box>
 
         {/* Datos de contacto */}
@@ -90,11 +183,52 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
             <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1 }}>
               Propiedad vinculada
             </Typography>
-            <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', p: 2 }}>
+            <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', p: 2, mb: 3 }}>
               <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{prospecto.propiedades.titulo}</Typography>
               <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', mt: 0.25 }}>{prospecto.propiedades.localidad}</Typography>
             </Box>
           </>
+        )}
+
+        <Divider sx={{ mb: 3, borderColor: '#F3F4F6' }} />
+
+        {/* Historial */}
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+          <HistoryIcon sx={{ fontSize: 15, color: '#9CA3AF' }} />
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF' }}>
+            Historial de actividad
+          </Typography>
+        </Box>
+
+        {loadingHistorial ? (
+          <Box display="flex" justifyContent="center" py={3}>
+            <CircularProgress size={20} sx={{ color: ACCENT }} />
+          </Box>
+        ) : historialError ? (
+          <Typography sx={{ fontSize: '0.78rem', color: '#EF4444', py: 1 }}>
+            No se pudo cargar el historial. Verificá que la migración SQL fue ejecutada.
+          </Typography>
+        ) : historial.length === 0 ? (
+          <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF', py: 1 }}>
+            Sin actividad registrada aún.
+          </Typography>
+        ) : (
+          <Box>
+            {historial.map((h, i) => (
+              <Box key={h.id} sx={{
+                pl: 2,
+                borderLeft: `2px solid ${i === 0 ? ACCENT : '#E5E7EB'}`,
+                mb: 2,
+              }}>
+                <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500, lineHeight: 1.4 }}>
+                  {h.accion}
+                </Typography>
+                <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF', mt: 0.25 }}>
+                  {h.usuario_nombre} · {fmtDateTime(h.created_at)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
         )}
       </Box>
 
