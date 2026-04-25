@@ -12,6 +12,7 @@ import {
   createPropiedad, updatePropiedad,
   uploadPropiedadImagen, insertPropiedadImagenes,
   getPropiedadImagenes, deletePropiedadImagen, getPublicImageUrl,
+  createPropietarioCRM, updatePropietarioCRM, getPropietarioCRM,
 } from '../services/supabase'
 
 const MAX_SIZE_MB = 15
@@ -48,7 +49,10 @@ const FORM_EMPTY = {
   metros_cubiertos: '', metros_totales: '',
   ambientes: '', dormitorios: '', banios: '', cochera: false,
   descripcion: '', estado: 'Disponible', observaciones_internas: '',
-  propietario_id: '',
+  propietario_id: '',        // ID en tabla propietarios (gestionado internamente)
+  propietario_nombre: '',
+  propietario_apellido: '',
+  propietario_dni: '',
   comprador_nombre: '', comprador_dni: '', comprador_telefono: '',
   fecha_venta: '', precio_final_venta: '',
 }
@@ -129,6 +133,9 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         estado: propiedad.estado ?? 'Disponible',
         observaciones_internas: propiedad.observaciones_internas ?? '',
         propietario_id: propiedad.propietario_id ?? '',
+        propietario_nombre: '',
+        propietario_apellido: '',
+        propietario_dni: '',
         comprador_nombre: propiedad.comprador_nombre ?? '',
         comprador_dni: propiedad.comprador_dni ?? '',
         comprador_telefono: propiedad.comprador_telefono ?? '',
@@ -144,6 +151,18 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         }))))
         .catch(() => {})
         .finally(() => setLoadingImages(false))
+
+      // Cargar datos del propietario si existe
+      if (propiedad.propietario_id) {
+        getPropietarioCRM(propiedad.propietario_id).then(p => {
+          if (p) setForm(prev => ({
+            ...prev,
+            propietario_nombre: p.nombre ?? '',
+            propietario_apellido: p.apellido ?? '',
+            propietario_dni: p.dni ?? '',
+          }))
+        })
+      }
     } else {
       setForm(FORM_EMPTY)
     }
@@ -208,6 +227,32 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
     setSaving(true)
     setError(null)
 
+    // Crear o actualizar propietario si se ingresaron datos
+    let propietarioId = form.propietario_id || null
+    if (form.propietario_nombre.trim() && form.propietario_apellido.trim()) {
+      try {
+        if (propietarioId) {
+          await updatePropietarioCRM(propietarioId, {
+            nombre: form.propietario_nombre.trim(),
+            apellido: form.propietario_apellido.trim(),
+            dni: form.propietario_dni.trim() || null,
+          })
+        } else {
+          const p = await createPropietarioCRM({
+            nombre: form.propietario_nombre.trim(),
+            apellido: form.propietario_apellido.trim(),
+            dni: form.propietario_dni.trim() || null,
+            cliente_id: clienteId,
+          })
+          propietarioId = p.id
+        }
+      } catch (err) {
+        setError(`Error al guardar propietario: ${err.message}`)
+        setSaving(false)
+        return
+      }
+    }
+
     const payload = {
       ...form,
       precio_publicacion: Number(form.precio_publicacion),
@@ -218,13 +263,17 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       banios:             Number(form.banios),
       precio_final_venta: form.precio_final_venta ? Number(form.precio_final_venta) : null,
       fecha_venta:        form.fecha_venta || null,
-      propietario_id:     form.propietario_id || null,
+      propietario_id:     propietarioId,
       // Limpiar campos venta si no es Vendida
       ...(form.estado !== 'Vendida' && {
         comprador_nombre: null, comprador_dni: null, comprador_telefono: null,
         fecha_venta: null, precio_final_venta: null,
       }),
     }
+    // Quitar campos que no existen en la tabla propiedades
+    delete payload.propietario_nombre
+    delete payload.propietario_apellido
+    delete payload.propietario_dni
 
     try {
       let result
@@ -436,10 +485,25 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
               placeholder="Notas internas del equipo (no visibles al cliente)..." sx={fieldSx} />
           </Box>
 
+          {/* ── Propietario ── */}
+          <SectionTitle>Propietario asociado</SectionTitle>
+
+          <Grid container spacing={1.5} mb={2}>
+            <Grid item xs={6}>
+              <Label>Nombre</Label>
+              <TextField fullWidth size="small" value={form.propietario_nombre}
+                onChange={e => set('propietario_nombre', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <Label>Apellido</Label>
+              <TextField fullWidth size="small" value={form.propietario_apellido}
+                onChange={e => set('propietario_apellido', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Grid>
+          </Grid>
           <Box mb={2}>
-            <Label>Propietario asociado</Label>
-            <TextField fullWidth size="small" value={form.propietario_id}
-              onChange={e => set('propietario_id', e.target.value)} placeholder="Nombre o referencia del propietario (opcional)" sx={fieldSx} />
+            <Label>DNI</Label>
+            <TextField fullWidth size="small" value={form.propietario_dni}
+              onChange={e => set('propietario_dni', e.target.value)} placeholder="Opcional" sx={fieldSx} />
           </Box>
 
           {/* ── Fotos ── */}

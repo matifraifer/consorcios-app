@@ -67,6 +67,7 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
       sx={{
         bgcolor: isNegativo ? '#FFF5F5' : 'white',
         border: `1px solid ${isNegativo ? '#FECACA' : '#E5E7EB'}`,
+        borderLeft: prospecto.origen_web ? '3px solid #1D4ED8' : undefined,
         borderRadius: '10px',
         p: 1.75,
         mb: 1.25,
@@ -127,6 +128,7 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
           </Typography>
         </Box>
       )}
+
     </Box>
   )
 }
@@ -435,6 +437,14 @@ export default function Prospectos() {
           </DragOverlay>
         </DndContext>
       )}
+
+      {/* ── Leyenda ── */}
+      <Box display="flex" alignItems="center" gap={1} mt={2} flexShrink={0}>
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#1D4ED8', flexShrink: 0 }} />
+        <Typography sx={{ fontSize: '0.72rem', color: '#6B7280' }}>
+          Prospecto de formulario web
+        </Typography>
+      </Box>
 
       {/* ── Drawers ── */}
       <ProspectoFormDrawer

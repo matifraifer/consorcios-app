@@ -150,6 +150,39 @@ export async function createPropietario({ dni, nombre, apellido, id_consorcio })
   return data
 }
 
+// Propietarios CRM (inmobiliaria) — sin id_consorcio
+export async function createPropietarioCRM({ nombre, apellido, dni, cliente_id }) {
+  const { data, error } = await supabase
+    .from('propietarios')
+    .insert([{ nombre, apellido, dni: dni || '', cliente_id }])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updatePropietarioCRM(id, { nombre, apellido, dni }) {
+  const { data, error } = await supabase
+    .from('propietarios')
+    .update({ nombre, apellido, dni: dni || '' })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function getPropietarioCRM(id) {
+  if (!id) return null
+  const { data, error } = await supabase
+    .from('propietarios')
+    .select('id, nombre, apellido, dni')
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return data
+}
+
 export async function importarPropietarios(filas, id_consorcio) {
   // Traer departamentos del consorcio para poder vincular por numeracion
   const { data: deptos, error: dErr } = await supabase
@@ -638,6 +671,7 @@ export async function createProspectoPublico({
       zona_interes: zona_interes || null,
       tipo_inmueble: tipo_inmueble || null,
       credito_hipotecario: credito_hipotecario ?? null,
+      origen_web: true,
     }])
     .select().single()
   if (error) throw error
@@ -734,6 +768,17 @@ export async function darDeBajaPropiedad(id) {
   return data
 }
 
+export async function reactivarPropiedad(id) {
+  const { data, error } = await supabase
+    .from('propiedades')
+    .update({ estado: 'Disponible', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function saveExpensasDepartamento(periodo_id, items) {
   const { error: deleteError } = await supabase
     .from('expensas_departamento')
@@ -747,4 +792,200 @@ export async function saveExpensasDepartamento(periodo_id, items) {
     .select()
   if (error) throw error
   return data
+}
+
+// ---- CONTRATOS ----
+
+const CONTRATOS_BUCKET = 'contratos-adjuntos'
+
+const PLAZO_MAP = { Mensual: 1, Trimestral: 3, Cuatrimestral: 4, Semestral: 6, Anual: 12, Otro: 0 }
+
+function generarPagos(contratoId, fechaInicio, fechaFin, montoBase, plazoActualizacion) {
+  const plazoMeses = PLAZO_MAP[plazoActualizacion] ?? 0
+  const pagos = []
+  const current = new Date(fechaInicio + 'T12:00:00')
+  const fin = new Date(fechaFin + 'T12:00:00')
+  let n = 0
+  while (current <= fin) {
+    n++
+    const periodoInicio = current.toISOString().slice(0, 10)
+    const nextStart = new Date(current)
+    nextStart.setMonth(nextStart.getMonth() + 1)
+    const dayBeforeNext = new Date(nextStart)
+    dayBeforeNext.setDate(dayBeforeNext.getDate() - 1)
+    const periodoFin = dayBeforeNext <= fin
+      ? dayBeforeNext.toISOString().slice(0, 10)
+      : fin.toISOString().slice(0, 10)
+    pagos.push({
+      contrato_id: contratoId,
+      periodo_numero: n,
+      periodo_inicio: periodoInicio,
+      periodo_fin: periodoFin,
+      monto_base: montoBase,
+      es_periodo_actualizacion: plazoMeses > 0 && n > 1 && (n - 1) % plazoMeses === 0,
+      estado: 'pendiente',
+    })
+    current.setMonth(current.getMonth() + 1)
+  }
+  return pagos
+}
+
+export async function getContratos(cliente_id) {
+  const { data, error } = await supabase
+    .from('contratos')
+    .select('*, propiedades(id, titulo, localidad)')
+    .eq('cliente_id', cliente_id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createContrato(payload, files, clienteId) {
+  const { data: contrato, error } = await supabase
+    .from('contratos')
+    .insert([{ ...payload, cliente_id: clienteId }])
+    .select().single()
+  if (error) throw error
+
+  if (files?.length) {
+    const adjuntos = []
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const path = `${contrato.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: upErr } = await supabase.storage.from(CONTRATOS_BUCKET).upload(path, file)
+      if (upErr) throw upErr
+      adjuntos.push({ contrato_id: contrato.id, nombre: file.name, storage_path: path })
+    }
+    await supabase.from('contratos_adjuntos').insert(adjuntos)
+  }
+
+  const pagos = generarPagos(contrato.id, payload.fecha_inicio, payload.fecha_fin, payload.monto_base, payload.plazo_actualizacion)
+  if (pagos.length) {
+    const { error: pagosErr } = await supabase.from('pagos_contrato').insert(pagos)
+    if (pagosErr) throw pagosErr
+  }
+
+  return contrato
+}
+
+export async function updateContrato(id, payload) {
+  const { data, error } = await supabase
+    .from('contratos')
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function finalizarContrato(id) {
+  const { data, error } = await supabase
+    .from('contratos')
+    .update({ finalizado: true, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function getContratoAdjuntos(contrato_id) {
+  const { data, error } = await supabase
+    .from('contratos_adjuntos').select('*')
+    .eq('contrato_id', contrato_id).order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getContratoAdjuntoUrl(storagePath) {
+  const { data, error } = await supabase.storage
+    .from(CONTRATOS_BUCKET).createSignedUrl(storagePath, 3600)
+  if (error) throw error
+  return data.signedUrl
+}
+
+export async function deleteContratoAdjunto(id, storagePath) {
+  await supabase.storage.from(CONTRATOS_BUCKET).remove([storagePath])
+  const { error } = await supabase.from('contratos_adjuntos').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getPagosContrato(contrato_id) {
+  const { data, error } = await supabase
+    .from('pagos_contrato').select('*')
+    .eq('contrato_id', contrato_id).order('periodo_numero')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, file }) {
+  let comprobante_path = null
+  if (file) {
+    const ext = file.name.split('.').pop()
+    const path = `comprobantes/${pagoId}/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from(CONTRATOS_BUCKET).upload(path, file)
+    if (upErr) throw upErr
+    comprobante_path = path
+  }
+  const { data, error } = await supabase
+    .from('pagos_contrato')
+    .update({ estado: 'pagado', monto_pagado: Number(monto_pagado), fecha_pago, comprobante_path })
+    .eq('id', pagoId).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function getComprobanteUrl(storagePath) {
+  const { data, error } = await supabase.storage
+    .from(CONTRATOS_BUCKET).createSignedUrl(storagePath, 3600)
+  if (error) throw error
+  return data.signedUrl
+}
+
+export async function getIndicesActualizacion() {
+  const { data, error } = await supabase
+    .from('indices_actualizacion').select('*').order('anio').order('mes')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function upsertIndice({ tipo, mes, anio, valor }) {
+  const { data, error } = await supabase
+    .from('indices_actualizacion')
+    .upsert([{ tipo, mes, anio, valor: Number(valor) }], { onConflict: 'tipo,mes,anio' })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteIndice(id) {
+  const { error } = await supabase.from('indices_actualizacion').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---- CARGOS EXTRA CONTRATO ----
+
+export async function getCargosExtraByPagos(pagoIds) {
+  if (!pagoIds?.length) return []
+  const { data, error } = await supabase
+    .from('cargos_extra_contrato')
+    .select('*')
+    .in('pago_id', pagoIds)
+    .order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createCargoExtra({ pago_id, descripcion, monto }) {
+  const { data, error } = await supabase
+    .from('cargos_extra_contrato')
+    .insert([{ pago_id, descripcion, monto: Number(monto) }])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteCargoExtra(id) {
+  const { error } = await supabase.from('cargos_extra_contrato').delete().eq('id', id)
+  if (error) throw error
 }

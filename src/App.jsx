@@ -21,6 +21,7 @@ import Expensas         from './pages/Expensas'
 import NuevoPeriodo     from './pages/NuevoPeriodo'
 import ExpensasDetalle  from './pages/ExpensasDetalle'
 import PropiedadPublica from './pages/PropiedadPublica'
+import Contratos        from './pages/Contratos'
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/expensas"                           element={<Expensas />} />
           <Route path="/expensas/nuevo"                     element={<NuevoPeriodo />} />
           <Route path="/expensas/:id"                       element={<ExpensasDetalle />} />
+          <Route path="/contratos"                          element={<Contratos />} />
         </Route>
       </Route>
 

@@ -16,7 +16,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import PropiedadFormDrawer from '../components/PropiedadFormDrawer'
 import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
-import { getPropiedades, darDeBajaPropiedad } from '../services/supabase'
+import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const ACCENT       = '#065F46'
@@ -212,6 +212,18 @@ export default function Propiedades() {
       setError(err.message)
     } finally {
       setBajaLoading(false)
+    }
+  }
+
+  async function handleReactivar() {
+    if (!detalleTarget) return
+    try {
+      await reactivarPropiedad(detalleTarget.id)
+      setSnackMsg(`"${detalleTarget.titulo}" fue reactivada.`)
+      setDetalleOpen(false)
+      await load()
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -522,6 +534,7 @@ export default function Propiedades() {
         propiedad={detalleTarget}
         onEdit={() => openEdit(detalleTarget)}
         onBaja={() => openBaja(detalleTarget)}
+        onReactivar={handleReactivar}
         userRole={user?.rol}
       />
 

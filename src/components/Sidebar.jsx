@@ -6,6 +6,7 @@ import OtherHousesIcon from '@mui/icons-material/OtherHouses'
 import GroupIcon from '@mui/icons-material/Group'
 import ReportProblemIcon from '@mui/icons-material/ReportProblem'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import DescriptionIcon from '@mui/icons-material/Description'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -40,6 +41,10 @@ const topItems = [
 const bottomItems = [
   { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
   { label: 'Prospectos',           path: '/prospectos',  icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+]
+
+const contratosItems = [
+  { label: 'Contratos', path: '/contratos', icon: <DescriptionIcon sx={{ fontSize: 18 }} /> },
 ]
 
 function NavItem({ item, active, collapsed, onClick, indented = false }) {
@@ -120,6 +125,7 @@ export default function Sidebar() {
   const [adminOpen, setAdminOpen] = useState(true)
 
   const [comercialOpen, setComercialOpen] = useState(true)
+  const [contratosOpen, setContratosOpen] = useState(true)
 
   function handleLogout() {
     logout()
@@ -372,6 +378,57 @@ export default function Sidebar() {
 
             <Collapse in={comercialOpen}>
               {bottomItems.map(item => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  active={location.pathname === item.path}
+                  collapsed={false}
+                  indented
+                  onClick={() => navigate(item.path)}
+                />
+              ))}
+            </Collapse>
+          </>
+        )}
+
+        {/* Divisor */}
+        <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
+
+        {/* Grupo: Gestión de contratos */}
+        {collapsed ? (
+          contratosItems.map(item => (
+            <NavItem
+              key={item.path}
+              item={item}
+              active={location.pathname === item.path}
+              collapsed={true}
+              onClick={() => navigate(item.path)}
+            />
+          ))
+        ) : (
+          <>
+            <Box
+              onClick={() => setContratosOpen(prev => !prev)}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                px: 2, pt: 1.75, pb: 0.75, cursor: 'pointer', userSelect: 'none',
+                '&:hover .gcon-label': { color: TEXT_DEFAULT },
+                '&:hover .gcon-icon': { color: TEXT_DEFAULT },
+              }}
+            >
+              <Typography
+                className="gcon-label"
+                sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEXT_MUTED, transition: 'color 0.15s' }}
+              >
+                Gestión de contratos
+              </Typography>
+              <ExpandMoreIcon
+                className="gcon-icon"
+                sx={{ fontSize: 14, color: TEXT_MUTED, transition: 'transform 0.2s ease, color 0.15s', transform: contratosOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </Box>
+            <Collapse in={contratosOpen}>
+              {contratosItems.map(item => (
                 <NavItem
                   key={item.path}
                   item={item}

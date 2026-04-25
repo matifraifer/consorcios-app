@@ -5,6 +5,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import EditIcon from '@mui/icons-material/Edit'
 import BlockIcon from '@mui/icons-material/Block'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ImageNotSupportedIcon from '@mui/icons-material/ImageNotSupported'
@@ -307,7 +308,7 @@ function ImageGallery({ propiedadId }) {
 }
 
 // ── Componente principal ───────────────────────────────────────────────────
-export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, userRole }) {
+export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, onReactivar, userRole }) {
   const [copied, setCopied] = useState(false)
 
   if (!propiedad) return null
@@ -453,6 +454,20 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
             }}
           >
             Dar de baja
+          </Button>
+        )}
+        {isAdmin && isBaja && (
+          <Button
+            variant="outlined"
+            startIcon={<CheckCircleOutlineIcon sx={{ fontSize: 15 }} />}
+            onClick={onReactivar}
+            sx={{
+              borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+              fontSize: '0.82rem', borderColor: '#A7F3D0', color: '#065F46',
+              '&:hover': { borderColor: '#065F46', bgcolor: '#ECFDF5' },
+            }}
+          >
+            Reactivar
           </Button>
         )}
         <Button
