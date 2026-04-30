@@ -4,7 +4,11 @@
       "Bash(npm install jspdf jspdf-autotable)",
       "Read(//usr/local/**)",
       "Read(//opt/homebrew/**)",
-      "Read(//Users/mfraifer/.nvm/versions/**)"
+      "Read(//Users/mfraifer/.nvm/versions/**)",
+      "Bash(python3 -c \"import openpyxl; print\\('ok'\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(sed -i '' 's/header_style\\(ws3, cols3, cols3, cols3, bg=COLOR_SUBHEADER\\)/# removed duplicate/' /tmp/gen_test_data.py)",
+      "Bash(python3 /tmp/gen_test_data.py)"
     ]
   }
 }

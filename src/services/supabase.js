@@ -503,18 +503,35 @@ export async function updateProspectoEtapa(id, etapa_id) {
   if (error) throw error
 }
 
-export async function cerrarProspecto(id, exitoso, propiedad_id = null) {
+export async function cerrarProspecto(id, exitoso, propiedad_id = null, estadoPropiedad = null, compradorData = null, otrasPropiedad_ids = []) {
   const { error } = await supabase
     .from('prospectos')
     .update({ cerrado: true, cierre_exitoso: exitoso, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
-  if (exitoso && propiedad_id) {
+  // Actualizar la propiedad seleccionada con estado + datos del comprador
+  if (propiedad_id && estadoPropiedad) {
+    const propUpdate = { estado: estadoPropiedad, updated_at: new Date().toISOString() }
+    if (compradorData) {
+      propUpdate.comprador_nombre = compradorData.nombre ?? null
+      propUpdate.comprador_telefono = compradorData.telefono ?? null
+      if (estadoPropiedad === 'Vendida') {
+        propUpdate.fecha_venta = new Date().toISOString().split('T')[0]
+      }
+    }
     const { error: pErr } = await supabase
       .from('propiedades')
-      .update({ estado: 'Vendida', updated_at: new Date().toISOString() })
+      .update(propUpdate)
       .eq('id', propiedad_id)
     if (pErr) throw pErr
+  }
+  // Revertir las otras propiedades de interés a Disponible
+  const otras = otrasPropiedad_ids.filter(pid => pid !== propiedad_id)
+  if (otras.length > 0) {
+    await supabase
+      .from('propiedades')
+      .update({ estado: 'Disponible', updated_at: new Date().toISOString() })
+      .in('id', otras)
   }
 }
 
