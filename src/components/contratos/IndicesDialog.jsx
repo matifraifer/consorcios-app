@@ -45,7 +45,7 @@ function IndiceRow({ indice, onDelete, onUpdate }) {
     if (!val || isNaN(Number(val))) return
     setSaving(true)
     try {
-      const updated = await upsertIndice({ tipo: indice.tipo, mes: indice.mes, anio: indice.anio, valor: Number(val) })
+      const updated = await upsertIndice({ tipo: indice.tipo, mes: indice.mes, anio: indice.anio, valor: Number(val), clienteId: indice.cliente_id })
       onUpdate(updated)
       setEditing(false)
     } catch {
@@ -105,7 +105,7 @@ function IndiceRow({ indice, onDelete, onUpdate }) {
   )
 }
 
-export default function IndicesDialog({ open, onClose, indices, onIndicesChange }) {
+export default function IndicesDialog({ open, onClose, indices, onIndicesChange, clienteId }) {
   const [tab, setTab] = useState(0)
   const [newMes, setNewMes] = useState(new Date().getMonth() + 1)
   const [newAnio, setNewAnio] = useState(currentYear)
@@ -132,7 +132,7 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange 
     setError(null)
     setSaving(true)
     try {
-      const nuevo = await upsertIndice({ tipo, mes: newMes, anio: newAnio, valor: Number(newValor) })
+      const nuevo = await upsertIndice({ tipo, mes: newMes, anio: newAnio, valor: Number(newValor), clienteId })
       onIndicesChange(prev => {
         const exists = prev.findIndex(i => i.tipo === tipo && i.mes === newMes && i.anio === newAnio)
         if (exists >= 0) {

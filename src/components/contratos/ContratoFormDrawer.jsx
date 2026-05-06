@@ -77,12 +77,14 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [propFormOpen, setPropFormOpen] = useState(false)
+  const [propietarioLocked, setPropietarioLocked] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
     setFiles([])
     setError(null)
+    setPropietarioLocked(false)
     loadPropiedades()
 
     if (isEdit && contrato) {
@@ -125,7 +127,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
   async function handlePropiedadChange(propiedadId) {
     set('propiedad_id', propiedadId)
-    // Autocompletar propietario si la propiedad tiene uno asociado
     const prop = propiedades.find(p => p.id === propiedadId)
     if (prop?.propietario_id) {
       const propietario = await getPropietarioCRM(prop.propietario_id)
@@ -133,12 +134,16 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         setForm(prev => ({
           ...prev,
           propiedad_id: propiedadId,
-          propietario_nombre:   propietario.nombre   || prev.propietario_nombre,
-          propietario_apellido: propietario.apellido || prev.propietario_apellido,
-          propietario_dni:      propietario.dni      || prev.propietario_dni,
+          propietario_nombre:   propietario.nombre   || '',
+          propietario_apellido: propietario.apellido || '',
+          propietario_dni:      propietario.dni      || '',
         }))
+        setPropietarioLocked(true)
+        return
       }
     }
+    setPropietarioLocked(false)
+    setForm(prev => ({ ...prev, propiedad_id: propiedadId, propietario_nombre: '', propietario_apellido: '', propietario_dni: '' }))
   }
 
   function handleFilesSelected(e) {
@@ -160,10 +165,11 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       if (propietario) {
         setForm(prev => ({
           ...prev,
-          propietario_nombre:   propietario.nombre   || prev.propietario_nombre,
-          propietario_apellido: propietario.apellido || prev.propietario_apellido,
-          propietario_dni:      propietario.dni      || prev.propietario_dni,
+          propietario_nombre:   propietario.nombre   || '',
+          propietario_apellido: propietario.apellido || '',
+          propietario_dni:      propietario.dni      || '',
         }))
+        setPropietarioLocked(true)
       }
     }
     setPropFormOpen(false)
@@ -274,20 +280,29 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           </Box>
 
           {/* Datos propietario */}
-          <SectionTitle>Datos del propietario</SectionTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between" mt={3} mb={1.5}>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACCENT }}>
+              Datos del propietario
+            </Typography>
+            {propietarioLocked && (
+              <Typography sx={{ fontSize: '0.68rem', color: '#6B7280', fontStyle: 'italic' }}>
+                Completado desde la propiedad seleccionada
+              </Typography>
+            )}
+          </Box>
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
               <Label required>Nombre</Label>
-              <TextField fullWidth size="small" value={form.propietario_nombre} onChange={e => set('propietario_nombre', e.target.value)} sx={fieldSx} />
+              <TextField fullWidth size="small" value={form.propietario_nombre} onChange={e => set('propietario_nombre', e.target.value)} disabled={propietarioLocked} sx={fieldSx} />
             </Box>
             <Box>
               <Label required>Apellido</Label>
-              <TextField fullWidth size="small" value={form.propietario_apellido} onChange={e => set('propietario_apellido', e.target.value)} sx={fieldSx} />
+              <TextField fullWidth size="small" value={form.propietario_apellido} onChange={e => set('propietario_apellido', e.target.value)} disabled={propietarioLocked} sx={fieldSx} />
             </Box>
           </Box>
           <Box>
             <Label>DNI</Label>
-            <TextField fullWidth size="small" value={form.propietario_dni} onChange={e => set('propietario_dni', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            <TextField fullWidth size="small" value={form.propietario_dni} onChange={e => set('propietario_dni', e.target.value)} placeholder="Opcional" disabled={propietarioLocked} sx={fieldSx} />
           </Box>
 
           {/* Datos contrato */}

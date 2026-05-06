@@ -327,7 +327,7 @@ export default function Prospectos() {
   }
 
   function handleProspectoSaved(p) {
-    setProspectos(prev => [p, ...prev])
+    loadProspectos().catch(() => {})
     setSnackMsg(`Prospecto "${p.nombre} ${p.apellido}" creado.`)
     addHistorialProspecto(p.id, user?.nombre_usuario ?? 'Sistema', 'Creó el prospecto').catch(() => {})
   }

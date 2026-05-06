@@ -173,8 +173,9 @@ function ContactDialog({ open, onClose, propiedad }) {
         tipo_inmueble:        form.tipo_inmueble || null,
         credito_hipotecario:  form.credito_hipotecario === 'si' ? true
                             : form.credito_hipotecario === 'no' ? false : null,
-        propiedad_id: propiedad.id,
-        cliente_id:   propiedad.cliente_id,
+        propiedad_id:    propiedad.id,
+        cliente_id:      propiedad.cliente_id,
+        tipo_operacion:  propiedad.tipo_operacion || null,
       })
       setSuccess(true)
     } catch {
@@ -411,6 +412,9 @@ export default function PropiedadPublica() {
   }
 
   const p = propiedad
+  const esAlquiler = p.tipo_operacion?.toLowerCase() === 'alquiler'
+  const labelPrecio = esAlquiler ? 'Alquiler mensual' : 'Precio de venta'
+  const labelCTA = esAlquiler ? 'Quiero alquilar' : 'Quiero comprar'
 
   return (
     <Box minHeight="100vh" bgcolor="#F8FAFC">
@@ -486,7 +490,7 @@ export default function PropiedadPublica() {
         >
           <Box flex={1}>
             <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF', mb: 0.25 }}>
-              Precio de publicación
+              {labelPrecio}
             </Typography>
             <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
               {fmt(p.precio_publicacion, p.moneda)}
@@ -504,7 +508,7 @@ export default function PropiedadPublica() {
               whiteSpace: 'nowrap',
             }}
           >
-            Quiero mas info
+            {labelCTA}
           </Button>
         </Box>
 
@@ -550,7 +554,7 @@ export default function PropiedadPublica() {
           }}
         >
           <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: 'white', mb: 0.75 }}>
-            ¿Te interesa esta propiedad?
+            {esAlquiler ? '¿Querés alquilar esta propiedad?' : '¿Te interesa esta propiedad?'}
           </Typography>
           <Typography sx={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)', mb: 2.5 }}>
             Dejá tus datos y un asesor se comunica con vos a la brevedad.
@@ -565,7 +569,7 @@ export default function PropiedadPublica() {
               '&:hover': { bgcolor: '#F0FDF4', boxShadow: 'none' },
             }}
           >
-            Quiero mas info
+            {labelCTA}
           </Button>
         </Box>
 
@@ -594,7 +598,7 @@ export default function PropiedadPublica() {
             boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
           }}
         >
-          Quiero mas info
+          {labelCTA}
         </Button>
       </Box>
 

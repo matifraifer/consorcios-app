@@ -247,8 +247,8 @@ export default function Sidebar() {
           />
         ))}
 
-        {/* Grupo: Consorcios */}
-        {collapsed ? (
+        {/* Grupo: Consorcios — oculto temporalmente */}
+        {/* {collapsed ? (
           adminItems.map(item => (
             <NavItem
               key={item.path}
@@ -314,7 +314,6 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* Divisor */}
         <Box
           sx={{
             mx: collapsed ? 1.25 : 2,
@@ -322,7 +321,7 @@ export default function Sidebar() {
             height: '1px',
             bgcolor: BORDER,
           }}
-        />
+        /> */}
 
         {/* Grupo: Gestión comercial */}
         {collapsed ? (
@@ -467,7 +466,7 @@ export default function Sidebar() {
                 <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEXT_MUTED, mb: 0.25 }}>
                   Cliente
                 </Typography>
-                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_ACTIVE }}>
+                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_DEFAULT }}>
                   {user.cliente_nombre}
                 </Typography>
               </Box>
@@ -492,7 +491,7 @@ export default function Sidebar() {
                 </Typography>
               </Box>
               <Box overflow="hidden">
-                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_ACTIVE, lineHeight: 1.2 }}>
+                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_DEFAULT, lineHeight: 1.2 }}>
                   {user?.nombre_usuario}
                 </Typography>
                 <Typography noWrap sx={{ fontSize: '0.65rem', color: TEXT_MUTED, textTransform: 'capitalize' }}>

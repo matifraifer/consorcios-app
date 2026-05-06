@@ -147,6 +147,11 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
                   <Box>
                     <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>{v.propiedades?.titulo ?? '—'}</Typography>
                     <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{v.propiedades?.direccion}, {v.propiedades?.localidad}</Typography>
+                    {v.propiedades?.precio_publicacion && (
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mt: 0.25 }}>
+                        {v.propiedades?.moneda ?? ''} {Number(v.propiedades.precio_publicacion).toLocaleString('es-AR')}
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
                 <IconButton size="small" onClick={() => handleDelete(v.id)} disabled={deletingId === v.id}
@@ -171,7 +176,13 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
                   {propDisponibles.length === 0 ? 'No hay propiedades disponibles' : 'Seleccionar propiedad'}
                 </MenuItem>
                 {propDisponibles.map(p => (
-                  <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>{p.titulo}</MenuItem>
+                  <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>{p.titulo}</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: '#6B7280' }}>
+                      {p.localidad && `${p.localidad} · `}
+                      {p.precio_publicacion ? `${p.moneda ?? ''} ${Number(p.precio_publicacion).toLocaleString('es-AR')}`.trim() : 'Sin precio'}
+                    </Typography>
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -179,7 +190,7 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
           <Box display="flex" gap={1.5} mb={2.5}>
             <Box flex={1}>
               <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Fecha *</Typography>
-              <TextField fullWidth size="small" type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} sx={fieldSx} />
+              <TextField fullWidth size="small" type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} inputProps={{ min: new Date().toISOString().split('T')[0] }} sx={fieldSx} />
             </Box>
             <Box flex={1}>
               <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Hora *</Typography>

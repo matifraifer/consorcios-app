@@ -158,6 +158,16 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
       <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 3 }}>
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
 
+        {/* Presupuesto de referencia */}
+        {prospecto.presupuesto && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, px: 1.5, py: 1, bgcolor: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: '8px' }}>
+            <MonetizationOnIcon sx={{ fontSize: 15, color: ACCENT }} />
+            <Typography sx={{ fontSize: '0.78rem', color: '#065F46' }}>
+              Presupuesto del prospecto: <Box component="span" sx={{ fontWeight: 700 }}>USD {Number(prospecto.presupuesto).toLocaleString('es-AR')}</Box>
+            </Typography>
+          </Box>
+        )}
+
         {/* Buscar y agregar propiedades */}
         <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827', mb: 1.5 }}>
           Buscar propiedades
@@ -179,6 +189,9 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
           ) : (
             propsFiltradas.map((p, i) => {
               const yaAgregada = interesIds.has(p.id)
+              const dentroPresupuesto = prospecto.presupuesto && p.precio_publicacion
+                ? p.precio_publicacion <= prospecto.presupuesto
+                : null
               return (
                 <Box key={p.id} sx={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -186,28 +199,36 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
                   bgcolor: yaAgregada ? ACCENT_LIGHT : 'transparent',
                   borderBottom: i < propsFiltradas.length - 1 ? `1px solid ${yaAgregada ? '#A7F3D0' : '#F3F4F6'}` : 'none',
                 }}>
-                  <Box>
-                    <Box display="flex" alignItems="center" gap={1}>
+                  <Box flex={1} minWidth={0}>
+                    <Box display="flex" alignItems="center" gap={1} mb={0.25}>
                       <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{p.titulo}</Typography>
                       {yaAgregada && (
-                        <Box sx={{ bgcolor: '#A7F3D0', borderRadius: '4px', px: 0.75, py: 0.125 }}>
+                        <Box sx={{ bgcolor: '#A7F3D0', borderRadius: '4px', px: 0.75, py: 0.125, flexShrink: 0 }}>
                           <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: ACCENT }}>Con interés</Typography>
                         </Box>
                       )}
                     </Box>
-                    <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
-                      {p.localidad} · {fmt(p.precio_publicacion, p.moneda)}
-                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#111827' }}>
+                        {fmt(p.precio_publicacion, p.moneda)}
+                      </Typography>
+                      {p.localidad && (
+                        <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>· {p.localidad}</Typography>
+                      )}
+                     
+                    </Box>
                   </Box>
-                  {yaAgregada ? (
-                    <CheckIcon sx={{ fontSize: 16, color: ACCENT, flexShrink: 0 }} />
-                  ) : (
-                    <Button size="small" onClick={() => handleAgregar(p.id)} disabled={addingId === p.id}
-                      startIcon={addingId === p.id ? <CircularProgress size={12} /> : <AddIcon sx={{ fontSize: 14 }} />}
-                      sx={{ fontSize: '0.75rem', textTransform: 'none', color: ACCENT, fontWeight: 600, borderRadius: '7px', px: 1.25, '&:hover': { bgcolor: ACCENT_LIGHT } }}>
-                      Agregar
-                    </Button>
-                  )}
+                  <Box ml={1} flexShrink={0}>
+                    {yaAgregada ? (
+                      <CheckIcon sx={{ fontSize: 16, color: ACCENT }} />
+                    ) : (
+                      <Button size="small" onClick={() => handleAgregar(p.id)} disabled={addingId === p.id}
+                        startIcon={addingId === p.id ? <CircularProgress size={12} /> : <AddIcon sx={{ fontSize: 14 }} />}
+                        sx={{ fontSize: '0.75rem', textTransform: 'none', color: ACCENT, fontWeight: 600, borderRadius: '7px', px: 1.25, '&:hover': { bgcolor: ACCENT_LIGHT } }}>
+                        Agregar
+                      </Button>
+                    )}
+                  </Box>
                 </Box>
               )
             })

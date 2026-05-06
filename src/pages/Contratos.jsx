@@ -88,7 +88,7 @@ export default function Contratos() {
 
   async function load() {
     try {
-      const [data, idx] = await Promise.all([getContratos(clienteId), getIndicesActualizacion()])
+      const [data, idx] = await Promise.all([getContratos(clienteId), getIndicesActualizacion(clienteId)])
       setContratos(data)
       setIndices(idx)
     } catch (err) {
@@ -339,6 +339,7 @@ export default function Contratos() {
         onClose={() => setIndicesOpen(false)}
         indices={indices}
         onIndicesChange={setIndices}
+        clienteId={clienteId}
       />
 
       <Snackbar open={!!snackMsg} autoHideDuration={3500} onClose={() => setSnackMsg('')} message={snackMsg} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />

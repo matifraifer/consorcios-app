@@ -673,21 +673,19 @@ export async function getPropiedadPublica(id) {
 export async function createProspectoPublico({
   nombre, apellido, telefono, email,
   presupuesto, zona_interes, tipo_inmueble, credito_hipotecario,
-  propiedad_id, cliente_id,
+  propiedad_id, cliente_id, tipo_operacion,
 }) {
-  const { data: etapas } = await supabase
-    .from('etapas_crm').select('id').order('orden').limit(1)
-  const etapa_id = etapas?.[0]?.id ?? null
-
   const { data: prospecto, error } = await supabase
     .from('prospectos')
     .insert([{
       nombre, apellido, telefono, email: email || null,
-      etapa_id, cliente_id, cerrado: false,
+      etapa_id: 1, cliente_id, cerrado: false,
       presupuesto: presupuesto || null,
       zona_interes: zona_interes || null,
       tipo_inmueble: tipo_inmueble || null,
       credito_hipotecario: credito_hipotecario ?? null,
+      tipo_operacion: tipo_operacion?.toLowerCase() || null,
+      propiedad_id: propiedad_id || null,
       origen_web: true,
     }])
     .select().single()
@@ -958,17 +956,17 @@ export async function getComprobanteUrl(storagePath) {
   return data.signedUrl
 }
 
-export async function getIndicesActualizacion() {
+export async function getIndicesActualizacion(clienteId) {
   const { data, error } = await supabase
-    .from('indices_actualizacion').select('*').order('anio').order('mes')
+    .from('indices_actualizacion').select('*').eq('cliente_id', clienteId).order('anio').order('mes')
   if (error) throw error
   return data ?? []
 }
 
-export async function upsertIndice({ tipo, mes, anio, valor }) {
+export async function upsertIndice({ tipo, mes, anio, valor, clienteId }) {
   const { data, error } = await supabase
     .from('indices_actualizacion')
-    .upsert([{ tipo, mes, anio, valor: Number(valor) }], { onConflict: 'tipo,mes,anio' })
+    .upsert([{ tipo, mes, anio, valor: Number(valor), cliente_id: clienteId }], { onConflict: 'tipo,mes,anio,cliente_id' })
     .select().single()
   if (error) throw error
   return data

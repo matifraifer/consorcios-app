@@ -40,6 +40,11 @@ const TIPO_STYLES = {
   Oficina:      { bg: '#FDF2F8', color: '#9D174D' },
 }
 
+const OPERACION_STYLES = {
+  Venta:    { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  Alquiler: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+}
+
 const ROWS_PER_PAGE = 15
 
 function fmt(value, moneda) {
@@ -73,12 +78,19 @@ function EstadoBadge({ estado }) {
 function TipoBadge({ tipo }) {
   const s = TIPO_STYLES[tipo] ?? { bg: '#F1F5F9', color: '#6B7280' }
   return (
-    <Box sx={{
-      display: 'inline-block', bgcolor: s.bg, borderRadius: '6px',
-      px: 1, py: 0.25,
-    }}>
-      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: s.color }}>
-        {tipo}
+    <Box sx={{ display: 'inline-block', bgcolor: s.bg, borderRadius: '6px', px: 1, py: 0.25 }}>
+      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: s.color }}>{tipo}</Typography>
+    </Box>
+  )
+}
+
+function OperacionBadge({ operacion }) {
+  const s = OPERACION_STYLES[operacion] ?? { bg: '#F1F5F9', color: '#6B7280', border: '#E2E8F0' }
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, bgcolor: s.bg, border: `1px solid ${s.border}`, borderRadius: '20px', px: 1.25, py: 0.4 }}>
+      <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: s.color }} />
+      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: s.color, letterSpacing: '0.04em' }}>
+        {operacion ?? '—'}
       </Typography>
     </Box>
   )
@@ -367,13 +379,14 @@ export default function Propiedades() {
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
                 {[
-                  { label: 'Título',   col: null },
-                  { label: 'Dirección',col: null },
-                  { label: 'Tipo',     col: null },
-                  { label: 'Precio',   col: 'precio_publicacion' },
-                  { label: 'Estado',   col: null },
-                  { label: 'Alta',     col: 'created_at' },
-                  { label: '',         col: null },
+                  { label: 'Título',    col: null },
+                  { label: 'Dirección', col: null },
+                  { label: 'Tipo',      col: null },
+                  { label: 'Operación', col: null },
+                  { label: 'Precio',    col: 'precio_publicacion' },
+                  { label: 'Estado',    col: null },
+                  { label: 'Alta',      col: 'created_at' },
+                  { label: '',          col: null },
                 ].map(({ label, col }, i) => (
                   <TableCell
                     key={i}
@@ -399,7 +412,7 @@ export default function Propiedades() {
             <TableBody>
               {pageData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} sx={{ py: 8, textAlign: 'center', border: 0 }}>
+                  <TableCell colSpan={8} sx={{ py: 8, textAlign: 'center', border: 0 }}>
                     <SellIcon sx={{ fontSize: 32, color: '#E5E7EB', mb: 1, display: 'block', mx: 'auto' }} />
                     <Typography sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>
                       {search || activeFilters > 0 ? 'No se encontraron propiedades con esos filtros.' : 'No hay propiedades registradas.'}
@@ -445,6 +458,11 @@ export default function Propiedades() {
                       {/* Tipo */}
                       <TableCell sx={{ py: 1.5 }}>
                         <TipoBadge tipo={p.tipo_propiedad} />
+                      </TableCell>
+
+                      {/* Operación */}
+                      <TableCell sx={{ py: 1.5 }}>
+                        <OperacionBadge operacion={p.tipo_operacion} />
                       </TableCell>
 
                       {/* Precio */}

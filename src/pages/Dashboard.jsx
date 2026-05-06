@@ -134,8 +134,8 @@ export default function Dashboard() {
 
   return (
     <Box sx={{ pb: 6 }}>
-      {/* Header */}
-      <Box mb={4}>
+      {/* Dashboard de cobranzas — oculto temporalmente */}
+      {/* <Box mb={4}>
         <Typography
           sx={{
             fontSize: '0.65rem',
@@ -176,7 +176,7 @@ export default function Dashboard() {
 
       <DeudaPorConsorcioTable rows={deudaPorConsorcio} />
 
-      <Divider sx={{ my: 6, borderColor: '#F3F4F6' }} />
+      <Divider sx={{ my: 6, borderColor: '#F3F4F6' }} /> */}
 
       <CRMSection
         prospectos={crmData.prospectos}
