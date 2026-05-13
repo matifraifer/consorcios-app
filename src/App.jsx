@@ -22,6 +22,7 @@ import NuevoPeriodo     from './pages/NuevoPeriodo'
 import ExpensasDetalle  from './pages/ExpensasDetalle'
 import PropiedadPublica from './pages/PropiedadPublica'
 import Contratos        from './pages/Contratos'
+import Contactos        from './pages/Contactos'
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/expensas/nuevo"                     element={<NuevoPeriodo />} />
           <Route path="/expensas/:id"                       element={<ExpensasDetalle />} />
           <Route path="/contratos"                          element={<Contratos />} />
+          <Route path="/contactos"                          element={<Contactos />} />
         </Route>
       </Route>
 

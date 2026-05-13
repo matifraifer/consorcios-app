@@ -8,8 +8,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import { createContrato, updateContrato, getPropiedades, getPropietarioCRM } from '../../services/supabase'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
+import ContactoPicker from '../ContactoPicker'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -78,6 +80,8 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [error, setError] = useState(null)
   const [propFormOpen, setPropFormOpen] = useState(false)
   const [propietarioLocked, setPropietarioLocked] = useState(false)
+  const [pickerInquilinoOpen, setPickerInquilinoOpen] = useState(false)
+  const [pickerPropietarioOpen, setPickerPropietarioOpen] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -264,6 +268,17 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
           {/* Datos inquilino */}
           <SectionTitle>Datos del inquilino</SectionTitle>
+          <Box mb={1.5}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PersonSearchIcon sx={{ fontSize: 15 }} />}
+              onClick={() => setPickerInquilinoOpen(true)}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.78rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT } }}
+            >
+              Buscar contacto
+            </Button>
+          </Box>
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
               <Label required>Nombre</Label>
@@ -290,6 +305,19 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               </Typography>
             )}
           </Box>
+          {!propietarioLocked && (
+            <Box mb={1.5}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PersonSearchIcon sx={{ fontSize: 15 }} />}
+                onClick={() => setPickerPropietarioOpen(true)}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.78rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT } }}
+              >
+                Buscar contacto
+              </Button>
+            </Box>
+          )}
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
               <Label required>Nombre</Label>
@@ -478,6 +506,32 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         mode="new"
         clienteId={clienteId}
         onSaved={handlePropiedadSaved}
+      />
+
+      <ContactoPicker
+        open={pickerInquilinoOpen}
+        onClose={() => setPickerInquilinoOpen(false)}
+        onSelect={contacto => setForm(prev => ({
+          ...prev,
+          inquilino_nombre:   contacto.nombre,
+          inquilino_apellido: contacto.apellido,
+          inquilino_dni:      contacto.dni || prev.inquilino_dni,
+        }))}
+        clienteId={clienteId}
+        tipoSugerido="Inquilino"
+      />
+
+      <ContactoPicker
+        open={pickerPropietarioOpen}
+        onClose={() => setPickerPropietarioOpen(false)}
+        onSelect={contacto => setForm(prev => ({
+          ...prev,
+          propietario_nombre:   contacto.nombre,
+          propietario_apellido: contacto.apellido,
+          propietario_dni:      contacto.dni || prev.propietario_dni,
+        }))}
+        clienteId={clienteId}
+        tipoSugerido="Propietario"
       />
     </>
   )

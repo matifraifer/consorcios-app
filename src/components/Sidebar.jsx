@@ -7,6 +7,7 @@ import GroupIcon from '@mui/icons-material/Group'
 import ReportProblemIcon from '@mui/icons-material/ReportProblem'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import DescriptionIcon from '@mui/icons-material/Description'
+import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -41,6 +42,7 @@ const topItems = [
 const bottomItems = [
   { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
   { label: 'Prospectos',           path: '/prospectos',  icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Contactos',            path: '/contactos',   icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const contratosItems = [

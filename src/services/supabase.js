@@ -918,6 +918,38 @@ export async function getContratoAdjuntoUrl(storagePath) {
   return data.signedUrl
 }
 
+// ---- CONTACTOS ----
+
+export async function getContactos(cliente_id) {
+  const { data, error } = await supabase
+    .from('contactos')
+    .select('*')
+    .eq('cliente_id', cliente_id)
+    .order('apellido')
+    .order('nombre')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createContacto(data) {
+  const { data: result, error } = await supabase
+    .from('contactos').insert([data]).select().single()
+  if (error) throw error
+  return result
+}
+
+export async function updateContacto(id, data) {
+  const { data: result, error } = await supabase
+    .from('contactos').update(data).eq('id', id).select().single()
+  if (error) throw error
+  return result
+}
+
+export async function deleteContacto(id) {
+  const { error } = await supabase.from('contactos').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteContratoAdjunto(id, storagePath) {
   await supabase.storage.from(CONTRATOS_BUCKET).remove([storagePath])
   const { error } = await supabase.from('contratos_adjuntos').delete().eq('id', id)

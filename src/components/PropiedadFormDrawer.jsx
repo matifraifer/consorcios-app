@@ -7,6 +7,8 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import SellIcon from '@mui/icons-material/Sell'
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
+import PersonSearchIcon from '@mui/icons-material/PersonSearch'
+import ContactoPicker from './ContactoPicker'
 import imageCompression from 'browser-image-compression'
 import {
   createPropiedad, updatePropiedad,
@@ -97,6 +99,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(null) // null | { current, total }
   const [error, setError] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Imágenes
   const fileInputRef = useRef(null)
@@ -171,6 +174,15 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function handleContactoSelect(contacto) {
+    setForm(prev => ({
+      ...prev,
+      propietario_nombre:   contacto.nombre,
+      propietario_apellido: contacto.apellido,
+      propietario_dni:      contacto.dni || prev.propietario_dni,
+    }))
   }
 
   async function handleFilesSelected(e) {
@@ -312,6 +324,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
   const isVendida = form.estado === 'Vendida'
 
   return (
+    <>
     <Drawer
       anchor="right"
       open={open}
@@ -487,6 +500,18 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
 
           {/* ── Propietario ── */}
           <SectionTitle>Propietario asociado</SectionTitle>
+
+          <Box mb={2}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PersonSearchIcon sx={{ fontSize: 15 }} />}
+              onClick={() => setPickerOpen(true)}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.78rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
+            >
+              Buscar contacto
+            </Button>
+          </Box>
 
           <Grid container spacing={1.5} mb={2}>
             <Grid item xs={6}>
@@ -694,5 +719,14 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         </Box>
       </Box>
     </Drawer>
+
+    <ContactoPicker
+      open={pickerOpen}
+      onClose={() => setPickerOpen(false)}
+      onSelect={handleContactoSelect}
+      clienteId={clienteId}
+      tipoSugerido="Propietario"
+    />
+  </>
   )
 }

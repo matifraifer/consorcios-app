@@ -5,7 +5,9 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import GroupIcon from '@mui/icons-material/Group'
+import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import { createProspecto } from '../../services/supabase'
+import ContactoPicker from '../ContactoPicker'
 
 const ACCENT = '#065F46'
 
@@ -47,6 +49,7 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
   const [form, setForm] = useState(FORM_VENTA)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -63,6 +66,16 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function handleContactoSelect(contacto) {
+    setForm(prev => ({
+      ...prev,
+      nombre:   contacto.nombre,
+      apellido: contacto.apellido,
+      telefono: contacto.telefono || prev.telefono,
+      email:    contacto.email    || prev.email,
+    }))
   }
 
   function validate() {
@@ -162,6 +175,18 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
             Datos de contacto
           </Typography>
 
+          <Box mb={2}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PersonSearchIcon sx={{ fontSize: 15 }} />}
+              onClick={() => setPickerOpen(true)}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.78rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
+            >
+              Buscar contacto
+            </Button>
+          </Box>
+
           <Grid container spacing={1.5} mb={2}>
             <Grid item xs={6}>
               <Label>Nombre *</Label>
@@ -252,6 +277,14 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
           )}
         </form>
       </Box>
+
+      <ContactoPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleContactoSelect}
+        clienteId={clienteId}
+        tipoSugerido={tipoOp === 'alquiler' ? 'Inquilino' : 'Comprador'}
+      />
 
       {/* Footer */}
       <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
