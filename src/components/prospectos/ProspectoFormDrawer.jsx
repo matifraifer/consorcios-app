@@ -283,7 +283,7 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
         onClose={() => setPickerOpen(false)}
         onSelect={handleContactoSelect}
         clienteId={clienteId}
-        tipoSugerido={tipoOp === 'alquiler' ? 'Inquilino' : 'Comprador'}
+        tipoSugerido={tipoOp === 'alquiler' ? 'Arrendatario' : 'Comprador'}
       />
 
       {/* Footer */}

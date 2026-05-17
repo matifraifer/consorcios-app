@@ -518,7 +518,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           inquilino_dni:      contacto.dni || prev.inquilino_dni,
         }))}
         clienteId={clienteId}
-        tipoSugerido="Inquilino"
+        tipoSugerido="Arrendatario"
       />
 
       <ContactoPicker
@@ -531,7 +531,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           propietario_dni:      contacto.dni || prev.propietario_dni,
         }))}
         clienteId={clienteId}
-        tipoSugerido="Propietario"
+        tipoSugerido="Locatario"
       />
     </>
   )

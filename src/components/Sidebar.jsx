@@ -40,9 +40,9 @@ const topItems = [
 ]
 
 const bottomItems = [
+  { label: 'Contactos',            path: '/contactos',   icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
   { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
   { label: 'Prospectos',           path: '/prospectos',  icon: <GroupIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Contactos',            path: '/contactos',   icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const contratosItems = [

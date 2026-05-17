@@ -725,7 +725,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       onClose={() => setPickerOpen(false)}
       onSelect={handleContactoSelect}
       clienteId={clienteId}
-      tipoSugerido="Propietario"
+      tipoSugerido="Vendedor"
     />
   </>
   )

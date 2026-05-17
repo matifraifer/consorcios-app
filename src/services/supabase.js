@@ -675,6 +675,25 @@ export async function createProspectoPublico({
   presupuesto, zona_interes, tipo_inmueble, credito_hipotecario,
   propiedad_id, cliente_id, tipo_operacion,
 }) {
+  const esAlquiler = tipo_operacion?.toLowerCase() === 'alquiler'
+
+  // Crear contacto con origen WEB
+  const { data: contacto, error: contactoErr } = await supabase
+    .from('contactos')
+    .insert([{
+      nombre, apellido, telefono, email: email || null,
+      cliente_id, activo: true, origen: 'WEB',
+      tipos: [esAlquiler ? 'Arrendatario' : 'Comprador'],
+      presupuesto: presupuesto || null,
+      tipo_operacion: esAlquiler ? 'Alquiler' : 'Compraventa',
+    }])
+    .select().single()
+  if (contactoErr) throw contactoErr
+
+  if (propiedad_id && contacto) {
+    await supabase.from('contactos_propiedades').insert([{ contacto_id: contacto.id, propiedad_id }])
+  }
+
   const { data: prospecto, error } = await supabase
     .from('prospectos')
     .insert([{
@@ -923,12 +942,77 @@ export async function getContratoAdjuntoUrl(storagePath) {
 export async function getContactos(cliente_id) {
   const { data, error } = await supabase
     .from('contactos')
-    .select('*')
+    .select('*, contactos_propiedades(propiedad_id)')
     .eq('cliente_id', cliente_id)
+    .eq('activo', true)
     .order('apellido')
     .order('nombre')
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(c => ({
+    ...c,
+    propiedades_count: c.contactos_propiedades?.length ?? 0,
+  }))
+}
+
+export async function checkDniExists(dni, clienteId) {
+  const { count, error } = await supabase
+    .from('contactos')
+    .select('*', { count: 'exact', head: true })
+    .eq('cliente_id', clienteId)
+    .eq('dni', dni.trim())
+    .eq('activo', true)
+  if (error) throw error
+  return count > 0
+}
+
+export async function getContactoPropiedades(contacto_id) {
+  const { data, error } = await supabase
+    .from('contactos_propiedades')
+    .select('propiedad_id, propiedades(id, titulo, localidad, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, estado)')
+    .eq('contacto_id', contacto_id)
+  if (error) throw error
+  return (data ?? []).map(r => r.propiedades).filter(Boolean)
+}
+
+export async function setContactoPropiedades(contacto_id, propiedad_ids) {
+  const { error: delErr } = await supabase
+    .from('contactos_propiedades')
+    .delete()
+    .eq('contacto_id', contacto_id)
+  if (delErr) throw delErr
+  if (!propiedad_ids?.length) return
+  const { error } = await supabase
+    .from('contactos_propiedades')
+    .insert(propiedad_ids.map(propiedad_id => ({ contacto_id, propiedad_id })))
+  if (error) throw error
+}
+
+export async function sugerirPropiedadesPorContacto({
+  clienteId, tipoPropiedad, tipoOperacion, zonaInteres, presupuesto, moneda, excluirIds = [],
+}) {
+  let q = supabase
+    .from('propiedades')
+    .select('id, titulo, localidad, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, estado')
+    .eq('cliente_id', clienteId)
+    .neq('estado', 'Baja')
+
+  if (tipoPropiedad?.length)    q = q.in('tipo_propiedad', tipoPropiedad)
+  if (tipoOperacion)            q = q.eq('tipo_operacion', tipoOperacion)
+  if (zonaInteres?.length)      q = q.in('localidad', zonaInteres)
+  if (presupuesto) {
+    q = q.eq('moneda', moneda).lte('precio_publicacion', Number(presupuesto) * 1.2)
+  }
+
+  const { data, error } = await q
+  if (error) throw error
+
+  const excluir = new Set(excluirIds)
+  return (data ?? [])
+    .filter(p => !excluir.has(p.id))
+    .map(p => ({
+      ...p,
+      sobre_presupuesto: presupuesto ? Number(p.precio_publicacion) > Number(presupuesto) : false,
+    }))
 }
 
 export async function createContacto(data) {
@@ -946,7 +1030,10 @@ export async function updateContacto(id, data) {
 }
 
 export async function deleteContacto(id) {
-  const { error } = await supabase.from('contactos').delete().eq('id', id)
+  const { error } = await supabase
+    .from('contactos')
+    .update({ activo: false })
+    .eq('id', id)
   if (error) throw error
 }
 

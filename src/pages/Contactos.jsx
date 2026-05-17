@@ -1,48 +1,72 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Box, Typography, Button, Paper, TextField, Select, MenuItem,
   FormControl, Table, TableHead, TableRow, TableCell, TableBody,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  Snackbar, Alert, CircularProgress, Tooltip,
+  Snackbar, Alert, CircularProgress, Tooltip, Chip,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import EmailIcon from '@mui/icons-material/Email'
+import PhoneIcon from '@mui/icons-material/Phone'
 import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import { useAuth } from '../contexts/AuthContext'
 import { getContactos, deleteContacto } from '../services/supabase'
 import ContactoFormDrawer from '../components/contactos/ContactoFormDrawer'
 
 const ACCENT = '#065F46'
 
-const TIPOS = ['Todos', 'Propietario', 'Inquilino', 'Vendedor', 'Comprador']
+const TIPOS_FILTRO   = ['Todos', 'Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
+const ORIGENES_FILTRO = ['Todos', 'APP', 'WEB']
 
 const TIPO_COLORS = {
-  Propietario: { bg: '#ECFDF5', color: '#065F46' },
-  Inquilino:   { bg: '#EFF6FF', color: '#1D4ED8' },
-  Vendedor:    { bg: '#FFFBEB', color: '#92400E' },
-  Comprador:   { bg: '#F5F3FF', color: '#6D28D9' },
+  Comprador:    { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+  Vendedor:     { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+  Arrendatario: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  Locatario:    { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
+}
+
+const ORIGEN_STYLES = {
+  WEB: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  APP: { bg: '#F3F4F6', color: '#374151', border: '#E5E7EB' },
 }
 
 function TipoBadge({ tipo }) {
-  const style = TIPO_COLORS[tipo] ?? { bg: '#F3F4F6', color: '#374151' }
+  const s = TIPO_COLORS[tipo] ?? { bg: '#F3F4F6', color: '#374151', border: '#E5E7EB' }
   return (
-    <Box
-      component="span"
-      sx={{
-        display: 'inline-block',
-        px: 1,
-        py: 0.25,
-        borderRadius: '6px',
-        bgcolor: style.bg,
-        color: style.color,
-        fontSize: '0.72rem',
-        fontWeight: 600,
-      }}
-    >
+    <Box component="span" sx={{ display: 'inline-block', px: 1, py: 0.2, borderRadius: '6px', bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: '0.68rem', fontWeight: 600 }}>
       {tipo}
     </Box>
   )
+}
+
+function OrigenBadge({ origen }) {
+  const s = ORIGEN_STYLES[origen] ?? ORIGEN_STYLES.APP
+  return (
+    <Box component="span" sx={{ display: 'inline-block', px: 1, py: 0.2, borderRadius: '6px', bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+      {origen ?? 'APP'}
+    </Box>
+  )
+}
+
+function TiposBadges({ tipos, tipo }) {
+  const list = tipos?.length ? tipos : (tipo ? [tipo] : [])
+  if (!list.length) return <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>—</Typography>
+  return (
+    <Box display="flex" gap={0.5} flexWrap="wrap">
+      {list.map(t => <TipoBadge key={t} tipo={t} />)}
+    </Box>
+  )
+}
+
+function getContactTipos(c) {
+  if (c.tipos?.length) return c.tipos
+  if (!c.tipo) return []
+  const LEGACY = { Inquilino: 'Arrendatario', Propietario: 'Locatario', Vendedor: 'Vendedor', Comprador: 'Comprador' }
+  return [LEGACY[c.tipo] ?? c.tipo]
 }
 
 export default function Contactos() {
@@ -51,17 +75,16 @@ export default function Contactos() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState('Todos')
+  const [origenFiltro, setOrigenFiltro] = useState('Todos')
+  const [sortBy, setSortBy] = useState('apellido')
+  const [sortDir, setSortDir] = useState('asc')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [snack, setSnack] = useState({ open: false, msg: '', severity: 'success' })
 
-  useEffect(() => {
-    load()
-  }, [])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const data = await getContactos(user.cliente_id)
@@ -71,7 +94,9 @@ export default function Contactos() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user.cliente_id])
+
+  useEffect(() => { load() }, [load])
 
   function showSnack(msg, severity = 'success') {
     setSnack({ open: true, msg, severity })
@@ -79,28 +104,52 @@ export default function Contactos() {
 
   const filtrados = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return contactos.filter(c => {
-      if (tipoFiltro !== 'Todos' && c.tipo !== tipoFiltro) return false
+    let list = contactos.filter(c => {
+      if (tipoFiltro !== 'Todos') {
+        if (!getContactTipos(c).includes(tipoFiltro)) return false
+      }
+      if (origenFiltro !== 'Todos' && (c.origen ?? 'APP') !== origenFiltro) return false
       if (!q) return true
       return (
-        (c.nombre ?? '').toLowerCase().includes(q) ||
+        (c.nombre   ?? '').toLowerCase().includes(q) ||
         (c.apellido ?? '').toLowerCase().includes(q) ||
-        (c.dni ?? '').toLowerCase().includes(q) ||
+        (c.dni      ?? '').toLowerCase().includes(q) ||
         (c.telefono ?? '').toLowerCase().includes(q) ||
-        (c.email ?? '').toLowerCase().includes(q)
+        (c.email    ?? '').toLowerCase().includes(q)
       )
     })
-  }, [contactos, search, tipoFiltro])
 
-  function handleRowClick(c) {
-    setSelected(c)
-    setDrawerOpen(true)
+    list.sort((a, b) => {
+      if (sortBy === 'propiedades_count') {
+        const va = a.propiedades_count ?? 0, vb = b.propiedades_count ?? 0
+        return sortDir === 'asc' ? va - vb : vb - va
+      }
+      let va = '', vb = ''
+      if (sortBy === 'apellido')        { va = `${a.apellido} ${a.nombre}`.toLowerCase(); vb = `${b.apellido} ${b.nombre}`.toLowerCase() }
+      if (sortBy === 'dni')             { va = a.dni ?? ''; vb = b.dni ?? '' }
+      if (sortBy === 'telefono')        { va = a.telefono ?? ''; vb = b.telefono ?? '' }
+      if (sortBy === 'origen')          { va = a.origen ?? 'APP'; vb = b.origen ?? 'APP' }
+      if (sortBy === 'asignado_nombre') { va = a.asignado_nombre ?? ''; vb = b.asignado_nombre ?? '' }
+      return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+
+    return list
+  }, [contactos, search, tipoFiltro, origenFiltro, sortBy, sortDir])
+
+  function toggleSort(col) {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
   }
 
-  function handleNew() {
-    setSelected(null)
-    setDrawerOpen(true)
+  function SortIcon({ col }) {
+    if (sortBy !== col) return null
+    return sortDir === 'asc'
+      ? <ArrowUpwardIcon sx={{ fontSize: 11, ml: 0.4 }} />
+      : <ArrowDownwardIcon sx={{ fontSize: 11, ml: 0.4 }} />
   }
+
+  function handleRowClick(c) { setSelected(c); setDrawerOpen(true) }
+  function handleNew()       { setSelected(null); setDrawerOpen(true) }
 
   function handleSaved(result) {
     setContactos(prev => {
@@ -126,6 +175,32 @@ export default function Contactos() {
     }
   }
 
+  async function copyToClipboard(text, label) {
+    try {
+      await navigator.clipboard.writeText(text)
+      showSnack(`${label} copiado al portapapeles.`)
+    } catch {
+      showSnack('No se pudo copiar.', 'error')
+    }
+  }
+
+  const HEADER_SX = {
+    fontSize: '0.68rem', fontWeight: 700, color: '#6B7280',
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+    borderBottom: '1px solid #E5E7EB', py: 1.5, userSelect: 'none',
+  }
+
+  const cols = [
+    { label: 'Nombre y Apellido', col: 'apellido' },
+    { label: 'Tipo',              col: null },
+    { label: 'DNI',               col: 'dni' },
+    { label: 'Teléfono',          col: 'telefono' },
+    { label: 'Origen',            col: 'origen' },
+    { label: 'Propiedades',       col: 'propiedades_count' },
+    { label: 'Asignado',          col: 'asignado_nombre' },
+    { label: '',                  col: null },
+  ]
+
   const fieldSx = {
     '& .MuiOutlinedInput-root': {
       borderRadius: '8px', fontSize: '0.875rem',
@@ -134,7 +209,6 @@ export default function Contactos() {
       '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 },
     },
   }
-
   const selectSx = {
     fontSize: '0.875rem', borderRadius: '8px',
     '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
@@ -177,7 +251,12 @@ export default function Contactos() {
           />
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <Select value={tipoFiltro} onChange={e => setTipoFiltro(e.target.value)} sx={selectSx}>
-              {TIPOS.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
+              {TIPOS_FILTRO.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <Select value={origenFiltro} onChange={e => setOrigenFiltro(e.target.value)} sx={selectSx}>
+              {ORIGENES_FILTRO.map(o => <MenuItem key={o} value={o} sx={{ fontSize: '0.875rem' }}>{o}</MenuItem>)}
             </Select>
           </FormControl>
           <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', ml: 'auto' }}>
@@ -203,12 +282,18 @@ export default function Contactos() {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #E5E7EB' }}>Nombre</TableCell>
-                <TableCell sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #E5E7EB' }}>Tipo</TableCell>
-                <TableCell sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #E5E7EB' }}>Contacto</TableCell>
-                <TableCell sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #E5E7EB' }}>DNI</TableCell>
-                <TableCell sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #E5E7EB' }}>Fecha alta</TableCell>
-                <TableCell sx={{ borderBottom: '1px solid #E5E7EB' }} align="right" />
+                {cols.map(({ label, col }, i) => (
+                  <TableCell
+                    key={i}
+                    onClick={col ? () => toggleSort(col) : undefined}
+                    sx={{ ...HEADER_SX, cursor: col ? 'pointer' : 'default', '&:hover': col ? { color: ACCENT } : {} }}
+                  >
+                    <Box display="flex" alignItems="center">
+                      {label}
+                      {col && <SortIcon col={col} />}
+                    </Box>
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -217,34 +302,66 @@ export default function Contactos() {
                   key={c.id}
                   hover
                   onClick={() => handleRowClick(c)}
-                  sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#F9FAFB' } }}
+                  sx={{ cursor: 'pointer', '& td': { borderBottom: '1px solid #F3F4F6' }, '&:last-child td': { borderBottom: 0 }, '&:hover .row-actions': { opacity: 1 } }}
                 >
-                  <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827', borderBottom: '1px solid #F3F4F6' }}>
+                  {/* Nombre */}
+                  <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
                     {c.apellido}, {c.nombre}
                   </TableCell>
-                  <TableCell sx={{ borderBottom: '1px solid #F3F4F6' }}>
-                    <TipoBadge tipo={c.tipo} />
+
+                  {/* Tipos */}
+                  <TableCell><TiposBadges tipos={c.tipos} tipo={c.tipo} /></TableCell>
+
+                  {/* DNI */}
+                  <TableCell sx={{ fontSize: '0.82rem', color: '#6B7280' }}>{c.dni ?? '—'}</TableCell>
+
+                  {/* Teléfono */}
+                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>{c.telefono ?? '—'}</TableCell>
+
+                  {/* Origen */}
+                  <TableCell><OrigenBadge origen={c.origen} /></TableCell>
+
+                  {/* Propiedades */}
+                  <TableCell>
+                    {c.propiedades_count > 0 ? (
+                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', bgcolor: '#ECFDF5', color: ACCENT, fontSize: '0.72rem', fontWeight: 800, border: '1px solid #A7F3D0' }}>
+                        {c.propiedades_count}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
+                    )}
                   </TableCell>
-                  <TableCell sx={{ borderBottom: '1px solid #F3F4F6' }}>
-                    <Typography sx={{ fontSize: '0.8rem', color: '#374151' }}>{c.telefono ?? '—'}</Typography>
-                    {c.email && <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{c.email}</Typography>}
+
+                  {/* Asignado */}
+                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                    {c.asignado_nombre ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
                   </TableCell>
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#6B7280', borderBottom: '1px solid #F3F4F6' }}>
-                    {c.dni ?? '—'}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem', color: '#9CA3AF', borderBottom: '1px solid #F3F4F6' }}>
-                    {c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '—'}
-                  </TableCell>
-                  <TableCell sx={{ borderBottom: '1px solid #F3F4F6' }} align="right">
-                    <Box display="flex" gap={0.5} justifyContent="flex-end" onClick={e => e.stopPropagation()}>
+
+                  {/* Acciones */}
+                  <TableCell align="right">
+                    <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" onClick={e => e.stopPropagation()}>
+                      {c.email && (
+                        <Tooltip title="Copiar correo">
+                          <IconButton size="small" onClick={() => copyToClipboard(c.email, 'Correo')} sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
+                            <EmailIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {c.telefono && (
+                        <Tooltip title="Copiar teléfono">
+                          <IconButton size="small" onClick={() => copyToClipboard(c.telefono, 'Teléfono')} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                            <PhoneIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Editar">
                         <IconButton size="small" onClick={() => handleRowClick(c)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
-                          <EditIcon sx={{ fontSize: 16 }} />
+                          <EditIcon sx={{ fontSize: 15 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Eliminar">
                         <IconButton size="small" onClick={() => setDeleteDialog(c)} sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
-                          <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                          <DeleteOutlineIcon sx={{ fontSize: 15 }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -268,7 +385,7 @@ export default function Contactos() {
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>Eliminar contacto</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: '0.875rem', color: '#374151' }}>
-            ¿Confirmas la eliminación de <strong>{deleteDialog?.apellido}, {deleteDialog?.nombre}</strong>? Esta acción no se puede deshacer.
+            ¿Estás seguro que deseas eliminar a <strong>{deleteDialog?.apellido}, {deleteDialog?.nombre}</strong>? Esta acción no se puede deshacer.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
