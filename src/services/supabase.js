@@ -968,22 +968,49 @@ export async function checkDniExists(dni, clienteId) {
 export async function getContactoPropiedades(contacto_id) {
   const { data, error } = await supabase
     .from('contactos_propiedades')
-    .select('propiedad_id, propiedades(id, titulo, localidad, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, estado)')
+    .select('tipo, propiedades(id, titulo, localidad, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, estado)')
     .eq('contacto_id', contacto_id)
   if (error) throw error
-  return (data ?? []).map(r => r.propiedades).filter(Boolean)
+  return (data ?? []).map(r => ({ ...r.propiedades, tipo: r.tipo })).filter(r => r?.id)
 }
 
 export async function setContactoPropiedades(contacto_id, propiedad_ids) {
+  const { data: existing } = await supabase
+    .from('contactos_propiedades').select('propiedad_id').eq('contacto_id', contacto_id)
+  const existingIds = (existing ?? []).map(r => r.propiedad_id)
+  const toDelete = existingIds.filter(id => !propiedad_ids.includes(id))
+  const toInsert = propiedad_ids.filter(id => !existingIds.includes(id))
+  if (toDelete.length) {
+    const { error } = await supabase.from('contactos_propiedades').delete()
+      .eq('contacto_id', contacto_id).in('propiedad_id', toDelete)
+    if (error) throw error
+  }
+  if (toInsert.length) {
+    const { error } = await supabase.from('contactos_propiedades')
+      .insert(toInsert.map(propiedad_id => ({ contacto_id, propiedad_id })))
+    if (error) throw error
+  }
+}
+
+export async function getPropiedadContactos(propiedad_id) {
+  const { data, error } = await supabase
+    .from('contactos_propiedades')
+    .select('contactos(id, nombre, apellido, dni, telefono, email, tipo, tipos)')
+    .eq('propiedad_id', propiedad_id)
+  if (error) throw error
+  return (data ?? []).map(r => r.contactos).filter(Boolean)
+}
+
+export async function setPropiedadContactos(propiedad_id, contacto_ids) {
   const { error: delErr } = await supabase
     .from('contactos_propiedades')
     .delete()
-    .eq('contacto_id', contacto_id)
+    .eq('propiedad_id', propiedad_id)
   if (delErr) throw delErr
-  if (!propiedad_ids?.length) return
+  if (!contacto_ids?.length) return
   const { error } = await supabase
     .from('contactos_propiedades')
-    .insert(propiedad_ids.map(propiedad_id => ({ contacto_id, propiedad_id })))
+    .insert(contacto_ids.map(contacto_id => ({ propiedad_id, contacto_id })))
   if (error) throw error
 }
 
@@ -1015,6 +1042,16 @@ export async function sugerirPropiedadesPorContacto({
     }))
 }
 
+export async function getContactoById(id) {
+  const { data, error } = await supabase
+    .from('contactos')
+    .select('id, nombre, apellido, dni, telefono, email')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function createContacto(data) {
   const { data: result, error } = await supabase
     .from('contactos').insert([data]).select().single()
@@ -1027,6 +1064,20 @@ export async function updateContacto(id, data) {
     .from('contactos').update(data).eq('id', id).select().single()
   if (error) throw error
   return result
+}
+
+export async function buscarContactos(cliente_id, texto) {
+  const q = texto.trim().toLowerCase()
+  const { data, error } = await supabase
+    .from('contactos')
+    .select('id, nombre, apellido, dni, telefono')
+    .eq('cliente_id', cliente_id)
+    .eq('activo', true)
+    .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%`)
+    .order('apellido')
+    .limit(20)
+  if (error) throw error
+  return data ?? []
 }
 
 export async function deleteContacto(id) {

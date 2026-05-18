@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import {
-  Box, Typography, Drawer, IconButton, Button, CircularProgress, Tooltip, Snackbar,
+  Box, Typography, Drawer, IconButton, Button, CircularProgress, Tooltip, Snackbar, Chip,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import EditIcon from '@mui/icons-material/Edit'
-import BlockIcon from '@mui/icons-material/Block'
+import CloseIcon              from '@mui/icons-material/Close'
+import EditIcon               from '@mui/icons-material/Edit'
+import BlockIcon              from '@mui/icons-material/Block'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import ImageNotSupportedIcon from '@mui/icons-material/ImageNotSupported'
-import LinkIcon from '@mui/icons-material/Link'
-import { getPropiedadImagenes, getPublicImageUrl } from '../services/supabase'
+import ChevronLeftIcon        from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon       from '@mui/icons-material/ChevronRight'
+import ImageNotSupportedIcon  from '@mui/icons-material/ImageNotSupported'
+import LinkIcon               from '@mui/icons-material/Link'
+import PersonIcon             from '@mui/icons-material/Person'
+import RoomIcon               from '@mui/icons-material/Room'
+import { getPropiedadImagenes, getPublicImageUrl, getPropiedadContactos } from '../services/supabase'
 
-const ACCENT = '#065F46'
+const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
 const ESTADO_STYLES = {
@@ -54,17 +56,14 @@ function Row({ label, value, mono = false }) {
   )
 }
 
-function Section({ title, children }) {
+function SectionTitle({ children }) {
   return (
-    <Box mb={3}>
-      <Typography sx={{
-        fontSize: '0.82rem', fontWeight: 700, letterSpacing: '0.01em',
-        textTransform: 'none', color: '#111827', mb: 1,
-      }}>
-        {title}
-      </Typography>
+    <Typography sx={{
+      fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em',
+      textTransform: 'uppercase', color: ACCENT, mb: 1.5, mt: 3,
+    }}>
       {children}
-    </Box>
+    </Typography>
   )
 }
 
@@ -83,7 +82,6 @@ function fmtDate(d) {
 
 // ── Lightbox ───────────────────────────────────────────────────────────────
 function Lightbox({ images, index, onClose, onPrev, onNext }) {
-  // Cerrar con Escape, navegar con flechas
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose()
@@ -103,7 +101,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
-      {/* Cerrar */}
       <IconButton
         onClick={onClose}
         sx={{ position: 'absolute', top: 16, right: 16, color: 'white', bgcolor: 'rgba(255,255,255,0.1)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
@@ -111,12 +108,10 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
         <CloseIcon />
       </IconButton>
 
-      {/* Contador */}
       <Typography sx={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem' }}>
         {index + 1} / {images.length}
       </Typography>
 
-      {/* Flecha izq */}
       {images.length > 1 && (
         <IconButton
           onClick={e => { e.stopPropagation(); onPrev() }}
@@ -126,7 +121,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
         </IconButton>
       )}
 
-      {/* Imagen */}
       <Box
         component="img"
         src={images[index]}
@@ -141,7 +135,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
         }}
       />
 
-      {/* Flecha der */}
       {images.length > 1 && (
         <IconButton
           onClick={e => { e.stopPropagation(); onNext() }}
@@ -151,7 +144,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
         </IconButton>
       )}
 
-      {/* Miniaturas */}
       {images.length > 1 && (
         <Box
           onClick={e => e.stopPropagation()}
@@ -159,8 +151,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
             position: 'absolute', bottom: 16,
             display: 'flex', gap: 1,
             maxWidth: 'calc(100vw - 40px)',
-            overflowX: 'auto',
-            px: 2,
+            overflowX: 'auto', px: 2,
           }}
         >
           {images.map((url, i) => (
@@ -188,8 +179,8 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
 
 // ── Galería ────────────────────────────────────────────────────────────────
 function ImageGallery({ propiedadId }) {
-  const [images, setImages] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [images, setImages]     = useState([])
+  const [loading, setLoading]   = useState(true)
   const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
@@ -202,7 +193,7 @@ function ImageGallery({ propiedadId }) {
 
   if (loading) {
     return (
-      <Box display="flex" alignItems="center" gap={1} mb={3}>
+      <Box display="flex" alignItems="center" gap={1} mb={2}>
         <CircularProgress size={14} sx={{ color: '#9CA3AF' }} />
         <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Cargando fotos...</Typography>
       </Box>
@@ -211,63 +202,49 @@ function ImageGallery({ propiedadId }) {
 
   if (images.length === 0) {
     return (
-      <Box
-        mb={3}
-        sx={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: 100, bgcolor: '#F9FAFB', border: '1px dashed #E5E7EB', borderRadius: '10px', gap: 0.75,
-        }}
-      >
+      <Box mb={2} sx={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: 90, bgcolor: '#F9FAFB', border: '1px dashed #E5E7EB', borderRadius: '10px', gap: 0.75,
+      }}>
         <ImageNotSupportedIcon sx={{ fontSize: 22, color: '#D1D5DB' }} />
         <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Sin fotos cargadas</Typography>
       </Box>
     )
   }
 
-  const openLightbox = (i) => setLightboxIndex(i)
-  const closeLightbox = () => setLightboxIndex(null)
   const goPrev = (target) => setLightboxIndex(target !== undefined ? target : i => (i - 1 + images.length) % images.length)
   const goNext = (target) => setLightboxIndex(target !== undefined ? target : i => (i + 1) % images.length)
 
   return (
     <>
-      {/* Imagen principal */}
       <Box
         mb={1}
-        onClick={() => openLightbox(0)}
+        onClick={() => setLightboxIndex(0)}
         sx={{
           width: '100%', height: 220, borderRadius: '10px', overflow: 'hidden',
           cursor: 'pointer', position: 'relative',
           '&:hover .img-overlay': { opacity: 1 },
         }}
       >
-        <Box
-          component="img"
-          src={images[0]}
-          alt=""
-          sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        />
-        <Box
-          className="img-overlay"
-          sx={{
-            position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.25)',
-            opacity: 0, transition: 'opacity 0.2s',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
+        <Box component="img" src={images[0]} alt=""
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <Box className="img-overlay" sx={{
+          position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.25)',
+          opacity: 0, transition: 'opacity 0.2s',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
           <Typography sx={{ color: 'white', fontSize: '0.75rem', fontWeight: 600, bgcolor: 'rgba(0,0,0,0.4)', px: 1.5, py: 0.5, borderRadius: '20px' }}>
             Ver foto
           </Typography>
         </Box>
       </Box>
 
-      {/* Miniaturas (si hay más de 1) */}
       {images.length > 1 && (
-        <Box display="flex" gap={1} mb={3} sx={{ overflowX: 'auto', pb: 0.5 }}>
+        <Box display="flex" gap={1} mb={2} sx={{ overflowX: 'auto', pb: 0.5 }}>
           {images.slice(1).map((url, i) => (
             <Box
               key={i}
-              onClick={() => openLightbox(i + 1)}
+              onClick={() => setLightboxIndex(i + 1)}
               sx={{
                 width: 72, height: 54, borderRadius: '8px', overflow: 'hidden',
                 flexShrink: 0, cursor: 'pointer', position: 'relative',
@@ -276,16 +253,9 @@ function ImageGallery({ propiedadId }) {
               }}
             >
               <Box component="img" src={url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <Box
-                className="thumb-overlay"
-                sx={{
-                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)',
-                  opacity: 0, transition: 'opacity 0.15s',
-                }}
-              />
+              <Box className="thumb-overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', opacity: 0, transition: 'opacity 0.15s' }} />
             </Box>
           ))}
-          {/* Badge total de fotos */}
           <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5, flexShrink: 0 }}>
             <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF', whiteSpace: 'nowrap' }}>
               {images.length} foto{images.length !== 1 ? 's' : ''}
@@ -298,7 +268,7 @@ function ImageGallery({ propiedadId }) {
         <Lightbox
           images={images}
           index={lightboxIndex}
-          onClose={closeLightbox}
+          onClose={() => setLightboxIndex(null)}
           onPrev={goPrev}
           onNext={goNext}
         />
@@ -309,11 +279,24 @@ function ImageGallery({ propiedadId }) {
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, onReactivar, userRole }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied]           = useState(false)
+  const [contactos, setContactos]     = useState([])
+  const [loadingContactos, setLoadingContactos] = useState(false)
+
+  useEffect(() => {
+    if (!open || !propiedad?.id) { setContactos([]); return }
+    setLoadingContactos(true)
+    getPropiedadContactos(propiedad.id)
+      .then(setContactos)
+      .catch(() => setContactos([]))
+      .finally(() => setLoadingContactos(false))
+  }, [open, propiedad?.id])
 
   if (!propiedad) return null
   const isAdmin = userRole?.toLowerCase() === 'admin'
-  const isBaja = propiedad.estado === 'Baja'
+  const isBaja  = propiedad.estado === 'Baja'
+
+  const hasMap = propiedad.latitud != null && propiedad.longitud != null
 
   function copyPublicLink() {
     const url = `${window.location.origin}/p/${propiedad.id}`
@@ -321,11 +304,14 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
   }
 
   const caracteristicas = [
-    propiedad.ambientes && `${propiedad.ambientes} amb.`,
+    propiedad.ambientes   && `${propiedad.ambientes} amb.`,
     propiedad.dormitorios && `${propiedad.dormitorios} dorm.`,
-    propiedad.banios && `${propiedad.banios} baño${propiedad.banios !== 1 ? 's' : ''}`,
-    propiedad.cochera && 'Cochera',
+    propiedad.banios      && `${propiedad.banios} baño${propiedad.banios !== 1 ? 's' : ''}`,
+    propiedad.cochera     && 'Cochera',
   ].filter(Boolean).join('  ·  ')
+
+  const ubicacion = [propiedad.direccion, propiedad.localidad, propiedad.provincia]
+    .filter(Boolean).join(', ')
 
   return (
     <Drawer
@@ -338,82 +324,174 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
       <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box flex={1} pr={2}>
-            <Box display="flex" alignItems="center" gap={1} mb={0.75}>
+            <Box display="flex" alignItems="center" gap={1} mb={0.75} flexWrap="wrap">
               <EstadoBadge estado={propiedad.estado} />
-              <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
-                {propiedad.tipo_propiedad}
-              </Typography>
+              {propiedad.tipo_propiedad && (
+                <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
+                  {propiedad.tipo_propiedad}
+                </Typography>
+              )}
+              {propiedad.tipo_operacion && (
+                <Chip
+                  label={propiedad.tipo_operacion}
+                  size="small"
+                  sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, bgcolor: '#F3F4F6', color: '#374151', border: 'none' }}
+                />
+              )}
             </Box>
             <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-              {propiedad.titulo}
+              {propiedad.titulo || 'Sin título'}
             </Typography>
-            <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', mt: 0.5 }}>
-              {propiedad.direccion} — {propiedad.localidad}, {propiedad.provincia}
-            </Typography>
+            {ubicacion && (
+              <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', mt: 0.5 }}>
+                {ubicacion}
+              </Typography>
+            )}
           </Box>
           <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
         </Box>
 
         {/* Precio destacado */}
-        <Box sx={{ bgcolor: ACCENT_LIGHT, border: '1px solid #A7F3D0', borderRadius: '10px', px: 2.5, py: 1.5, mt: 2, display: 'inline-block' }}>
-          <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: ACCENT, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Precio de publicación
-          </Typography>
-          <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, mt: 0.25, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-            {fmt(propiedad.precio_publicacion, propiedad.moneda)}
-          </Typography>
-        </Box>
+        {propiedad.precio_publicacion && (
+          <Box sx={{ bgcolor: ACCENT_LIGHT, border: '1px solid #A7F3D0', borderRadius: '10px', px: 2.5, py: 1.5, mt: 2, display: 'inline-block' }}>
+            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: ACCENT, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Precio de publicación
+            </Typography>
+            <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, mt: 0.25, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+              {fmt(propiedad.precio_publicacion, propiedad.moneda)}
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       {/* Contenido */}
-      <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 3 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 4 }}>
 
-        {/* ── Galería de fotos ── */}
+        {/* Fotos */}
+        <SectionTitle>Fotos</SectionTitle>
         <ImageGallery propiedadId={propiedad.id} />
 
+        {/* Características */}
+        <SectionTitle>Características</SectionTitle>
+        <Row label="Tipo de propiedad"  value={propiedad.tipo_propiedad} />
+        <Row label="Tipo de operación"  value={propiedad.tipo_operacion} />
+        <Row label="Metros cubiertos"   value={propiedad.metros_cubiertos ? `${propiedad.metros_cubiertos} m²` : null} />
+        <Row label="Metros totales"     value={propiedad.metros_totales   ? `${propiedad.metros_totales} m²`   : null} />
+        <Row label="Ambientes"          value={propiedad.ambientes        ? String(propiedad.ambientes)         : null} />
+        <Row label="Dormitorios"        value={propiedad.dormitorios      ? String(propiedad.dormitorios)       : null} />
+        <Row label="Baños"              value={propiedad.banios           ? String(propiedad.banios)            : null} />
+        <Row label="Cochera"            value={propiedad.cochera ? 'Sí' : null} />
+
+        {/* Descripción */}
         {propiedad.descripcion && (
-          <Section title="Descripción">
+          <>
+            <SectionTitle>Descripción</SectionTitle>
             <Typography sx={{ fontSize: '0.82rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
               {propiedad.descripcion}
             </Typography>
-          </Section>
+          </>
         )}
 
-        <Section title="Detalles">
-          <Row label="Metros cubiertos"  value={propiedad.metros_cubiertos ? `${propiedad.metros_cubiertos} m²` : null} />
-          <Row label="Metros totales"    value={propiedad.metros_totales   ? `${propiedad.metros_totales} m²`   : null} />
-          <Row label="Características"  value={caracteristicas || null} />
-          <Row label="Propietario"       value={propiedad.propietario_id} />
-        </Section>
+        {/* Ubicación / Mapa */}
+        <SectionTitle>Ubicación</SectionTitle>
+        <Row label="Provincia"  value={propiedad.provincia} />
+        <Row label="Localidad"  value={propiedad.localidad} />
+        <Row label="Dirección"  value={propiedad.direccion} />
+        {hasMap && (
+          <Box mt={1.5} sx={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #E5E7EB', height: 200 }}>
+            <Box
+              component="iframe"
+              title="Mapa"
+              src={`https://www.google.com/maps?q=${propiedad.latitud},${propiedad.longitud}&output=embed`}
+              sx={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </Box>
+        )}
+        {!hasMap && (
+          <Box mt={1} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+            <RoomIcon sx={{ fontSize: 16, color: '#D1D5DB' }} />
+            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Sin coordenadas cargadas</Typography>
+          </Box>
+        )}
 
+        {/* Contactos vinculados */}
+        <SectionTitle>Contactos vinculados</SectionTitle>
+        {loadingContactos ? (
+          <Box display="flex" alignItems="center" gap={1}>
+            <CircularProgress size={13} sx={{ color: '#9CA3AF' }} />
+            <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Cargando...</Typography>
+          </Box>
+        ) : contactos.length > 0 ? (
+          <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+            {contactos.map((c, i) => (
+              <Box key={c.id} sx={{
+                display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1.25,
+                borderBottom: i < contactos.length - 1 ? '1px solid #F3F4F6' : 'none',
+              }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <PersonIcon sx={{ fontSize: 16, color: '#6B7280' }} />
+                </Box>
+                <Box flex={1} minWidth={0}>
+                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+                    {c.apellido}, {c.nombre}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: '#6B7280', mt: 0.1 }}>
+                    {[c.dni && `DNI: ${c.dni}`, c.telefono, c.email].filter(Boolean).join(' · ')}
+                  </Typography>
+                </Box>
+                {(c.tipos?.length > 0 || c.tipo) && (
+                  <Box display="flex" gap={0.5} flexShrink={0}>
+                    {(c.tipos?.length ? c.tipos : [c.tipo]).map(t => (
+                      <Box key={t} sx={{ px: 0.75, py: 0.2, borderRadius: '5px', bgcolor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
+                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#374151' }}>{t}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PersonIcon sx={{ fontSize: 16, color: '#D1D5DB' }} />
+            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Sin contactos vinculados</Typography>
+          </Box>
+        )}
+
+        {/* Observaciones internas */}
         {propiedad.observaciones_internas && (
-          <Section title="Observaciones internas">
+          <>
+            <SectionTitle>Observaciones internas</SectionTitle>
             <Box sx={{ bgcolor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', p: 1.5 }}>
               <Typography sx={{ fontSize: '0.82rem', color: '#92400E', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                 {propiedad.observaciones_internas}
               </Typography>
             </Box>
-          </Section>
+          </>
         )}
 
+        {/* Datos de venta */}
         {propiedad.estado === 'Vendida' && (
-          <Section title="Datos de la venta">
+          <>
+            <SectionTitle>Datos de la venta</SectionTitle>
             <Row label="Comprador"        value={propiedad.comprador_nombre} />
             <Row label="DNI comprador"    value={propiedad.comprador_dni} />
             <Row label="Teléfono"         value={propiedad.comprador_telefono} />
             <Row label="Fecha de venta"   value={fmtDate(propiedad.fecha_venta)} />
             <Row label="Precio final"     value={fmt(propiedad.precio_final_venta, propiedad.moneda)} mono />
-          </Section>
+          </>
         )}
 
-        <Section title="Registro">
-          <Row label="Fecha de alta"    value={fmtDate(propiedad.created_at?.split('T')[0])} />
-          <Row label="Última actualiz." value={fmtDate(propiedad.updated_at?.split('T')[0])} />
-        </Section>
+        {/* Registro */}
+        <SectionTitle>Registro</SectionTitle>
+        <Row label="Fecha de alta"     value={fmtDate(propiedad.created_at?.split('T')[0])} />
+        <Row label="Última actualiz."  value={fmtDate(propiedad.updated_at?.split('T')[0])} />
       </Box>
 
-      {/* Footer acciones */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
+      {/* Footer */}
+      <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>
         {!isBaja && (
           <Button
             variant="contained"

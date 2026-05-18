@@ -193,6 +193,10 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
     setSugeridas(prev => prev.filter(s => s.id !== p.id))
   }
 
+  function removePropVinculada(propId) {
+    setPropVinculadas(prev => prev.filter(p => p.id !== propId))
+  }
+
   // ── Validation ─────────────────────────────────────────────────────────────
   async function validate() {
     if (!form.nombre.trim())   return 'El nombre es obligatorio.'
@@ -479,6 +483,32 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           </Box>
         )}
 
+        {/* Lista de propiedades vinculadas */}
+        {propiedadesVinculadas.length > 0 && (
+          <Box mb={1.5} sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+            {propiedadesVinculadas.map((p, i) => (
+              <Box key={p.id} sx={{
+                display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1,
+                borderBottom: i < propiedadesVinculadas.length - 1 ? '1px solid #F3F4F6' : 'none',
+              }}>
+                <Box flex={1} minWidth={0}>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {p.titulo}
+                  </Typography>
+                  {p.localidad && (
+                    <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF' }}>{p.localidad}</Typography>
+                  )}
+                </Box>
+                <IconButton size="small" onClick={() => removePropVinculada(p.id)}
+                  sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' }, flexShrink: 0 }}>
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {/* Picker de nueva propiedad */}
         {loadingProps ? (
           <Box display="flex" alignItems="center" gap={1} py={1}>
             <CircularProgress size={14} sx={{ color: ACCENT }} />
@@ -486,24 +516,18 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           </Box>
         ) : (
           <Autocomplete
-            multiple
             options={propOptions}
             getOptionLabel={p => `${p.titulo}${p.localidad ? ` — ${p.localidad}` : ''}`}
-            value={propiedadesVinculadas}
-            onChange={(_, val) => setPropVinculadas(val)}
+            value={null}
+            onChange={(_, val) => { if (val) setPropVinculadas(prev => [...prev, val]) }}
             isOptionEqualToValue={(o, v) => o.id === v.id}
             noOptionsText="Sin propiedades disponibles"
             renderInput={params => (
               <TextField {...params} size="small"
-                placeholder={propiedadesVinculadas.length ? '' : 'Buscar y vincular propiedades...'}
+                placeholder="Buscar y agregar propiedad..."
                 sx={fieldSx}
               />
             )}
-            renderTags={(value, getTagProps) =>
-              value.map((p, idx) => (
-                <Chip key={p.id} label={p.titulo} size="small" {...getTagProps({ index: idx })} sx={{ fontSize: '0.72rem', fontWeight: 600, bgcolor: '#ECFDF5', color: ACCENT, border: '1px solid #A7F3D0', borderRadius: '6px' }} />
-              ))
-            }
           />
         )}
 
