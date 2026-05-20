@@ -106,7 +106,7 @@ function SectionTitle({ children }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ContactoFormDrawer({ open, onClose, contacto, clienteId, onSaved }) {
+export default function ContactoFormDrawer({ open, onClose, contacto, clienteId, onSaved, prefill }) {
   const isEdit = !!contacto
   const [form, setForm]                             = useState(FORM_EMPTY)
   const [propiedadesVinculadas, setPropVinculadas]  = useState([])
@@ -154,7 +154,18 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         asignado_nombre:     contacto.asignado_nombre     ?? '',
       })
     } else {
-      setForm(FORM_EMPTY)
+      setForm({
+        ...FORM_EMPTY,
+        ...(prefill ? {
+          nombre:       prefill.nombre      ?? '',
+          apellido:     prefill.apellido    ?? '',
+          dni:          prefill.dni         ?? '',
+          telefono:     prefill.telefono    ?? '',
+          email:        prefill.email       ?? '',
+          presupuesto:  prefill.presupuesto ?? '',
+          zona_interes: prefill.zona_interes ? [prefill.zona_interes] : [],
+        } : {}),
+      })
       setPropVinculadas([])
     }
   }, [open])

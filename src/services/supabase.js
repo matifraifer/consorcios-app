@@ -1174,3 +1174,80 @@ export async function deleteCargoExtra(id) {
   const { error } = await supabase.from('cargos_extra_contrato').delete().eq('id', id)
   if (error) throw error
 }
+
+// ---- CONSULTAS WEB ----
+
+export async function submitConsultaWeb({
+  cliente_id, propiedad_id, dni, nombre, apellido, telefono, email,
+  presupuesto, provincia, zona_interes,
+}) {
+  const { data, error } = await supabase
+    .from('consultas_web')
+    .insert([{
+      cliente_id,
+      propiedad_id: propiedad_id || null,
+      dni,
+      nombre,
+      apellido,
+      telefono,
+      email: email || null,
+      presupuesto: presupuesto ? Number(presupuesto) : null,
+      provincia: provincia || null,
+      zona_interes: zona_interes || null,
+      estado: 'pendiente',
+    }])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function getConsultasWeb(cliente_id) {
+  const { data, error } = await supabase
+    .from('consultas_web')
+    .select('*, propiedades(id, titulo)')
+    .eq('cliente_id', cliente_id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function validarConsultaWeb(id) {
+  const { data, error } = await supabase
+    .from('consultas_web')
+    .update({ estado: 'validada' })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function inactivarConsultaWeb(id) {
+  const { data, error } = await supabase
+    .from('consultas_web')
+    .update({ estado: 'inactiva' })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function linkContactoPropiedad(contacto_id, propiedad_id) {
+  const { error } = await supabase
+    .from('contactos_propiedades')
+    .insert([{ contacto_id, propiedad_id }])
+  if (error && error.code !== '23505') throw error
+}
+
+export async function marcarConsultaConvertida(id, contacto_id) {
+  const { data, error } = await supabase
+    .from('consultas_web')
+    .update({ estado: 'convertida', contacto_id })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}

@@ -17,6 +17,13 @@ import { getPropiedadImagenes, getPublicImageUrl, getPropiedadContactos } from '
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
+const TIPO_META = {
+  Comprador:    { color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
+  Vendedor:     { color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
+  Arrendatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
+  Locatario:    { color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
+}
+
 const ESTADO_STYLES = {
   Disponible: { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
   Reservada:  { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
@@ -443,11 +450,14 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
                 </Box>
                 {(c.tipos?.length > 0 || c.tipo) && (
                   <Box display="flex" gap={0.5} flexShrink={0}>
-                    {(c.tipos?.length ? c.tipos : [c.tipo]).map(t => (
-                      <Box key={t} sx={{ px: 0.75, py: 0.2, borderRadius: '5px', bgcolor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
-                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#374151' }}>{t}</Typography>
-                      </Box>
-                    ))}
+                    {(c.tipos?.length ? c.tipos : [c.tipo]).map(t => {
+                      const m = TIPO_META[t] ?? { color: '#374151', bg: '#F3F4F6', border: '#E5E7EB' }
+                      return (
+                        <Box key={t} sx={{ px: 0.75, py: 0.25, borderRadius: '5px', bgcolor: m.bg, border: `1px solid ${m.border}` }}>
+                          <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: m.color }}>{t}</Typography>
+                        </Box>
+                      )
+                    })}
                   </Box>
                 )}
               </Box>

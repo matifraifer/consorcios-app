@@ -3,8 +3,7 @@ import { useParams } from 'react-router-dom'
 import {
   Box, Typography, CircularProgress, Alert, Button, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, Grid,
-  Select, MenuItem, FormControl, FormLabel, RadioGroup,
-  FormControlLabel, Radio, IconButton, Divider,
+  Select, MenuItem, FormControl, IconButton, Divider,
 } from '@mui/material'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -12,11 +11,23 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import CloseIcon from '@mui/icons-material/Close'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ApartmentIcon from '@mui/icons-material/Apartment'
-import { getPropiedadPublica, getPropiedadImagenes, getPublicImageUrl, createProspectoPublico } from '../services/supabase'
+import { getPropiedadPublica, getPropiedadImagenes, getPublicImageUrl, submitConsultaWeb } from '../services/supabase'
 
 const ACCENT = '#065F46'
 
-const TIPOS_INMUEBLE = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina', 'Otro']
+const ZONAS = [
+  'Albardón','Angaco','Calingasta','Capital','Caucete','Chimbas',
+  'Iglesia','Jáchal','9 de Julio','Pocito','Rawson','Rivadavia',
+  'San Martín','Santa Lucía','Sarmiento','Ullum','Valle Fértil','25 de Mayo','Zonda',
+]
+
+const PROVINCIAS = [
+  'Buenos Aires','Catamarca','Chaco','Chubut','Córdoba','Corrientes',
+  'Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza',
+  'Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis',
+  'Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán',
+  'Ciudad Autónoma de Buenos Aires',
+]
 
 function fmt(value, moneda) {
   if (!value) return null
@@ -135,8 +146,8 @@ function StatChip({ label, value }) {
 
 // ── Formulario de contacto ─────────────────────────────────────────────────
 const FORM_EMPTY = {
-  nombre: '', apellido: '', telefono: '', email: '',
-  presupuesto: '', zona_interes: '', tipo_inmueble: '', credito_hipotecario: '',
+  dni: '', nombre: '', apellido: '', telefono: '', email: '',
+  presupuesto: '', provincia: '', zona_interes: '',
 }
 
 function ContactDialog({ open, onClose, propiedad }) {
@@ -150,6 +161,7 @@ function ContactDialog({ open, onClose, propiedad }) {
   }
 
   function validate() {
+    if (!form.dni.trim())       return 'El DNI es obligatorio.'
     if (!form.nombre.trim())    return 'El nombre es obligatorio.'
     if (!form.apellido.trim())  return 'El apellido es obligatorio.'
     if (!form.telefono.trim())  return 'El teléfono es obligatorio.'
@@ -163,19 +175,17 @@ function ContactDialog({ open, onClose, propiedad }) {
     setSending(true)
     setError(null)
     try {
-      await createProspectoPublico({
-        nombre:               form.nombre.trim(),
-        apellido:             form.apellido.trim(),
-        telefono:             form.telefono.trim(),
-        email:                form.email.trim() || null,
-        presupuesto:          form.presupuesto.trim() || null,
-        zona_interes:         form.zona_interes.trim() || null,
-        tipo_inmueble:        form.tipo_inmueble || null,
-        credito_hipotecario:  form.credito_hipotecario === 'si' ? true
-                            : form.credito_hipotecario === 'no' ? false : null,
-        propiedad_id:    propiedad.id,
-        cliente_id:      propiedad.cliente_id,
-        tipo_operacion:  propiedad.tipo_operacion || null,
+      await submitConsultaWeb({
+        dni:          form.dni.trim(),
+        nombre:       form.nombre.trim(),
+        apellido:     form.apellido.trim(),
+        telefono:     form.telefono.trim(),
+        email:        form.email.trim() || null,
+        presupuesto:  form.presupuesto.trim() || null,
+        provincia:    form.provincia || null,
+        zona_interes: form.zona_interes || null,
+        propiedad_id: propiedad.id,
+        cliente_id:   propiedad.cliente_id,
       })
       setSuccess(true)
     } catch {
@@ -258,6 +268,12 @@ function ContactDialog({ open, onClose, propiedad }) {
 
             <form id="contact-form" onSubmit={handleSubmit}>
               <Grid container spacing={1.5}>
+                <Grid item xs={12}>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>DNI *</Typography>
+                  <TextField fullWidth size="small" value={form.dni}
+                    onChange={e => set('dni', e.target.value)}
+                    placeholder="Número de documento" sx={fieldSx} />
+                </Grid>
                 <Grid item xs={6}>
                   <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Nombre *</Typography>
                   <TextField fullWidth size="small" value={form.nombre}
@@ -282,25 +298,19 @@ function ContactDialog({ open, onClose, propiedad }) {
                 <Grid item xs={12}>
                   <Divider sx={{ my: 0.5, borderColor: '#F3F4F6' }} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12}>
                   <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Presupuesto</Typography>
                   <TextField fullWidth size="small" value={form.presupuesto}
                     onChange={e => set('presupuesto', e.target.value)}
                     placeholder="Ej: USD 80,000" sx={fieldSx} />
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Zona de interés</Typography>
-                  <TextField fullWidth size="small" value={form.zona_interes}
-                    onChange={e => set('zona_interes', e.target.value)}
-                    placeholder="Ej: Capital, Rawson" sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Tipo de inmueble</Typography>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Provincia</Typography>
                   <FormControl fullWidth size="small">
                     <Select
-                      value={form.tipo_inmueble}
+                      value={form.provincia}
                       displayEmpty
-                      onChange={e => set('tipo_inmueble', e.target.value)}
+                      onChange={e => set('provincia', e.target.value)}
                       sx={{
                         fontSize: '0.875rem', borderRadius: '8px',
                         '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
@@ -309,29 +319,27 @@ function ContactDialog({ open, onClose, propiedad }) {
                       }}
                     >
                       <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      {TIPOS_INMUEBLE.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
+                      {PROVINCIAS.map(p => <MenuItem key={p} value={p} sx={{ fontSize: '0.875rem' }}>{p}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Crédito hipotecario</Typography>
-                  <FormControl>
-                    <RadioGroup
-                      row
-                      value={form.credito_hipotecario}
-                      onChange={e => set('credito_hipotecario', e.target.value)}
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Zona de interés</Typography>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      value={form.zona_interes}
+                      displayEmpty
+                      onChange={e => set('zona_interes', e.target.value)}
+                      sx={{
+                        fontSize: '0.875rem', borderRadius: '8px',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
+                      }}
                     >
-                      <FormControlLabel
-                        value="si"
-                        control={<Radio size="small" sx={{ '&.Mui-checked': { color: ACCENT } }} />}
-                        label={<Typography sx={{ fontSize: '0.82rem' }}>Sí</Typography>}
-                      />
-                      <FormControlLabel
-                        value="no"
-                        control={<Radio size="small" sx={{ '&.Mui-checked': { color: ACCENT } }} />}
-                        label={<Typography sx={{ fontSize: '0.82rem' }}>No</Typography>}
-                      />
-                    </RadioGroup>
+                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
+                      {ZONAS.map(z => <MenuItem key={z} value={z} sx={{ fontSize: '0.875rem' }}>{z}</MenuItem>)}
+                    </Select>
                   </FormControl>
                 </Grid>
               </Grid>
