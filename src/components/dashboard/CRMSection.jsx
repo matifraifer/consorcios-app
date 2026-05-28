@@ -99,8 +99,8 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
 
   const maxPorUsuario = Math.max(...porUsuario.map(u => u.count), 1)
 
-  const ventaProps    = propiedadesData.filter(p => p.tipo_operacion === 'venta')
-  const alquilerProps = propiedadesData.filter(p => p.tipo_operacion === 'alquiler')
+  const ventaProps    = propiedadesData.filter(p => p.tipo_operacion === 'Venta')
+  const alquilerProps = propiedadesData.filter(p => p.tipo_operacion === 'Alquiler')
   const ventaTipos    = groupByTipo(ventaProps)
   const alquilerTipos = groupByTipo(alquilerProps)
 
