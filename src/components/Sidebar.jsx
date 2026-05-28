@@ -40,16 +40,44 @@ const topItems = [
   { label: 'Inicio', path: '/dashboard', icon: <HomeIcon sx={{ fontSize: 18 }} /> },
 ]
 
-const bottomItems = [
-  { label: 'Contactos',            path: '/contactos',     icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Consultas Web',        path: '/consultas-web', icon: <LanguageIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Propiedades en venta', path: '/propiedades',   icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Prospectos',           path: '/prospectos',    icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+const comercialItems = [
+  { label: 'Consultas Web',           path: '/consultas-web', icon: <LanguageIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Seguimiento de contactos', path: '/prospectos',   icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+]
+
+const baseDatosItems = [
+  { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Contactos',            path: '/contactos',   icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const contratosItems = [
   { label: 'Contratos', path: '/contratos', icon: <DescriptionIcon sx={{ fontSize: 18 }} /> },
 ]
+
+function SectionHeader({ label, cls, open, onToggle }) {
+  return (
+    <Box
+      onClick={onToggle}
+      sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        px: 2, pt: 1.75, pb: 0.75, cursor: 'pointer', userSelect: 'none',
+        [`&:hover .${cls}-label`]: { color: TEXT_DEFAULT },
+        [`&:hover .${cls}-icon`]: { color: TEXT_DEFAULT },
+      }}
+    >
+      <Typography
+        className={`${cls}-label`}
+        sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEXT_MUTED, transition: 'color 0.15s' }}
+      >
+        {label}
+      </Typography>
+      <ExpandMoreIcon
+        className={`${cls}-icon`}
+        sx={{ fontSize: 14, color: TEXT_MUTED, transition: 'transform 0.2s ease, color 0.15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+      />
+    </Box>
+  )
+}
 
 function NavItem({ item, active, collapsed, onClick, indented = false }) {
   const button = (
@@ -129,6 +157,7 @@ export default function Sidebar() {
   const [adminOpen, setAdminOpen] = useState(true)
 
   const [comercialOpen, setComercialOpen] = useState(true)
+  const [baseDatosOpen, setBaseDatosOpen] = useState(true)
   const [contratosOpen, setContratosOpen] = useState(true)
 
   function handleLogout() {
@@ -329,66 +358,34 @@ export default function Sidebar() {
 
         {/* Grupo: Gestión comercial */}
         {collapsed ? (
-          bottomItems.map(item => (
-            <NavItem
-              key={item.path}
-              item={item}
-              active={location.pathname === item.path}
-              collapsed={true}
-              onClick={() => navigate(item.path)}
-            />
+          comercialItems.map(item => (
+            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
           ))
         ) : (
           <>
-            <Box
-              onClick={() => setComercialOpen(prev => !prev)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                px: 2,
-                pt: 1.75,
-                pb: 0.75,
-                cursor: 'pointer',
-                userSelect: 'none',
-                '&:hover .gc-label': { color: TEXT_DEFAULT },
-                '&:hover .gc-icon': { color: TEXT_DEFAULT },
-              }}
-            >
-              <Typography
-                className="gc-label"
-                sx={{
-                  fontSize: '0.58rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: TEXT_MUTED,
-                  transition: 'color 0.15s',
-                }}
-              >
-                Gestión comercial
-              </Typography>
-              <ExpandMoreIcon
-                className="gc-icon"
-                sx={{
-                  fontSize: 14,
-                  color: TEXT_MUTED,
-                  transition: 'transform 0.2s ease, color 0.15s',
-                  transform: comercialOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
-              />
-            </Box>
-
+            <SectionHeader label="Gestión comercial" cls="gc" open={comercialOpen} onToggle={() => setComercialOpen(p => !p)} />
             <Collapse in={comercialOpen}>
-              {bottomItems.map(item => (
-                <NavItem
-                  key={item.path}
-                  item={item}
-                  active={location.pathname === item.path}
-                  collapsed={false}
-                  indented
-                  onClick={() => navigate(item.path)}
-                />
+              {comercialItems.map(item => (
+                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
+              ))}
+            </Collapse>
+          </>
+        )}
+
+        {/* Divisor */}
+        <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
+
+        {/* Grupo: Base de datos */}
+        {collapsed ? (
+          baseDatosItems.map(item => (
+            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
+          ))
+        ) : (
+          <>
+            <SectionHeader label="Base de datos" cls="bd" open={baseDatosOpen} onToggle={() => setBaseDatosOpen(p => !p)} />
+            <Collapse in={baseDatosOpen}>
+              {baseDatosItems.map(item => (
+                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
               ))}
             </Collapse>
           </>
@@ -400,46 +397,14 @@ export default function Sidebar() {
         {/* Grupo: Gestión de contratos */}
         {collapsed ? (
           contratosItems.map(item => (
-            <NavItem
-              key={item.path}
-              item={item}
-              active={location.pathname === item.path}
-              collapsed={true}
-              onClick={() => navigate(item.path)}
-            />
+            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
           ))
         ) : (
           <>
-            <Box
-              onClick={() => setContratosOpen(prev => !prev)}
-              sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                px: 2, pt: 1.75, pb: 0.75, cursor: 'pointer', userSelect: 'none',
-                '&:hover .gcon-label': { color: TEXT_DEFAULT },
-                '&:hover .gcon-icon': { color: TEXT_DEFAULT },
-              }}
-            >
-              <Typography
-                className="gcon-label"
-                sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEXT_MUTED, transition: 'color 0.15s' }}
-              >
-                Gestión de contratos
-              </Typography>
-              <ExpandMoreIcon
-                className="gcon-icon"
-                sx={{ fontSize: 14, color: TEXT_MUTED, transition: 'transform 0.2s ease, color 0.15s', transform: contratosOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              />
-            </Box>
+            <SectionHeader label="Gestión de contratos" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
             <Collapse in={contratosOpen}>
               {contratosItems.map(item => (
-                <NavItem
-                  key={item.path}
-                  item={item}
-                  active={location.pathname === item.path}
-                  collapsed={false}
-                  indented
-                  onClick={() => navigate(item.path)}
-                />
+                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
               ))}
             </Collapse>
           </>

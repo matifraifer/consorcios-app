@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
-  Box, Typography, Paper, TextField, Select, MenuItem,
-  FormControl, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Typography, Paper, TextField, Switch, FormControlLabel,
+  Table, TableHead, TableRow, TableCell, TableBody,
   IconButton, Snackbar, Alert, CircularProgress, Tooltip,
 } from '@mui/material'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
@@ -15,7 +15,8 @@ import {
   marcarConsultaConvertida, getContactos, linkContactoPropiedad,
 } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import ContactoFormDrawer from '../components/contactos/ContactoFormDrawer'
+import ContactoFormDrawer    from '../components/contactos/ContactoFormDrawer'
+import ConsultaDetalleDrawer from '../components/consultas/ConsultaDetalleDrawer'
 
 const ACCENT = '#065F46'
 
@@ -25,8 +26,6 @@ const ESTADO_META = {
   inactiva:   { label: 'Inactiva',   bg: '#F3F4F6', color: '#6B7280', border: '#E5E7EB' },
   convertida: { label: 'Convertida', bg: '#EFF6FF', color: '#1D4ED8', border: '#93C5FD' },
 }
-
-const ESTADOS_FILTRO = ['Todos', 'pendiente', 'validada', 'convertida', 'inactiva']
 
 const HEADER_SX = {
   fontSize: '0.68rem', fontWeight: 700, color: '#6B7280',
@@ -43,17 +42,14 @@ const fieldSx = {
   },
 }
 
-const selectSx = {
-  fontSize: '0.875rem', borderRadius: '8px',
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
-}
-
 function EstadoBadge({ estado }) {
   const s = ESTADO_META[estado] ?? ESTADO_META.pendiente
   return (
-    <Box component="span" sx={{ display: 'inline-block', px: 1, py: 0.2, borderRadius: '6px', bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: '0.68rem', fontWeight: 600 }}>
+    <Box component="span" sx={{
+      display: 'inline-block', px: 1, py: 0.2, borderRadius: '6px',
+      bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      fontSize: '0.68rem', fontWeight: 600,
+    }}>
       {s.label}
     </Box>
   )
@@ -66,17 +62,24 @@ function fmt(date) {
 
 export default function ConsultasWeb() {
   const { user } = useAuth()
-  const [consultas, setConsultas]           = useState([])
-  const [contactosPorDni, setContactosPorDni] = useState(new Map()) // dni → contacto
-  const [loading, setLoading]               = useState(true)
-  const [search, setSearch]                 = useState('')
-  const [estadoFiltro, setEstadoFiltro]     = useState('Todos')
-  const [sortBy, setSortBy]                 = useState('created_at')
-  const [sortDir, setSortDir]               = useState('desc')
-  const [loadingId, setLoadingId]           = useState(null)
-  const [drawerOpen, setDrawerOpen]         = useState(false)
-  const [consultaActiva, setConsultaActiva] = useState(null)
-  const [snack, setSnack]                   = useState({ open: false, msg: '', severity: 'success' })
+  const [consultas, setConsultas]             = useState([])
+  const [contactosPorDni, setContactosPorDni] = useState(new Map())
+  const [loading, setLoading]                 = useState(true)
+  const [search, setSearch]                   = useState('')
+  const [mostrarConvertidos, setMostrarConvertidos] = useState(false)
+  const [sortBy, setSortBy]                   = useState('created_at')
+  const [sortDir, setSortDir]                 = useState('desc')
+  const [loadingId, setLoadingId]             = useState(null)
+
+  // Drawer detalle
+  const [detalleOpen, setDetalleOpen]         = useState(false)
+  const [consultaDetalle, setConsultaDetalle] = useState(null)
+
+  // Drawer crear contacto
+  const [formOpen, setFormOpen]               = useState(false)
+  const [consultaActiva, setConsultaActiva]   = useState(null)
+
+  const [snack, setSnack] = useState({ open: false, msg: '', severity: 'success' })
 
   function showSnack(msg, severity = 'success') {
     setSnack({ open: true, msg, severity })
@@ -102,8 +105,13 @@ export default function ConsultasWeb() {
 
   useEffect(() => { load() }, [load])
 
+  function handleRowClick(consulta) {
+    setConsultaDetalle(consulta)
+    setDetalleOpen(true)
+  }
+
   async function handleValidar(consulta, e) {
-    e.stopPropagation()
+    if (e) e.stopPropagation()
     const existente = contactosPorDni.get(consulta.dni?.trim())
     if (existente) {
       setLoadingId(consulta.id)
@@ -113,6 +121,7 @@ export default function ConsultasWeb() {
         }
         const updated = await marcarConsultaConvertida(consulta.id, existente.id)
         setConsultas(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+        if (consultaDetalle?.id === updated.id) setConsultaDetalle(prev => ({ ...prev, ...updated }))
         showSnack(`Propiedad vinculada al contacto ${existente.apellido}, ${existente.nombre}.`)
       } catch {
         showSnack('Error al vincular el contacto.', 'error')
@@ -121,16 +130,18 @@ export default function ConsultasWeb() {
       }
     } else {
       setConsultaActiva(consulta)
-      setDrawerOpen(true)
+      setDetalleOpen(false)
+      setFormOpen(true)
     }
   }
 
   async function handleInactivar(consulta, e) {
-    e.stopPropagation()
+    if (e) e.stopPropagation()
     setLoadingId(consulta.id)
     try {
       const updated = await inactivarConsultaWeb(consulta.id)
       setConsultas(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+      if (consultaDetalle?.id === updated.id) setConsultaDetalle(prev => ({ ...prev, ...updated }))
       showSnack('Consulta inactivada.')
     } catch {
       showSnack('Error al inactivar.', 'error')
@@ -149,7 +160,7 @@ export default function ConsultasWeb() {
     if (contacto.dni) {
       setContactosPorDni(prev => new Map([...prev, [contacto.dni.trim(), contacto]]))
     }
-    setDrawerOpen(false)
+    setFormOpen(false)
     setConsultaActiva(null)
     showSnack('Contacto creado y consulta convertida.')
   }
@@ -168,8 +179,9 @@ export default function ConsultasWeb() {
 
   const filtrados = useMemo(() => {
     const q = search.toLowerCase().trim()
+    const estadosVisibles = mostrarConvertidos ? ['pendiente', 'convertida'] : ['pendiente']
     let list = consultas.filter(c => {
-      if (estadoFiltro !== 'Todos' && c.estado !== estadoFiltro) return false
+      if (!estadosVisibles.includes(c.estado)) return false
       if (!q) return true
       return (
         (c.nombre   ?? '').toLowerCase().includes(q) ||
@@ -192,16 +204,14 @@ export default function ConsultasWeb() {
     })
 
     return list
-  }, [consultas, search, estadoFiltro, sortBy, sortDir])
+  }, [consultas, search, mostrarConvertidos, sortBy, sortDir])
 
   const cols = [
     { label: 'Fecha',           col: 'created_at' },
     { label: 'Nombre y Apellido', col: 'apellido' },
     { label: 'DNI',             col: null },
-    { label: 'Teléfono / Email', col: null },
+    { label: 'Teléfono',        col: null },
     { label: 'Propiedad',       col: null },
-    { label: 'Provincia / Zona', col: null },
-    { label: 'Presupuesto',     col: null },
     { label: 'Estado',          col: 'estado' },
     { label: '',                col: null },
   ]
@@ -226,21 +236,31 @@ export default function ConsultasWeb() {
         <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
           <TextField
             size="small"
-            placeholder="Buscar por nombre, apellido, DNI, teléfono o email..."
+            placeholder="Buscar por nombre, apellido, DNI, teléfono..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             sx={{ ...fieldSx, minWidth: 280, flex: 1 }}
           />
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <Select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)} sx={selectSx}>
-              {ESTADOS_FILTRO.map(e => (
-                <MenuItem key={e} value={e} sx={{ fontSize: '0.875rem' }}>
-                  {e === 'Todos' ? 'Todos los estados' : (ESTADO_META[e]?.label ?? e)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', ml: 'auto' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={mostrarConvertidos}
+                onChange={e => setMostrarConvertidos(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: ACCENT },
+                }}
+              />
+            }
+            label={
+              <Typography sx={{ fontSize: '0.82rem', color: '#6B7280', whiteSpace: 'nowrap' }}>
+                Mostrar convertidos
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
+          <Typography sx={{ fontSize: '0.78rem', color: '#6B7280' }}>
             {filtrados.length} {filtrados.length === 1 ? 'resultado' : 'resultados'}
           </Typography>
         </Box>
@@ -282,7 +302,13 @@ export default function ConsultasWeb() {
                 <TableRow
                   key={c.id}
                   hover
-                  sx={{ cursor: 'default', '& td': { borderBottom: '1px solid #F3F4F6' }, '&:last-child td': { borderBottom: 0 }, '&:hover .row-actions': { opacity: 1 } }}
+                  onClick={() => handleRowClick(c)}
+                  sx={{
+                    cursor: 'pointer',
+                    '& td': { borderBottom: '1px solid #F3F4F6' },
+                    '&:last-child td': { borderBottom: 0 },
+                    '&:hover .row-actions': { opacity: 1 },
+                  }}
                 >
                   {/* Fecha */}
                   <TableCell sx={{ fontSize: '0.78rem', color: '#9CA3AF', whiteSpace: 'nowrap' }}>
@@ -301,46 +327,22 @@ export default function ConsultasWeb() {
                         {c.dni ?? '—'}
                       </Typography>
                       {c.dni && contactosPorDni.has(c.dni.trim()) && (
-                        <Tooltip title="Ya existe un contacto registrado con este DNI">
+                        <Tooltip title="Ya existe un contacto con este DNI">
                           <PersonIcon sx={{ fontSize: 14, color: '#1D4ED8' }} />
                         </Tooltip>
                       )}
                     </Box>
                   </TableCell>
 
-                  {/* Teléfono / Email */}
-                  <TableCell>
-                    <Typography sx={{ fontSize: '0.82rem', color: '#374151' }}>{c.telefono}</Typography>
-                    {c.email && (
-                      <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{c.email}</Typography>
-                    )}
+                  {/* Teléfono */}
+                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                    {c.telefono}
                   </TableCell>
 
                   {/* Propiedad */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151', maxWidth: 160 }}>
+                  <TableCell sx={{ maxWidth: 180 }}>
                     {c.propiedades
-                      ? <Typography sx={{ fontSize: '0.82rem', color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{c.propiedades.titulo}</Typography>
-                      : <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
-                    }
-                  </TableCell>
-
-                  {/* Provincia / Zona */}
-                  <TableCell>
-                    {c.provincia && (
-                      <Typography sx={{ fontSize: '0.82rem', color: '#374151' }}>{c.provincia}</Typography>
-                    )}
-                    {c.zona_interes && (
-                      <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{c.zona_interes}</Typography>
-                    )}
-                    {!c.provincia && !c.zona_interes && (
-                      <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
-                    )}
-                  </TableCell>
-
-                  {/* Presupuesto */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
-                    {c.presupuesto
-                      ? Number(c.presupuesto).toLocaleString('es-AR')
+                      ? <Typography sx={{ fontSize: '0.82rem', color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{c.propiedades.titulo}</Typography>
                       : <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
                     }
                   </TableCell>
@@ -349,8 +351,8 @@ export default function ConsultasWeb() {
                   <TableCell><EstadoBadge estado={c.estado} /></TableCell>
 
                   {/* Acciones */}
-                  <TableCell align="right">
-                    <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end">
+                  <TableCell align="right" onClick={e => e.stopPropagation()}>
+                    <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
                       {c.estado === 'pendiente' && (
                         <>
                           <Tooltip title={contactosPorDni.has(c.dni?.trim()) ? 'Vincular propiedad al contacto existente' : 'Crear contacto y convertir'}>
@@ -360,7 +362,10 @@ export default function ConsultasWeb() {
                               onClick={e => handleValidar(c, e)}
                               sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
                             >
-                              <CheckCircleOutlineIcon sx={{ fontSize: 15 }} />
+                              {loadingId === c.id
+                                ? <CircularProgress size={13} sx={{ color: ACCENT }} />
+                                : <CheckCircleOutlineIcon sx={{ fontSize: 15 }} />
+                              }
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Inactivar">
@@ -384,20 +389,35 @@ export default function ConsultasWeb() {
         )}
       </Paper>
 
+      {/* Drawer detalle de consulta */}
+      <ConsultaDetalleDrawer
+        open={detalleOpen}
+        onClose={() => { setDetalleOpen(false); setConsultaDetalle(null) }}
+        consulta={consultaDetalle}
+        contactoExiste={!!consultaDetalle && contactosPorDni.has(consultaDetalle.dni?.trim())}
+        loading={loadingId === consultaDetalle?.id}
+        onValidar={() => handleValidar(consultaDetalle)}
+        onInactivar={() => handleInactivar(consultaDetalle)}
+      />
+
+      {/* Drawer crear contacto */}
       <ContactoFormDrawer
-        open={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setConsultaActiva(null) }}
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setConsultaActiva(null) }}
         contacto={null}
         clienteId={user.cliente_id}
         onSaved={handleContactoSaved}
         prefill={consultaActiva ? {
-          nombre:       consultaActiva.nombre,
-          apellido:     consultaActiva.apellido,
-          dni:          consultaActiva.dni,
-          telefono:     consultaActiva.telefono,
-          email:        consultaActiva.email ?? '',
-          presupuesto:  consultaActiva.presupuesto ? String(consultaActiva.presupuesto) : '',
-          zona_interes: consultaActiva.zona_interes ?? '',
+          nombre:         consultaActiva.nombre,
+          apellido:       consultaActiva.apellido,
+          dni:            consultaActiva.dni,
+          telefono:       consultaActiva.telefono,
+          email:          consultaActiva.email          ?? '',
+          presupuesto:    consultaActiva.presupuesto ? String(consultaActiva.presupuesto) : '',
+          zona_interes:   consultaActiva.zona_interes   ?? '',
+          propiedad:      consultaActiva.propiedades    ?? null,
+          tipo_operacion: consultaActiva.propiedades?.tipo_operacion ?? '',
+          consulta:       consultaActiva,
         } : null}
       />
 

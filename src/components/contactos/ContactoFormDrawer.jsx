@@ -9,6 +9,7 @@ import LockOutlinedIcon   from '@mui/icons-material/LockOutlined'
 import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome'
 import AddIcon            from '@mui/icons-material/Add'
 import GroupIcon          from '@mui/icons-material/Group'
+import LanguageIcon       from '@mui/icons-material/Language'
 import {
   createContacto, updateContacto, getPropiedades, getUsuarios,
   getContactoPropiedades, setContactoPropiedades, checkDniExists,
@@ -104,6 +105,86 @@ function SectionTitle({ children }) {
   )
 }
 
+function fmtFecha(date) {
+  if (!date) return null
+  return new Date(date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function ConsultaBanner({ consulta }) {
+  if (!consulta) return null
+  return (
+    <Box sx={{ mt: 2, mb: 0.5, border: '1px solid #A7F3D0', borderRadius: '10px', overflow: 'hidden', bgcolor: '#F0FDF4' }}>
+      {/* Header del banner */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, bgcolor: '#DCFCE7', borderBottom: '1px solid #A7F3D0' }}>
+        <LanguageIcon sx={{ fontSize: 14, color: ACCENT }} />
+        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Consulta desde la web
+        </Typography>
+        {consulta.created_at && (
+          <Typography sx={{ fontSize: '0.68rem', color: '#6B7280', ml: 'auto' }}>
+            {fmtFecha(consulta.created_at)}
+          </Typography>
+        )}
+      </Box>
+
+      <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {/* Propiedad */}
+        {consulta.propiedades && (
+          <Box>
+            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#6B7280', mb: 0.25 }}>
+              Propiedad consultada
+            </Typography>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827' }}>
+              {consulta.propiedades.titulo}
+            </Typography>
+            {(consulta.propiedades.direccion || consulta.propiedades.localidad) && (
+              <Typography sx={{ fontSize: '0.72rem', color: '#6B7280' }}>
+                {[consulta.propiedades.direccion, consulta.propiedades.localidad].filter(Boolean).join(', ')}
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {/* Fila: presupuesto + provincia + zona */}
+        {(consulta.presupuesto || consulta.provincia || consulta.zona_interes) && (
+          <Box display="flex" gap={2} flexWrap="wrap">
+            {consulta.presupuesto && (
+              <Box>
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#6B7280', mb: 0.2 }}>Presupuesto</Typography>
+                <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{Number(consulta.presupuesto).toLocaleString('es-AR')}</Typography>
+              </Box>
+            )}
+            {consulta.provincia && (
+              <Box>
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#6B7280', mb: 0.2 }}>Provincia</Typography>
+                <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{consulta.provincia}</Typography>
+              </Box>
+            )}
+            {consulta.zona_interes && (
+              <Box>
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#6B7280', mb: 0.2 }}>Zona de interés</Typography>
+                <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{consulta.zona_interes}</Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {/* Mensaje */}
+        {consulta.mensaje && (
+          <Box>
+            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#6B7280', mb: 0.25 }}>
+              Mensaje
+            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: '#374151', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+              {consulta.mensaje}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ContactoFormDrawer({ open, onClose, contacto, clienteId, onSaved, prefill }) {
@@ -128,12 +209,12 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
 
     setLoadingProps(true)
     Promise.all([
-      getPropiedades({ includeBaja: false, cliente_id: clienteId }),
+      getPropiedades({ cliente_id: clienteId, estado: 'Disponible' }),
       isEdit && contacto ? getContactoPropiedades(contacto.id) : Promise.resolve([]),
       getUsuarios(clienteId),
     ]).then(([props, vin, usrs]) => {
       setPropDisponibles(props)
-      setPropVinculadas(vin)
+      if (isEdit) setPropVinculadas(vin)
       setUsuarios(usrs ?? [])
     }).catch(() => {}).finally(() => setLoadingProps(false))
 
@@ -157,22 +238,40 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
       setForm({
         ...FORM_EMPTY,
         ...(prefill ? {
-          nombre:       prefill.nombre      ?? '',
-          apellido:     prefill.apellido    ?? '',
-          dni:          prefill.dni         ?? '',
-          telefono:     prefill.telefono    ?? '',
-          email:        prefill.email       ?? '',
-          presupuesto:  prefill.presupuesto ?? '',
-          zona_interes: prefill.zona_interes ? [prefill.zona_interes] : [],
+          nombre:         prefill.nombre          ?? '',
+          apellido:       prefill.apellido        ?? '',
+          dni:            prefill.dni             ?? '',
+          telefono:       prefill.telefono        ?? '',
+          email:          prefill.email           ?? '',
+          presupuesto:    prefill.presupuesto     ?? '',
+          zona_interes:   prefill.zona_interes ? [prefill.zona_interes] : [],
+          tipo_operacion: prefill.tipo_operacion  ?? '',
         } : {}),
       })
-      setPropVinculadas([])
+      setPropVinculadas(prefill?.propiedad ? [prefill.propiedad] : [])
     }
   }, [open])
 
   function set(field, val) { setForm(p => ({ ...p, [field]: val })) }
   function toggleChip(field, val) {
     setForm(p => ({ ...p, [field]: p[field].includes(val) ? p[field].filter(v => v !== val) : [...p[field], val] }))
+  }
+  function toggleTipo(tipo) {
+    setForm(prev => {
+      const newTipos = prev.tipos.includes(tipo)
+        ? prev.tipos.filter(t => t !== tipo)
+        : [...prev.tipos, tipo]
+
+      const hasCompraventa = newTipos.some(t => t === 'Comprador' || t === 'Vendedor')
+      const hasAlquiler    = newTipos.some(t => t === 'Arrendatario' || t === 'Locatario')
+
+      let newOp = prev.tipo_operacion
+      if (newTipos.length === 0 || (hasCompraventa && hasAlquiler)) newOp = ''
+      else if (hasCompraventa) newOp = 'Compraventa'
+      else if (hasAlquiler)    newOp = 'Alquiler'
+
+      return { ...prev, tipos: newTipos, tipo_operacion: newOp }
+    })
   }
 
   // ── AI suggestion ──────────────────────────────────────────────────────────
@@ -210,6 +309,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
 
   // ── Validation ─────────────────────────────────────────────────────────────
   async function validate() {
+    if (!form.tipos.length)    return 'Seleccioná al menos un tipo de contacto.'
     if (!form.nombre.trim())   return 'El nombre es obligatorio.'
     if (!form.apellido.trim()) return 'El apellido es obligatorio.'
     if (!form.dni.trim())      return 'El DNI es obligatorio.'
@@ -286,11 +386,13 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>
         )}
 
+        {!isEdit && <ConsultaBanner consulta={prefill?.consulta} />}
+
         {/* Tipo de contacto */}
         <SectionTitle>Tipo de contacto</SectionTitle>
         <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
           {TIPOS_CONTACTO.map(t => (
-            <TypeCard key={t} tipo={t} selected={form.tipos.includes(t)} onToggle={v => toggleChip('tipos', v)} />
+            <TypeCard key={t} tipo={t} selected={form.tipos.includes(t)} onToggle={toggleTipo} />
           ))}
         </Box>
 

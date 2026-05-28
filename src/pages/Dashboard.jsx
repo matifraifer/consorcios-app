@@ -182,6 +182,9 @@ export default function Dashboard() {
         prospectos={crmData.prospectos}
         etapas={crmData.etapas}
         visitas={crmData.visitas}
+        consultasPendientes={crmData.consultasPendientes}
+        propiedadesData={crmData.propiedadesData}
+        sinAsignar={crmData.sinAsignar}
       />
     </Box>
   )

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Box, Typography, CircularProgress, Alert, Button, Dialog,
-  DialogTitle, DialogContent, DialogActions, TextField, Grid,
-  Select, MenuItem, FormControl, IconButton, Divider,
+  TextField, Select, MenuItem, FormControl, InputLabel,
+  IconButton, Divider,
 } from '@mui/material'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -147,7 +147,38 @@ function StatChip({ label, value }) {
 // ── Formulario de contacto ─────────────────────────────────────────────────
 const FORM_EMPTY = {
   dni: '', nombre: '', apellido: '', telefono: '', email: '',
-  presupuesto: '', provincia: '', zona_interes: '',
+  presupuesto: '', provincia: '', zona_interes: '', mensaje: '',
+}
+
+const DARK_PANEL = '#0B1E13'
+
+function ArcCounter({ count, max }) {
+  const r = 9, circ = 2 * Math.PI * r
+  const pct = Math.min(count / max, 1)
+  const color = pct > 0.9 ? '#EF4444' : pct > 0.7 ? '#F59E0B' : '#10B981'
+  return (
+    <Box display="flex" alignItems="center" gap={0.5}>
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <circle cx="11" cy="11" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+        <circle cx="11" cy="11" r={r} fill="none" stroke={color} strokeWidth="2"
+          strokeDasharray={`${pct * circ} ${(1 - pct) * circ}`} strokeLinecap="round"
+          transform="rotate(-90 11 11)" style={{ transition: 'stroke-dasharray 0.2s, stroke 0.2s' }} />
+      </svg>
+      <Typography component="span" sx={{ fontSize: '0.62rem', color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+        {max - count}
+      </Typography>
+    </Box>
+  )
+}
+
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '8px',
+    '&:hover fieldset': { borderColor: ACCENT },
+    '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: '1.5px' },
+  },
+  '& .MuiInputLabel-root.Mui-focused': { color: ACCENT },
+  '& .MuiInputBase-input': { fontSize: '0.875rem' },
 }
 
 function ContactDialog({ open, onClose, propiedad }) {
@@ -156,9 +187,7 @@ function ContactDialog({ open, onClose, propiedad }) {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
-  function set(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
-  }
+  function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
   function validate() {
     if (!form.dni.trim())       return 'El DNI es obligatorio.'
@@ -172,204 +201,262 @@ function ContactDialog({ open, onClose, propiedad }) {
     e.preventDefault()
     const err = validate()
     if (err) { setError(err); return }
-    setSending(true)
-    setError(null)
+    setSending(true); setError(null)
     try {
       await submitConsultaWeb({
-        dni:          form.dni.trim(),
-        nombre:       form.nombre.trim(),
-        apellido:     form.apellido.trim(),
-        telefono:     form.telefono.trim(),
-        email:        form.email.trim() || null,
-        presupuesto:  form.presupuesto.trim() || null,
-        provincia:    form.provincia || null,
-        zona_interes: form.zona_interes || null,
-        propiedad_id: propiedad.id,
-        cliente_id:   propiedad.cliente_id,
+        dni: form.dni.trim(), nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(), telefono: form.telefono.trim(),
+        email: form.email.trim() || null, presupuesto: form.presupuesto.trim() || null,
+        provincia: form.provincia || null, zona_interes: form.zona_interes || null,
+        mensaje: form.mensaje.trim() || null,
+        propiedad_id: propiedad.id, cliente_id: propiedad.cliente_id,
       })
       setSuccess(true)
     } catch {
       setError('Ocurrió un error al enviar tu solicitud. Intentá de nuevo.')
-    } finally {
-      setSending(false)
-    }
+    } finally { setSending(false) }
   }
 
   function handleClose() {
     if (sending) return
-    setForm(FORM_EMPTY)
-    setError(null)
-    setSuccess(false)
-    onClose()
+    setForm(FORM_EMPTY); setError(null); setSuccess(false); onClose()
   }
 
-  const fieldSx = {
-    '& .MuiOutlinedInput-root': {
-      borderRadius: '8px', fontSize: '0.875rem',
-      '& fieldset': { borderColor: '#E5E7EB' },
-      '&:hover fieldset': { borderColor: ACCENT },
-      '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 },
-    },
-  }
+  const stdTF = (label, field, extra = {}) => (
+    <TextField
+      variant="outlined" size="small" fullWidth label={label}
+      value={form[field]} onChange={e => set(field, e.target.value)}
+      sx={fieldSx}
+      {...extra}
+    />
+  )
 
   return (
     <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{ sx: { borderRadius: '16px', p: 0.5 } }}
+      open={open} onClose={handleClose} maxWidth={false}
+      PaperProps={{
+        sx: {
+          width: { xs: '96vw', sm: 700 }, maxWidth: '100%',
+          borderRadius: '16px', overflow: 'hidden',
+          m: { xs: 1, sm: 3 },
+          boxShadow: '0 32px 80px rgba(0,0,0,0.4)',
+          bgcolor: 'transparent',
+        }
+      }}
+      slotProps={{ backdrop: { sx: { backdropFilter: 'blur(8px)', bgcolor: 'rgba(5,15,10,0.7)' } } }}
     >
-      {success ? (
-        <Box sx={{ px: 4, py: 6, textAlign: 'center' }}>
-          <CheckCircleIcon sx={{ fontSize: 52, color: ACCENT, mb: 2 }} />
-          <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', mb: 1 }}>
-            ¡Solicitud enviada!
+      <style>{`
+        @keyframes cfIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+        .cf-row { animation: cfIn 0.28s ease both }
+      `}</style>
+
+      <Box sx={{ display: 'flex', minHeight: { xs: 'auto', sm: 540 } }}>
+
+        {/* ── Panel oscuro izquierdo (oculto en mobile y en success) ── */}
+        <Box sx={{
+          width: 210, flexShrink: 0,
+          display: { xs: 'none', sm: success ? 'none' : 'flex' },
+          flexDirection: 'column',
+          bgcolor: DARK_PANEL,
+          p: '28px 22px',
+          position: 'relative', overflow: 'hidden',
+          backgroundImage: 'radial-gradient(rgba(16,185,129,0.04) 1px, transparent 1px)',
+          backgroundSize: '18px 18px',
+        }}>
+          {/* Barra superior de acento */}
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${ACCENT}, #10B981)` }} />
+
+          {/* Círculos decorativos */}
+          <Box sx={{ position: 'absolute', bottom: -40, right: -40, width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(16,185,129,0.07)', pointerEvents: 'none' }} />
+          <Box sx={{ position: 'absolute', bottom: -70, right: -70, width: 200, height: 200, borderRadius: '50%', border: '1px solid rgba(16,185,129,0.04)', pointerEvents: 'none' }} />
+
+          {/* Badge operación */}
+          {propiedad?.tipo_operacion && (
+            <Box sx={{ alignSelf: 'flex-start', mt: 1.5, mb: 2.5, px: 1.25, py: 0.35, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', bgcolor: 'rgba(16,185,129,0.07)' }}>
+              <Typography sx={{ fontSize: '0.57rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#10B981' }}>
+                {propiedad.tipo_operacion}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Título propiedad */}
+          <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: '#DCFCE7', lineHeight: 1.3, mb: 'auto', pb: 2, flex: 1 }}>
+            {propiedad?.titulo}
           </Typography>
-          <Typography sx={{ fontSize: '0.875rem', color: '#6B7280', lineHeight: 1.7 }}>
-            Recibimos tus datos. Un asesor se va a comunicar con vos a la brevedad.
-          </Typography>
-          <Button
-            onClick={handleClose}
-            variant="contained"
-            sx={{
-              mt: 3, bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-              fontWeight: 600, boxShadow: 'none',
-              '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-            }}
-          >
-            Cerrar
-          </Button>
+
+          {/* Ubicación */}
+          {(propiedad?.direccion || propiedad?.localidad) && (
+            <Box mb={2}>
+              <Typography sx={{ fontSize: '0.57rem', fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#3D7A5A', mb: 0.5 }}>
+                Ubicación
+              </Typography>
+              <Typography sx={{ fontSize: '0.75rem', color: '#7EB89A', lineHeight: 1.55 }}>
+                {propiedad.direccion}{propiedad?.localidad ? `, ${propiedad.localidad}` : ''}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Precio */}
+          {propiedad?.precio_publicacion && (
+            <Box sx={{ pt: 2, borderTop: '1px solid rgba(16,185,129,0.1)' }}>
+              <Typography sx={{ fontSize: '0.57rem', fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#3D7A5A', mb: 0.4 }}>
+                Precio
+              </Typography>
+              <Typography sx={{ fontSize: '1.2rem', fontWeight: 700, color: '#DCFCE7', letterSpacing: '-0.01em' }}>
+                {propiedad.moneda} {Number(propiedad.precio_publicacion).toLocaleString('es-AR')}
+              </Typography>
+            </Box>
+          )}
         </Box>
-      ) : (
-        <>
-          <DialogTitle sx={{ pb: 0, pt: 2.5, px: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
-                  Quiero más información
-                </Typography>
-                <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', mt: 0.25 }}>
+
+        {/* ── Panel del formulario ── */}
+        <Box sx={{ flex: 1, bgcolor: success ? DARK_PANEL : 'white', display: 'flex', flexDirection: 'column', position: 'relative', transition: 'background-color 0.4s' }}>
+
+          {/* Botón cerrar */}
+          <IconButton onClick={handleClose} size="small" sx={{
+            position: 'absolute', top: 10, right: 10, zIndex: 10,
+            width: 28, height: 28,
+            color: success ? '#4B7A62' : '#9CA3AF',
+            bgcolor: success ? 'rgba(16,185,129,0.06)' : 'rgba(0,0,0,0.04)',
+            '&:hover': { bgcolor: success ? 'rgba(16,185,129,0.12)' : 'rgba(0,0,0,0.08)', color: success ? '#DCFCE7' : '#374151' },
+          }}>
+            <CloseIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+
+          {success ? (
+            /* ── Estado de éxito ── */
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: { xs: 4, sm: 5 }, textAlign: 'center' }}>
+              <Box sx={{ width: 56, height: 56, borderRadius: '50%', border: `1.5px solid ${ACCENT}`, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3, animation: 'cfIn 0.5s ease' }}>
+                <CheckCircleIcon sx={{ fontSize: 26, color: ACCENT }} />
+              </Box>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#DCFCE7', mb: 1, lineHeight: 1.2, animation: 'cfIn 0.5s ease 0.1s both' }}>
+                Consulta enviada
+              </Typography>
+              <Typography sx={{ fontSize: '0.82rem', color: '#7EB89A', lineHeight: 1.8, mb: 3.5, maxWidth: 260, animation: 'cfIn 0.5s ease 0.2s both' }}>
+                Recibimos tu mensaje. Un asesor se va a comunicar con vos a la brevedad.
+              </Typography>
+              <Button onClick={handleClose} sx={{
+                textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                color: '#10B981', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', px: 3, py: 0.75,
+                animation: 'cfIn 0.5s ease 0.3s both',
+                '&:hover': { bgcolor: 'rgba(16,185,129,0.07)' },
+              }}>
+                Cerrar
+              </Button>
+            </Box>
+          ) : (
+            /* ── Formulario ── */
+            <Box component="form" onSubmit={handleSubmit}
+              sx={{ flex: 1, overflowY: 'auto', px: { xs: 2.5, sm: 3 }, pt: 3, pb: 3, display: 'flex', flexDirection: 'column', gap: 0 }}
+            >
+              {/* Header mobile: barra verde compacta con nombre de propiedad */}
+              <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', gap: 1, mb: 2, p: 1.25, bgcolor: DARK_PANEL, borderRadius: '10px' }}>
+                {propiedad?.tipo_operacion && (
+                  <Box sx={{ px: 1, py: 0.2, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '3px', bgcolor: 'rgba(16,185,129,0.08)', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#10B981' }}>
+                      {propiedad.tipo_operacion}
+                    </Typography>
+                  </Box>
+                )}
+                <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#DCFCE7', lineHeight: 1.3, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {propiedad?.titulo}
                 </Typography>
               </Box>
-              <IconButton size="small" onClick={handleClose}>
-                <CloseIcon fontSize="small" />
-              </IconButton>
+
+              {/* Encabezado */}
+              <Box className="cf-row" sx={{ mb: 2.5, animationDelay: '0s' }}>
+                <Typography sx={{ fontSize: '1.15rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.25, pr: 4 }}>
+                  Quiero más información
+                </Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', mt: 0.4 }}>
+                  Completá tus datos y te contactamos a la brevedad
+                </Typography>
+              </Box>
+
+              {error && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.78rem', py: 0.5 }}>
+                  {error}
+                </Alert>
+              )}
+
+              {/* DNI */}
+              <Box className="cf-row" sx={{ mb: 2, animationDelay: '0.06s' }}>
+                {stdTF('DNI *', 'dni', { placeholder: 'Número de documento' })}
+              </Box>
+
+              {/* Nombre + Apellido */}
+              <Box className="cf-row" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2, animationDelay: '0.12s' }}>
+                {stdTF('Nombre *', 'nombre')}
+                {stdTF('Apellido *', 'apellido')}
+              </Box>
+
+              {/* Teléfono + Email */}
+              <Box className="cf-row" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2, animationDelay: '0.18s' }}>
+                {stdTF('Teléfono *', 'telefono', { placeholder: '264 1234567' })}
+                {stdTF('Email', 'email', { type: 'email' })}
+              </Box>
+
+              {/* Divisor */}
+              <Box sx={{ height: '1px', bgcolor: '#F3F4F6', mb: 2 }} />
+
+              {/* Presupuesto */}
+              <Box className="cf-row" sx={{ mb: 2, animationDelay: '0.24s' }}>
+                {stdTF('Presupuesto', 'presupuesto', { placeholder: 'Ej: USD 80.000' })}
+              </Box>
+
+              {/* Provincia + Zona */}
+              <Box className="cf-row" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2, animationDelay: '0.3s' }}>
+                <FormControl size="small" fullWidth sx={fieldSx}>
+                  <InputLabel>Provincia</InputLabel>
+                  <Select label="Provincia" value={form.provincia} onChange={e => set('provincia', e.target.value)}>
+                    <MenuItem value=""><em style={{ fontStyle: 'normal', color: '#9CA3AF' }}>—</em></MenuItem>
+                    {PROVINCIAS.map(p => <MenuItem key={p} value={p} sx={{ fontSize: '0.875rem' }}>{p}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" fullWidth sx={fieldSx}>
+                  <InputLabel>Zona de interés</InputLabel>
+                  <Select label="Zona de interés" value={form.zona_interes} onChange={e => set('zona_interes', e.target.value)}>
+                    <MenuItem value=""><em style={{ fontStyle: 'normal', color: '#9CA3AF' }}>—</em></MenuItem>
+                    {ZONAS.map(z => <MenuItem key={z} value={z} sx={{ fontSize: '0.875rem' }}>{z}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Mensaje */}
+              <Box className="cf-row" sx={{ mb: 2.5, animationDelay: '0.36s' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                  <Typography sx={{ fontSize: '0.7rem', color: '#6B7280' }}>
+                    Mensaje (opcional)
+                  </Typography>
+                  <ArcCounter count={form.mensaje.length} max={1000} />
+                </Box>
+                <TextField
+                  variant="outlined" size="small" fullWidth multiline rows={3}
+                  value={form.mensaje}
+                  onChange={e => { if (e.target.value.length <= 1000) set('mensaje', e.target.value) }}
+                  placeholder="Escribí tu consulta..."
+                  sx={fieldSx}
+                />
+              </Box>
+
+              {/* Submit */}
+              <Button type="submit" variant="contained" disabled={sending} fullWidth
+                startIcon={sending ? <CircularProgress size={14} color="inherit" /> : null}
+                sx={{
+                  bgcolor: ACCENT, color: 'white',
+                  borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+                  fontSize: '0.875rem', py: 1.25, letterSpacing: '0.01em',
+                  boxShadow: '0 2px 8px rgba(6,95,70,0.25)', mt: 'auto',
+                  '&:hover': { bgcolor: '#047857', boxShadow: '0 4px 16px rgba(6,95,70,0.35)' },
+                  '&.Mui-disabled': { bgcolor: '#E5E7EB', color: '#9CA3AF', boxShadow: 'none' },
+                }}
+              >
+                {sending ? 'Enviando...' : 'Enviar consulta'}
+              </Button>
             </Box>
-          </DialogTitle>
-
-          <DialogContent sx={{ px: 3, py: 2 }}>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>
-                {error}
-              </Alert>
-            )}
-
-            <form id="contact-form" onSubmit={handleSubmit}>
-              <Grid container spacing={1.5}>
-                <Grid item xs={12}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>DNI *</Typography>
-                  <TextField fullWidth size="small" value={form.dni}
-                    onChange={e => set('dni', e.target.value)}
-                    placeholder="Número de documento" sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Nombre *</Typography>
-                  <TextField fullWidth size="small" value={form.nombre}
-                    onChange={e => set('nombre', e.target.value)} sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Apellido *</Typography>
-                  <TextField fullWidth size="small" value={form.apellido}
-                    onChange={e => set('apellido', e.target.value)} sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Teléfono *</Typography>
-                  <TextField fullWidth size="small" value={form.telefono}
-                    onChange={e => set('telefono', e.target.value)}
-                    placeholder="Ej: 264 1234567" sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Email</Typography>
-                  <TextField fullWidth size="small" type="email" value={form.email}
-                    onChange={e => set('email', e.target.value)} sx={fieldSx} />
-                </Grid>
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 0.5, borderColor: '#F3F4F6' }} />
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Presupuesto</Typography>
-                  <TextField fullWidth size="small" value={form.presupuesto}
-                    onChange={e => set('presupuesto', e.target.value)}
-                    placeholder="Ej: USD 80,000" sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Provincia</Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={form.provincia}
-                      displayEmpty
-                      onChange={e => set('provincia', e.target.value)}
-                      sx={{
-                        fontSize: '0.875rem', borderRadius: '8px',
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
-                      }}
-                    >
-                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      {PROVINCIAS.map(p => <MenuItem key={p} value={p} sx={{ fontSize: '0.875rem' }}>{p}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Zona de interés</Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={form.zona_interes}
-                      displayEmpty
-                      onChange={e => set('zona_interes', e.target.value)}
-                      sx={{
-                        fontSize: '0.875rem', borderRadius: '8px',
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
-                      }}
-                    >
-                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      {ZONAS.map(z => <MenuItem key={z} value={z} sx={{ fontSize: '0.875rem' }}>{z}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </form>
-          </DialogContent>
-
-          <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-            <Button
-              onClick={handleClose}
-              sx={{ textTransform: 'none', fontWeight: 500, fontSize: '0.82rem', color: '#6B7280', borderRadius: '8px' }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              form="contact-form"
-              variant="contained"
-              disabled={sending}
-              startIcon={sending ? <CircularProgress size={14} color="inherit" /> : null}
-              sx={{
-                bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-                fontWeight: 600, fontSize: '0.82rem', px: 2.5,
-                boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-              }}
-            >
-              {sending ? 'Enviando...' : 'Enviar solicitud'}
-            </Button>
-          </DialogActions>
-        </>
-      )}
+          )}
+        </Box>
+      </Box>
     </Dialog>
   )
 }

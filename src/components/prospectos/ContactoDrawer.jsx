@@ -11,6 +11,7 @@ import {
   updateProspectoAsignado,
   addHistorialProspecto,
   getHistorialByProspecto,
+  getContactoPropiedades,
 } from '../../services/supabase'
 
 const ACCENT = '#065F46'
@@ -29,6 +30,14 @@ function InfoRow({ label, value }) {
       <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', flexShrink: 0, mr: 2 }}>{label}</Typography>
       <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500, textAlign: 'right' }}>{value}</Typography>
     </Box>
+  )
+}
+
+function SectionLabel({ children }) {
+  return (
+    <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mt: 3, mb: 1.5 }}>
+      {children}
+    </Typography>
   )
 }
 
@@ -54,6 +63,8 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
   const [historial, setHistorial] = useState([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [historialError, setHistorialError] = useState(false)
+  const [propiedades, setPropiedades] = useState([])
+  const [loadingProps, setLoadingProps] = useState(false)
 
   useEffect(() => {
     if (!open || !prospecto) return
@@ -64,6 +75,18 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
       .then(data => setHistorial(data))
       .catch(() => { setHistorial([]); setHistorialError(true) })
       .finally(() => setLoadingHistorial(false))
+
+    if (prospecto.contacto_id) {
+      setLoadingProps(true)
+      getContactoPropiedades(prospecto.contacto_id)
+        .then(data => setPropiedades(data ?? []))
+        .catch(() => setPropiedades([]))
+        .finally(() => setLoadingProps(false))
+    } else if (prospecto.propiedades) {
+      setPropiedades([prospecto.propiedades])
+    } else {
+      setPropiedades([])
+    }
   }, [open, prospecto?.id])
 
   async function handleAsignadoChange(newNombre) {
@@ -94,11 +117,11 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
       {/* Header */}
       <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box display="flex" alignItems="center" gap={1.25}>
-          <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: '#F0F9FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <PersonIcon sx={{ fontSize: 15, color: '#0369A1' }} />
+          <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <PersonIcon sx={{ fontSize: 15, color: ACCENT }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>Detalle de contacto</Typography>
+            <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>Detalle de seguimiento</Typography>
             <Typography sx={{ fontSize: '0.75rem', color: '#6B7280' }}>{prospecto.nombre} {prospecto.apellido}</Typography>
           </Box>
         </Box>
@@ -122,9 +145,7 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
         </Box>
 
         {/* Asignado a */}
-        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1.5 }}>
-          Asignado a
-        </Typography>
+        <SectionLabel>Asignado a</SectionLabel>
         <Box display="flex" alignItems="center" gap={1.5} mb={3}>
           <Initials nombre={asignado || '?'} />
           <FormControl size="small" sx={{ flex: 1 }}>
@@ -147,9 +168,7 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
         </Box>
 
         {/* Datos de contacto */}
-        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1 }}>
-          Datos de contacto
-        </Typography>
+        <SectionLabel>Datos de contacto</SectionLabel>
         <Box mb={3}>
           <InfoRow label="Nombre" value={`${prospecto.nombre} ${prospecto.apellido}`} />
           <InfoRow label="Teléfono" value={prospecto.telefono} />
@@ -159,9 +178,7 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
         {/* Preferencias (solo venta) */}
         {esVenta && (
           <>
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1 }}>
-              Preferencias de búsqueda
-            </Typography>
+            <SectionLabel>Preferencias de búsqueda</SectionLabel>
             <Box mb={3}>
               <InfoRow
                 label="Presupuesto"
@@ -177,16 +194,38 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
           </>
         )}
 
-        {/* Propiedad vinculada */}
-        {prospecto.propiedades && (
+        {/* Propiedades vinculadas */}
+        {(loadingProps || propiedades.length > 0) && (
           <>
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1 }}>
-              Propiedad vinculada
-            </Typography>
-            <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', p: 2, mb: 3 }}>
-              <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{prospecto.propiedades.titulo}</Typography>
-              <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', mt: 0.25 }}>{prospecto.propiedades.localidad}</Typography>
-            </Box>
+            <SectionLabel>Propiedades vinculadas</SectionLabel>
+            {loadingProps ? (
+              <Box display="flex" alignItems="center" gap={1} py={1} mb={2}>
+                <CircularProgress size={13} sx={{ color: ACCENT }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Cargando propiedades...</Typography>
+              </Box>
+            ) : (
+              <Box mb={3} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {propiedades.map(p => (
+                  <Box key={p.id} sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', p: 2 }}>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#111827', mb: 0.5 }}>
+                      {p.titulo}
+                    </Typography>
+                    {(p.direccion || p.localidad) && (
+                      <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', mb: p.precio_publicacion ? 1 : 0 }}>
+                        {[p.direccion, p.localidad, p.provincia].filter(Boolean).join(', ')}
+                      </Typography>
+                    )}
+                    {p.precio_publicacion && (
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '6px', px: 1.25, py: 0.4 }}>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: ACCENT }}>
+                          {p.moneda} {Number(p.precio_publicacion).toLocaleString('es-AR')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            )}
           </>
         )}
 

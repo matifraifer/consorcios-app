@@ -1,29 +1,17 @@
 import { useEffect, useState } from 'react'
 import {
-  Box, Typography, Drawer, Divider, IconButton, TextField, Button,
-  Alert, CircularProgress, Select, MenuItem, FormControl, Grid,
+  Box, Typography, Drawer, IconButton, TextField, Button,
+  Alert, CircularProgress, Grid, Autocomplete,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import GroupIcon from '@mui/icons-material/Group'
-import PersonSearchIcon from '@mui/icons-material/PersonSearch'
-import { createProspecto } from '../../services/supabase'
-import ContactoPicker from '../ContactoPicker'
+import CloseIcon  from '@mui/icons-material/Close'
+import GroupIcon  from '@mui/icons-material/Group'
+import AddIcon    from '@mui/icons-material/Add'
+import { createProspecto, getContactos, getContactoPropiedades } from '../../services/supabase'
+import ContactoFormDrawer from '../contactos/ContactoFormDrawer'
 
 const ACCENT = '#065F46'
 
-const LOCALIDADES = [
-  'Albardón','Angaco','Calingasta','Capital','Caucete','Chimbas','Iglesia','Jáchal',
-  'Nueve de Julio','Pocito','Rawson','Rivadavia','San Martín','Santa Lucía','Sarmiento',
-  'Ullum','Valle Fértil','Veinticinco de Mayo','Zonda',
-]
-const TIPOS_INMUEBLE = ['Casa','Departamento','Terreno','Local','Oficina','Indiferente']
-
-const FORM_VENTA = {
-  nombre: '', apellido: '', telefono: '', email: '',
-  presupuesto: '', zona: '', tipo_inmueble: '', credito_hipotecario: '',
-  propiedad_id: '',
-}
-const FORM_ALQUILER = { nombre: '', apellido: '', telefono: '', email: '' }
+const FORM_EMPTY = { nombre: '', apellido: '', telefono: '', email: '', dni: '' }
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -33,53 +21,81 @@ const fieldSx = {
     '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 },
   },
 }
-const selectSx = {
-  fontSize: '0.875rem', borderRadius: '8px',
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
+
+function Label({ children, required }) {
+  return (
+    <Box display="flex" gap={0.5} mb={0.5}>
+      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151' }}>{children}</Typography>
+      {required && <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#EF4444', lineHeight: 1 }}>*</Typography>}
+    </Box>
+  )
 }
 
-function Label({ children }) {
-  return <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>{children}</Typography>
+function SectionLabel({ children }) {
+  return (
+    <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mt: 3, mb: 1.5 }}>
+      {children}
+    </Typography>
+  )
 }
 
 export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, propiedades = [], onSaved, asignadoNombre, clienteId }) {
-  const [tipoOp, setTipoOp] = useState('venta')
-  const [form, setForm] = useState(FORM_VENTA)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [form, setForm]                   = useState(FORM_EMPTY)
+  const [contactos, setContactos]         = useState([])
+  const [contactoSel, setContactoSel]     = useState(null)
+  const [propVinculadas, setPropVinculadas] = useState([])
+  const [loadingContactos, setLoadingContactos] = useState(false)
+  const [loadingProps, setLoadingProps]   = useState(false)
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState(null)
+  const [nuevoContactoOpen, setNuevoContactoOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setTipoOp('venta')
-    setForm(FORM_VENTA)
+    setForm(FORM_EMPTY)
+    setContactoSel(null)
+    setPropVinculadas([])
     setError(null)
+    setLoadingContactos(true)
+    getContactos(clienteId)
+      .then(data => setContactos(data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingContactos(false))
   }, [open])
 
-  function handleTipoChange(val) {
-    setTipoOp(val)
-    setForm(val === 'alquiler' ? FORM_ALQUILER : FORM_VENTA)
-    setError(null)
+  async function handleContactoSelect(contacto) {
+    if (!contacto) {
+      setContactoSel(null)
+      setForm(FORM_EMPTY)
+      setPropVinculadas([])
+      return
+    }
+    setContactoSel(contacto)
+    setForm({
+      nombre:   contacto.nombre   ?? '',
+      apellido: contacto.apellido ?? '',
+      telefono: contacto.telefono ?? '',
+      email:    contacto.email    ?? '',
+      dni:      contacto.dni      ?? '',
+    })
+    setLoadingProps(true)
+    try {
+      const props = await getContactoPropiedades(contacto.id)
+      setPropVinculadas(props ?? [])
+    } catch {}
+    finally { setLoadingProps(false) }
   }
 
-  function set(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
+  function handleNuevoContactoSaved(contacto) {
+    setContactos(prev => [contacto, ...prev])
+    handleContactoSelect(contacto)
+    setNuevoContactoOpen(false)
   }
 
-  function handleContactoSelect(contacto) {
-    setForm(prev => ({
-      ...prev,
-      nombre:   contacto.nombre,
-      apellido: contacto.apellido,
-      telefono: contacto.telefono || prev.telefono,
-      email:    contacto.email    || prev.email,
-    }))
-  }
+  function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
   function validate() {
-    if (!form.nombre.trim()) return 'El nombre es obligatorio.'
+    if (!form.nombre.trim())   return 'El nombre es obligatorio.'
     if (!form.apellido.trim()) return 'El apellido es obligatorio.'
     if (!form.telefono.trim()) return 'El teléfono es obligatorio.'
     return null
@@ -89,25 +105,20 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
     e.preventDefault()
     const err = validate()
     if (err) { setError(err); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
+      const tipoOp = contactoSel?.tipo_operacion?.toLowerCase() === 'alquiler' ? 'alquiler' : 'venta'
       const payload = {
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        telefono: form.telefono.trim(),
-        email: form.email.trim() || null,
-        tipo_operacion: tipoOp,
-        etapa_id: defaultEtapaId,
+        nombre:          form.nombre.trim(),
+        apellido:        form.apellido.trim(),
+        telefono:        form.telefono.trim(),
+        email:           form.email.trim() || null,
+        tipo_operacion:  tipoOp,
+        etapa_id:        defaultEtapaId,
         asignado_nombre: asignadoNombre || null,
-        cliente_id: clienteId,
-        ...(tipoOp === 'venta' && {
-          presupuesto: form.presupuesto ? Number(form.presupuesto) : null,
-          zona: form.zona || null,
-          tipo_inmueble: form.tipo_inmueble || null,
-          credito_hipotecario: form.credito_hipotecario === 'si' ? true : form.credito_hipotecario === 'no' ? false : null,
-          propiedad_id: form.propiedad_id || null,
-        }),
+        cliente_id:      clienteId,
+        propiedad_id:    propVinculadas[0]?.id || null,
+        contacto_id:     contactoSel?.id || null,
       }
       const result = await createProspecto(payload)
       onSaved(result)
@@ -119,187 +130,215 @@ export default function ProspectoFormDrawer({ open, onClose, defaultEtapaId, pro
     }
   }
 
-  const propDisponibles = propiedades.filter(p => p.estado !== 'Baja')
+  const propOptions = propiedades.filter(
+    p => !propVinculadas.find(v => v.id === p.id)
+  )
 
   return (
-    <Drawer
-      anchor="right"
-      open={open}
-      onClose={onClose}
-      slotProps={{ paper: { sx: { width: 480, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
-    >
-      {/* Header */}
-      <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box display="flex" alignItems="center" gap={1.25}>
-          <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GroupIcon sx={{ fontSize: 15, color: ACCENT }} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>Nuevo prospecto</Typography>
-            <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>Registrá el contacto entrante</Typography>
-          </Box>
-        </Box>
-        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
-      </Box>
-
-      <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 3 }}>
-        {error && <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
-
-        <form id="prospecto-form" onSubmit={handleSubmit}>
-
-          {/* Tipo de operación */}
-          <Box mt={3} mb={3}>
-            <Label>Tipo de operación *</Label>
-            <Box display="flex" gap={1}>
-              {['venta', 'alquiler'].map(op => (
-                <Box
-                  key={op}
-                  onClick={() => handleTipoChange(op)}
-                  sx={{
-                    flex: 1, py: 1.25, textAlign: 'center', borderRadius: '8px', cursor: 'pointer',
-                    border: `1px solid ${tipoOp === op ? ACCENT : '#E5E7EB'}`,
-                    bgcolor: tipoOp === op ? '#ECFDF5' : 'white',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: tipoOp === op ? ACCENT : '#6B7280', textTransform: 'capitalize' }}>
-                    {op === 'venta' ? 'Venta / Compra' : 'Alquiler'}
-                  </Typography>
-                </Box>
-              ))}
+    <>
+      <Drawer
+        anchor="right"
+        open={open}
+        onClose={onClose}
+        slotProps={{ paper: { sx: { width: 480, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
+      >
+        {/* Header */}
+        <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <GroupIcon sx={{ fontSize: 15, color: ACCENT }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>Nuevo seguimiento</Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>Seleccioná un contacto para comenzar con el seguimiento</Typography>
             </Box>
           </Box>
+          <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+        </Box>
 
-          {/* Datos de contacto */}
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 2 }}>
-            Datos de contacto
-          </Typography>
+        {/* Body */}
+        <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 3 }}>
+          {error && <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
 
-          <Box mb={2}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<PersonSearchIcon sx={{ fontSize: 15 }} />}
-              onClick={() => setPickerOpen(true)}
-              sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.78rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
-            >
-              Buscar contacto
-            </Button>
-          </Box>
+          <form id="prospecto-form" onSubmit={handleSubmit}>
 
-          <Grid container spacing={1.5} mb={2}>
-            <Grid item xs={6}>
-              <Label>Nombre *</Label>
-              <TextField fullWidth size="small" value={form.nombre} onChange={e => set('nombre', e.target.value)} sx={fieldSx} />
-            </Grid>
-            <Grid item xs={6}>
-              <Label>Apellido *</Label>
-              <TextField fullWidth size="small" value={form.apellido} onChange={e => set('apellido', e.target.value)} sx={fieldSx} />
-            </Grid>
-          </Grid>
+            {/* Buscar contacto */}
+            <SectionLabel>Contacto</SectionLabel>
 
-          <Grid container spacing={1.5} mb={3}>
-            <Grid item xs={6}>
-              <Label>Teléfono *</Label>
-              <TextField fullWidth size="small" value={form.telefono} onChange={e => set('telefono', e.target.value)} placeholder="Ej: 2645123456" sx={fieldSx} />
-            </Grid>
-            <Grid item xs={6}>
-              <Label>Email</Label>
-              <TextField fullWidth size="small" type="email" value={form.email} onChange={e => set('email', e.target.value)} sx={fieldSx} />
-            </Grid>
-          </Grid>
+            <Box display="flex" gap={1} mb={0.5}>
+              <Autocomplete
+                fullWidth
+                options={contactos}
+                loading={loadingContactos}
+                value={contactoSel}
+                onChange={(_, val) => handleContactoSelect(val)}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                getOptionLabel={c => `${c.apellido ?? ''}, ${c.nombre ?? ''}`}
+                filterOptions={(opts, { inputValue }) => {
+                  const q = inputValue.toLowerCase().trim()
+                  if (!q) return opts.slice(0, 30)
+                  return opts.filter(c =>
+                    (c.nombre   ?? '').toLowerCase().includes(q) ||
+                    (c.apellido ?? '').toLowerCase().includes(q) ||
+                    (c.dni      ?? '').toLowerCase().includes(q) ||
+                    (c.telefono ?? '').toLowerCase().includes(q)
+                  )
+                }}
+                noOptionsText="Sin resultados"
+                renderOption={(props, c) => (
+                  <Box component="li" {...props} key={c.id} sx={{ ...props.sx, display: 'flex', flexDirection: 'column', alignItems: 'flex-start !important', py: '8px !important' }}>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
+                      {c.apellido}, {c.nombre}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
+                      {[c.dni && `DNI: ${c.dni}`, c.telefono].filter(Boolean).join(' · ')}
+                    </Typography>
+                  </Box>
+                )}
+                renderInput={params => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Buscar por nombre, DNI o teléfono..."
+                    sx={fieldSx}
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {loadingContactos ? <CircularProgress size={13} sx={{ color: ACCENT }} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+              <Button
+                onClick={() => setNuevoContactoOpen(true)}
+                variant="outlined"
+                title="Nuevo contacto"
+                sx={{
+                  minWidth: 40, width: 40, height: 40, p: 0, flexShrink: 0,
+                  borderRadius: '8px', borderColor: '#E5E7EB', color: '#6B7280',
+                  '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' },
+                }}
+              >
+                <AddIcon sx={{ fontSize: 18 }} />
+              </Button>
+            </Box>
+            <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF', mb: 2 }}>
+              Usá "+" para crear un nuevo contacto
+            </Typography>
 
-          {/* Campos adicionales para venta */}
-          {tipoOp === 'venta' && (
-            <>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 2 }}>
-                Preferencias de búsqueda
-              </Typography>
+            {/* Datos del contacto */}
+            <SectionLabel>Datos del contacto</SectionLabel>
 
-              <Grid container spacing={1.5} mb={2}>
-                <Grid item xs={6}>
-                  <Label>Presupuesto</Label>
-                  <TextField fullWidth size="small" type="number" value={form.presupuesto} onChange={e => set('presupuesto', e.target.value)} placeholder="USD" sx={fieldSx} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Label>Zona de interés</Label>
-                  <FormControl fullWidth size="small">
-                    <Select value={form.zona} displayEmpty onChange={e => set('zona', e.target.value)} sx={selectSx}>
-                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      {LOCALIDADES.map(l => <MenuItem key={l} value={l} sx={{ fontSize: '0.875rem' }}>{l}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
+            <Grid container spacing={1.5} mb={2}>
+              <Grid item xs={6}>
+                <Label required>Nombre</Label>
+                <TextField fullWidth size="small" value={form.nombre} onChange={e => set('nombre', e.target.value)} sx={fieldSx} />
               </Grid>
-
-              <Grid container spacing={1.5} mb={3}>
-                <Grid item xs={6}>
-                  <Label>Tipo de inmueble</Label>
-                  <FormControl fullWidth size="small">
-                    <Select value={form.tipo_inmueble} displayEmpty onChange={e => set('tipo_inmueble', e.target.value)} sx={selectSx}>
-                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      {TIPOS_INMUEBLE.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={6}>
-                  <Label>Crédito hipotecario</Label>
-                  <FormControl fullWidth size="small">
-                    <Select value={form.credito_hipotecario} displayEmpty onChange={e => set('credito_hipotecario', e.target.value)} sx={selectSx}>
-                      <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                      <MenuItem value="si" sx={{ fontSize: '0.875rem' }}>Sí</MenuItem>
-                      <MenuItem value="no" sx={{ fontSize: '0.875rem' }}>No</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
+              <Grid item xs={6}>
+                <Label required>Apellido</Label>
+                <TextField fullWidth size="small" value={form.apellido} onChange={e => set('apellido', e.target.value)} sx={fieldSx} />
               </Grid>
+            </Grid>
 
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9CA3AF', mb: 2 }}>
-                Propiedad específica (opcional)
-              </Typography>
-              <Box mb={2}>
-                <Label>¿Sabe qué propiedad quiere?</Label>
-                <FormControl fullWidth size="small">
-                  <Select value={form.propiedad_id} displayEmpty onChange={e => set('propiedad_id', e.target.value)} sx={selectSx}>
-                    <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>No sabe / Sin definir</MenuItem>
-                    {propDisponibles.map(p => (
-                      <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
-                        {p.titulo} — {p.moneda} {Number(p.precio_publicacion).toLocaleString('es-AR')}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF', mt: 0.5 }}>
-                  Si seleccionás una propiedad, se vincula al prospecto automáticamente.
-                </Typography>
+            <Grid container spacing={1.5} mb={2}>
+              <Grid item xs={6}>
+                <Label required>Teléfono</Label>
+                <TextField fullWidth size="small" value={form.telefono} onChange={e => set('telefono', e.target.value)} sx={fieldSx} />
+              </Grid>
+              <Grid item xs={6}>
+                <Label>Email</Label>
+                <TextField fullWidth size="small" type="email" value={form.email} onChange={e => set('email', e.target.value)} sx={fieldSx} />
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={1.5} mb={1}>
+              <Grid item xs={6}>
+                <Label>DNI</Label>
+                <TextField fullWidth size="small" value={form.dni} onChange={e => set('dni', e.target.value)} sx={fieldSx} />
+              </Grid>
+            </Grid>
+
+            {/* Propiedades */}
+            <SectionLabel>Propiedades vinculadas</SectionLabel>
+
+            {loadingProps ? (
+              <Box display="flex" alignItems="center" gap={1} py={1} mb={2}>
+                <CircularProgress size={13} sx={{ color: ACCENT }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Cargando propiedades del contacto...</Typography>
               </Box>
-            </>
-          )}
-        </form>
-      </Box>
+            ) : (
+              <>
+                {propVinculadas.length > 0 && (
+                  <Box mb={1.5} sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+                    {propVinculadas.map((p, i) => (
+                      <Box key={p.id} sx={{
+                        display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1,
+                        borderBottom: i < propVinculadas.length - 1 ? '1px solid #F3F4F6' : 'none',
+                      }}>
+                        <Box flex={1} minWidth={0}>
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {p.titulo}
+                          </Typography>
+                          {p.localidad && (
+                            <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF' }}>{p.localidad}</Typography>
+                          )}
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => setPropVinculadas(prev => prev.filter(x => x.id !== p.id))}
+                          sx={{ color: '#9CA3AF', flexShrink: 0, '&:hover': { color: '#EF4444' } }}
+                        >
+                          <CloseIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
 
-      <ContactoPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onSelect={handleContactoSelect}
+                <Autocomplete
+                  options={propOptions}
+                  getOptionLabel={p => `${p.titulo}${p.localidad ? ` — ${p.localidad}` : ''}`}
+                  value={null}
+                  onChange={(_, val) => { if (val) setPropVinculadas(prev => [...prev, val]) }}
+                  isOptionEqualToValue={(o, v) => o.id === v.id}
+                  noOptionsText="Sin propiedades disponibles"
+                  renderInput={params => (
+                    <TextField {...params} size="small" placeholder="Buscar y agregar propiedad..." sx={fieldSx} />
+                  )}
+                />
+              </>
+            )}
+
+          </form>
+        </Box>
+
+        {/* Footer */}
+        <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
+          <Button
+            type="submit" form="prospecto-form" variant="contained" disabled={saving}
+            startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            {saving ? 'Guardando...' : 'Crear seguimiento'}
+          </Button>
+          <Button variant="outlined" onClick={onClose}
+            sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 500, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280', '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' } }}>
+            Cancelar
+          </Button>
+        </Box>
+      </Drawer>
+
+      <ContactoFormDrawer
+        open={nuevoContactoOpen}
+        onClose={() => setNuevoContactoOpen(false)}
+        contacto={null}
         clienteId={clienteId}
-        tipoSugerido={tipoOp === 'alquiler' ? 'Arrendatario' : 'Comprador'}
+        onSaved={handleNuevoContactoSaved}
       />
-
-      {/* Footer */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
-        <Button
-          type="submit" form="prospecto-form" variant="contained" disabled={saving}
-          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
-          sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
-        >
-          {saving ? 'Guardando...' : 'Crear prospecto'}
-        </Button>
-        <Button variant="outlined" onClick={onClose}
-          sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 500, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280', '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' } }}>
-          Cancelar
-        </Button>
-      </Box>
-    </Drawer>
+    </>
   )
 }

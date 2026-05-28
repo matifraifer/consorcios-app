@@ -630,31 +630,63 @@ export async function getHistorialByProspecto(prospecto_id) {
 export async function getCRMDashboardData(cliente_id) {
   const today = new Date().toISOString().slice(0, 10)
 
-  const [{ data: prospectos, error: e1 }, { data: etapas, error: e2 }, { data: visitas, error: e3 }] =
-    await Promise.all([
-      supabase
-        .from('prospectos')
-        .select('id, nombre, apellido, etapa_id, asignado_nombre, cerrado, cierre_exitoso, etapas_crm(id, nombre, orden)')
-        .eq('cliente_id', cliente_id),
-      supabase
-        .from('etapas_crm')
-        .select('*')
-        .order('orden'),
-      supabase
-        .from('visitas')
-        .select('id, fecha, hora, propiedades(id, titulo, direccion, localidad), prospectos!inner(id, nombre, apellido, asignado_nombre, cliente_id)')
-        .eq('prospectos.cliente_id', cliente_id)
-        .gte('fecha', today)
-        .order('fecha')
-        .order('hora')
-        .limit(8),
-    ])
+  const [
+    { data: prospectos,         error: e1 },
+    { data: etapas,             error: e2 },
+    { data: visitas,            error: e3 },
+    { count: consultasPendientes, error: e4 },
+    { data: propiedadesData,    error: e5 },
+    { count: sinAsignar,        error: e6 },
+  ] = await Promise.all([
+    supabase
+      .from('prospectos')
+      .select('id, nombre, apellido, etapa_id, asignado_nombre, cerrado, cierre_exitoso, etapas_crm(id, nombre, orden)')
+      .eq('cliente_id', cliente_id),
+    supabase
+      .from('etapas_crm')
+      .select('*')
+      .order('orden'),
+    supabase
+      .from('visitas')
+      .select('id, fecha, hora, propiedades(id, titulo, localidad), prospectos!inner(id, nombre, apellido, telefono, asignado_nombre, cliente_id)')
+      .eq('prospectos.cliente_id', cliente_id)
+      .gte('fecha', today)
+      .order('fecha')
+      .order('hora')
+      .limit(8),
+    supabase
+      .from('consultas_web')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', cliente_id)
+      .eq('estado', 'pendiente'),
+    supabase
+      .from('propiedades')
+      .select('tipo_operacion, tipo_propiedad')
+      .eq('cliente_id', cliente_id)
+      .eq('estado', 'Disponible'),
+    supabase
+      .from('prospectos')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', cliente_id)
+      .eq('cerrado', false)
+      .is('asignado_nombre', null),
+  ])
 
   if (e1) throw e1
   if (e2) throw e2
   if (e3) throw e3
+  if (e4) throw e4
+  if (e5) throw e5
+  if (e6) throw e6
 
-  return { prospectos: prospectos ?? [], etapas: etapas ?? [], visitas: visitas ?? [] }
+  return {
+    prospectos:          prospectos ?? [],
+    etapas:              etapas ?? [],
+    visitas:             visitas ?? [],
+    consultasPendientes: consultasPendientes ?? 0,
+    propiedadesData:     propiedadesData ?? [],
+    sinAsignar:          sinAsignar ?? 0,
+  }
 }
 
 // ---- PROPIEDADES PÚBLICAS (sin auth) ----
@@ -719,13 +751,15 @@ export async function createProspectoPublico({
 
 // ---- PROPIEDADES ----
 
-export async function getPropiedades({ includeBaja = false, cliente_id } = {}) {
+export async function getPropiedades({ includeBaja = false, includeVendida = false, cliente_id, estado } = {}) {
   let query = supabase
     .from('propiedades')
     .select('*')
     .eq('cliente_id', cliente_id)
     .order('created_at', { ascending: false })
   if (!includeBaja) query = query.neq('estado', 'Baja')
+  if (!includeVendida) query = query.neq('estado', 'Vendida')
+  if (estado) query = query.eq('estado', estado)
   const { data, error } = await query
   if (error) throw error
   return data
@@ -1021,7 +1055,7 @@ export async function sugerirPropiedadesPorContacto({
     .from('propiedades')
     .select('id, titulo, localidad, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, estado')
     .eq('cliente_id', clienteId)
-    .neq('estado', 'Baja')
+    .eq('estado', 'Disponible')
 
   if (tipoPropiedad?.length)    q = q.in('tipo_propiedad', tipoPropiedad)
   if (tipoOperacion)            q = q.eq('tipo_operacion', tipoOperacion)
@@ -1179,7 +1213,7 @@ export async function deleteCargoExtra(id) {
 
 export async function submitConsultaWeb({
   cliente_id, propiedad_id, dni, nombre, apellido, telefono, email,
-  presupuesto, provincia, zona_interes,
+  presupuesto, provincia, zona_interes, mensaje,
 }) {
   const { data, error } = await supabase
     .from('consultas_web')
@@ -1194,6 +1228,7 @@ export async function submitConsultaWeb({
       presupuesto: presupuesto ? Number(presupuesto) : null,
       provincia: provincia || null,
       zona_interes: zona_interes || null,
+      mensaje: mensaje || null,
       estado: 'pendiente',
     }])
     .select()

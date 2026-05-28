@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Box, Typography, Button, Alert, CircularProgress, Snackbar, Switch, FormControlLabel,
+  Box, Typography, Button, Alert, CircularProgress, Snackbar, Switch, FormControlLabel, Tooltip,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
@@ -8,7 +8,6 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import CancelIcon from '@mui/icons-material/Cancel'
 import GroupIcon from '@mui/icons-material/Group'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   useDraggable, useDroppable,
@@ -48,9 +47,9 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
   const isNegativo = prospecto.cerrado && prospecto.cierre_exitoso === false
 
   const actionIcon = useMemo(() => {
-    if (etapaOrden === 2) return <CalendarMonthIcon sx={{ fontSize: 14, color: '#D97706' }} />
-    if (etapaOrden === 3) return <MonetizationOnIcon sx={{ fontSize: 14, color: '#7C3AED' }} />
-    if (etapaOrden === 4 && !prospecto.cerrado) return <CheckCircleOutlineIcon sx={{ fontSize: 14, color: ACCENT }} />
+    if (etapaOrden === 2) return { icon: <CalendarMonthIcon sx={{ fontSize: 17, color: '#D97706' }} />, tooltip: 'Ver y agendar visitas' }
+    if (etapaOrden === 3) return { icon: <MonetizationOnIcon sx={{ fontSize: 17, color: '#7C3AED' }} />, tooltip: 'Ver detalle de negociación' }
+    if (etapaOrden === 4 && !prospecto.cerrado) return { icon: <CheckCircleOutlineIcon sx={{ fontSize: 17, color: ACCENT }} />, tooltip: null }
     return null
   }, [etapaOrden, prospecto.cerrado])
 
@@ -64,6 +63,7 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
       style={style}
       {...(isOverlay ? {} : attributes)}
       {...(isOverlay ? {} : listeners)}
+      onClick={!isOverlay ? () => onInfo(prospecto) : undefined}
       sx={{
         bgcolor: isNegativo ? '#FFF5F5' : 'white',
         border: `1px solid ${isNegativo ? '#FECACA' : '#E5E7EB'}`,
@@ -71,13 +71,13 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
         borderRadius: '10px',
         p: 1.75,
         mb: 1.25,
-        cursor: prospecto.cerrado ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+        cursor: isDragging ? 'grabbing' : (prospecto.cerrado ? 'pointer' : 'grab'),
         opacity: isDragging ? 0.35 : 1,
         boxShadow: isOverlay ? '0 8px 24px rgba(0,0,0,0.12)' : '0 1px 2px rgba(0,0,0,0.04)',
         userSelect: 'none',
         touchAction: 'none',
         transition: isOverlay ? 'none' : 'box-shadow 0.15s',
-        '&:hover': !prospecto.cerrado ? { boxShadow: '0 2px 8px rgba(0,0,0,0.08)' } : {},
+        '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
       }}
     >
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -96,23 +96,16 @@ function ProspectoCard({ prospecto, etapaOrden, onAction, onInfo, isOverlay = fa
 
         <Box display="flex" alignItems="center" gap={0.5} flexShrink={0} ml={1}>
           {isNegativo && <CancelIcon sx={{ fontSize: 14, color: '#EF4444' }} />}
-          {/* Info icon — siempre visible */}
-          {!isOverlay && (
-            <Box
-              onClick={e => { e.stopPropagation(); onInfo(prospecto) }}
-              sx={{ width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', bgcolor: '#F0F9FF', border: '1px solid #BAE6FD', '&:hover': { bgcolor: '#E0F2FE' } }}
-            >
-              <InfoOutlinedIcon sx={{ fontSize: 13, color: '#0369A1' }} />
-            </Box>
-          )}
           {/* Acción de etapa */}
           {actionIcon && !prospecto.cerrado && !isOverlay && (
-            <Box
-              onClick={e => { e.stopPropagation(); onAction(prospecto) }}
-              sx={{ width: 24, height: 24, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', '&:hover': { bgcolor: '#F3F4F6' } }}
-            >
-              {actionIcon}
-            </Box>
+            <Tooltip title={actionIcon.tooltip ?? ''} placement="top" arrow>
+              <Box
+                onClick={e => { e.stopPropagation(); onAction(prospecto) }}
+                sx={{ width: 30, height: 30, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', '&:hover': { bgcolor: '#F3F4F6' } }}
+              >
+                {actionIcon.icon}
+              </Box>
+            </Tooltip>
           )}
         </Box>
       </Box>
@@ -350,20 +343,21 @@ export default function Prospectos() {
   return (
     <Box pb={4} sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
       {/* ── Header ── */}
-      <Box display="flex" alignItems="flex-end" justifyContent="space-between" mb={3} flexShrink={0}>
-        <Box>
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: ACCENT, mb: 0.5 }}>
-            CRM Inmobiliaria
-          </Typography>
-          <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-            Prospectos
-          </Typography>
+      <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={3} flexShrink={0}>
+        <Box display="flex" alignItems="center" gap={1.5}>
+          <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <GroupIcon sx={{ fontSize: 18, color: ACCENT }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>Seguimiento de contactos</Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Gestión del pipeline comercial</Typography>
+          </Box>
         </Box>
         <Button
           variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}
           sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
         >
-          Nuevo prospecto
+          Nuevo seguimiento
         </Button>
       </Box>
 

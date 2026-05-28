@@ -143,7 +143,7 @@ export default function Propiedades() {
   async function load() {
     setLoading(true)
     try {
-      const data = await getPropiedades({ includeBaja, cliente_id: clienteId })
+      const data = await getPropiedades({ includeBaja, includeVendida: true, cliente_id: clienteId })
       setPropiedades(data)
     } catch (err) {
       setError(err.message)

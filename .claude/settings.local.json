@@ -10,7 +10,8 @@
       "Bash(sed -i '' 's/header_style\\(ws3, cols3, cols3, cols3, bg=COLOR_SUBHEADER\\)/# removed duplicate/' /tmp/gen_test_data.py)",
       "Bash(python3 /tmp/gen_test_data.py)",
       "Bash(npx vite *)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\matia\\\\OneDrive\\\\Desktop\\\\Consorcios\\\\consorcios-app\\\\src\" -Directory)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\matia\\\\OneDrive\\\\Desktop\\\\Consorcios\\\\consorcios-app\\\\src\" -Directory)",
+      "Bash(npm run *)"
     ]
   }
 }
