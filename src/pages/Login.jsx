@@ -259,30 +259,17 @@ export default function Login() {
           {/* Logo */}
           <Box sx={{ position: 'relative', zIndex: 1, animation: 'fadeUp 0.7s ease both' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Box sx={{ width: 13, height: 13, bgcolor: 'rgba(255,255,255,0.85)', borderRadius: '2px' }} />
-              </Box>
+              <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 32, width: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
               <Typography
                 sx={{
                   fontFamily: "'Poppins', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  letterSpacing: '0.2em',
-                  color: 'rgba(255,255,255,0.55)',
-                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  fontSize: 18,
+                  letterSpacing: '-0.01em',
+                  color: 'rgba(255,255,255,0.9)',
                 }}
               >
-                Consorcios
+                Hábita
               </Typography>
             </Box>
           </Box>
@@ -394,31 +381,18 @@ export default function Login() {
             }}
           >
             {/* Logo mobile */}
-            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 5 }}>
-              <Box
-                sx={{
-                  width: 28,
-                  height: 28,
-                  border: '2px solid #065F46',
-                  borderRadius: '5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Box sx={{ width: 10, height: 10, bgcolor: '#065F46', borderRadius: '2px' }} />
-              </Box>
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, mb: 5 }}>
+              <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 28, width: 'auto' }} />
               <Typography
                 sx={{
                   fontFamily: "'Poppins', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  letterSpacing: '0.18em',
-                  color: '#9CA3AF',
-                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  fontSize: 16,
+                  letterSpacing: '-0.01em',
+                  color: '#111110',
                 }}
               >
-                Consorcios
+                Hábita
               </Typography>
             </Box>
 

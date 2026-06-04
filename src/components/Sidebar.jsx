@@ -203,32 +203,18 @@ export default function Sidebar() {
         }}
       >
         {!collapsed && (
-          <Box display="flex" alignItems="center" gap={1}>
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: '7px',
-                bgcolor: ACCENT,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: `0 0 14px ${ACCENT}50`,
-              }}
-            >
-              <ApartmentIcon sx={{ fontSize: 15, color: '#fff' }} />
-            </Box>
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 28, width: 'auto', flexShrink: 0 }} />
             <Typography
               sx={{
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
                 fontWeight: 700,
-                color: TEXT_ACTIVE,
+                color: '#065F46',
                 letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap',
               }}
             >
-              Consorcios
+              Hábita
             </Typography>
           </Box>
         )}

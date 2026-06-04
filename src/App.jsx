@@ -24,12 +24,14 @@ import PropiedadPublica from './pages/PropiedadPublica'
 import Contratos        from './pages/Contratos'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
+import MlCallback       from './pages/MlCallback'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/p/:id" element={<PropiedadPublica />} />
+      <Route path="/ml-callback" element={<MlCallback />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

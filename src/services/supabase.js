@@ -1276,6 +1276,18 @@ export async function linkContactoPropiedad(contacto_id, propiedad_id) {
   if (error && error.code !== '23505') throw error
 }
 
+// ---- MERCADOLIBRE ----
+
+export async function getMlToken(cliente_id) {
+  const { data, error } = await supabase
+    .from('ml_tokens')
+    .select('ml_user_id, expires_at')
+    .eq('cliente_id', cliente_id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export async function marcarConsultaConvertida(id, contacto_id) {
   const { data, error } = await supabase
     .from('consultas_web')

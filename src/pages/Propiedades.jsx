@@ -16,8 +16,12 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import PropiedadFormDrawer from '../components/PropiedadFormDrawer'
 import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
-import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad } from '../services/supabase'
+import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
+
+const ML_CLIENT_ID   = import.meta.env.VITE_ML_CLIENT_ID
+const ML_REDIRECT_URI = import.meta.env.VITE_ML_REDIRECT_URI
+const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}`
 
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -127,6 +131,16 @@ export default function Propiedades() {
 
   // Paginación
   const [page, setPage] = useState(1)
+
+  // MercadoLibre
+  const [mlConnected, setMlConnected] = useState(null)
+
+  useEffect(() => {
+    if (!clienteId) return
+    getMlToken(clienteId)
+      .then(data => setMlConnected(!!data))
+      .catch(() => setMlConnected(false))
+  }, [clienteId])
 
   // Drawers
   const [formOpen, setFormOpen]           = useState(false)
@@ -262,27 +276,45 @@ export default function Propiedades() {
   return (
     <Box pb={6}>
       {/* ── Header ── */}
-      <Box display="flex" alignItems="flex-end" justifyContent="space-between" mb={4}>
-        <Box>
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: ACCENT, mb: 0.5 }}>
-            CRM Inmobiliaria
-          </Typography>
-          <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-            Propiedades
-          </Typography>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4} flexWrap="wrap" gap={2}>
+        <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+          Propiedades
+        </Typography>
+        <Box display="flex" alignItems="center" gap={1.5}>
+          {/* Estado conexión MercadoLibre */}
+          {mlConnected === true && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, bgcolor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px' }}>
+              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#10B981' }} />
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: ACCENT }}>MercadoLibre conectado</Typography>
+            </Box>
+          )}
+          {mlConnected === false && (
+            <Button
+              variant="outlined"
+              href={ML_AUTH_URL}
+              size="small"
+              sx={{
+                borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                borderColor: '#FFE600', color: '#333', bgcolor: '#FFE600',
+                '&:hover': { bgcolor: '#F0D800', borderColor: '#F0D800' },
+              }}
+            >
+              Conectar MercadoLibre
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={openCreate}
+            sx={{
+              bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
+              fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
+              boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+            }}
+          >
+            Nueva propiedad
+          </Button>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={openCreate}
-          sx={{
-            bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-            fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
-            boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-          }}
-        >
-          Nueva propiedad
-        </Button>
       </Box>
 
       {/* ── Filtros ── */}
