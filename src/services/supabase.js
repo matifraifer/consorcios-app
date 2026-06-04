@@ -1288,6 +1288,14 @@ export async function getMlToken(cliente_id) {
   return data
 }
 
+export async function deleteMlToken(cliente_id) {
+  const { error } = await supabase
+    .from('ml_tokens')
+    .delete()
+    .eq('cliente_id', cliente_id)
+  if (error) throw error
+}
+
 export async function marcarConsultaConvertida(id, contacto_id) {
   const { data, error } = await supabase
     .from('consultas_web')

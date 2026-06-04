@@ -16,7 +16,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import PropiedadFormDrawer from '../components/PropiedadFormDrawer'
 import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
-import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken, supabase } from '../services/supabase'
+import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken, deleteMlToken, supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const ML_CLIENT_ID    = '3889570283764172'
@@ -133,9 +133,10 @@ export default function Propiedades() {
   const [page, setPage] = useState(1)
 
   // MercadoLibre
-  const [mlConnected, setMlConnected]   = useState(null)
-  const [mlTesting, setMlTesting]       = useState(false)
-  const [mlTestResult, setMlTestResult] = useState(null) // { ok, msg }
+  const [mlConnected, setMlConnected]         = useState(null)
+  const [mlTesting, setMlTesting]             = useState(false)
+  const [mlTestResult, setMlTestResult]       = useState(null)
+  const [mlDisconnecting, setMlDisconnecting] = useState(false)
 
   useEffect(() => {
     if (!clienteId) return
@@ -143,6 +144,19 @@ export default function Propiedades() {
       .then(data => setMlConnected(!!data))
       .catch(() => setMlConnected(false))
   }, [clienteId])
+
+  async function disconnectMl() {
+    setMlDisconnecting(true)
+    try {
+      await deleteMlToken(clienteId)
+      setMlConnected(false)
+      setMlTestResult(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setMlDisconnecting(false)
+    }
+  }
 
   async function testMlConnection() {
     setMlTesting(true)
@@ -317,7 +331,7 @@ export default function Propiedades() {
               <Button
                 size="small"
                 onClick={testMlConnection}
-                disabled={mlTesting}
+                disabled={mlTesting || mlDisconnecting}
                 variant="outlined"
                 sx={{
                   borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
@@ -328,6 +342,23 @@ export default function Propiedades() {
                 {mlTesting ? <CircularProgress size={13} sx={{ color: ACCENT }} /> : 'Probar ML'}
               </Button>
             </Tooltip>
+            {mlConnected === true && (
+              <Tooltip title="Desconectar MercadoLibre">
+                <Button
+                  size="small"
+                  onClick={disconnectMl}
+                  disabled={mlDisconnecting || mlTesting}
+                  variant="outlined"
+                  sx={{
+                    borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                    borderColor: '#FECACA', color: '#B91C1C', minWidth: 0,
+                    '&:hover': { borderColor: '#FCA5A5', bgcolor: '#FEF2F2' },
+                  }}
+                >
+                  {mlDisconnecting ? <CircularProgress size={13} sx={{ color: '#EF4444' }} /> : 'Desconectar'}
+                </Button>
+              </Tooltip>
+            )}
             {mlConnected === false && !mlTestResult && (
               <Button
                 variant="outlined"
