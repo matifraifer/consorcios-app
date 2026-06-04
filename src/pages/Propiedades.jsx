@@ -16,7 +16,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import PropiedadFormDrawer from '../components/PropiedadFormDrawer'
 import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
-import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken } from '../services/supabase'
+import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken, supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const ML_CLIENT_ID    = '3889570283764172'
@@ -133,7 +133,9 @@ export default function Propiedades() {
   const [page, setPage] = useState(1)
 
   // MercadoLibre
-  const [mlConnected, setMlConnected] = useState(null)
+  const [mlConnected, setMlConnected]   = useState(null)
+  const [mlTesting, setMlTesting]       = useState(false)
+  const [mlTestResult, setMlTestResult] = useState(null) // { ok, msg }
 
   useEffect(() => {
     if (!clienteId) return
@@ -141,6 +143,26 @@ export default function Propiedades() {
       .then(data => setMlConnected(!!data))
       .catch(() => setMlConnected(false))
   }, [clienteId])
+
+  async function testMlConnection() {
+    setMlTesting(true)
+    setMlTestResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('ml-test', {
+        body: { cliente_id: clienteId },
+      })
+      if (error) throw error
+      if (data?.connected) {
+        setMlTestResult({ ok: true, msg: `Conectado como ${data.nickname}` })
+      } else {
+        setMlTestResult({ ok: false, msg: data?.error ?? 'Error al verificar.' })
+      }
+    } catch (err) {
+      setMlTestResult({ ok: false, msg: err.message ?? 'Error al verificar.' })
+    } finally {
+      setMlTesting(false)
+    }
+  }
 
   // Drawers
   const [formOpen, setFormOpen]           = useState(false)
@@ -282,26 +304,45 @@ export default function Propiedades() {
         </Typography>
         <Box display="flex" alignItems="center" gap={1.5}>
           {/* Estado conexión MercadoLibre */}
-          {mlConnected === true && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, bgcolor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px' }}>
-              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#10B981' }} />
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: ACCENT }}>MercadoLibre conectado</Typography>
-            </Box>
-          )}
-          {mlConnected === false && (
-            <Button
-              variant="outlined"
-              href={ML_AUTH_URL}
-              size="small"
-              sx={{
-                borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
-                borderColor: '#FFE600', color: '#333', bgcolor: '#FFE600',
-                '&:hover': { bgcolor: '#F0D800', borderColor: '#F0D800' },
-              }}
-            >
-              Conectar MercadoLibre
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {mlTestResult && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, bgcolor: mlTestResult.ok ? '#ECFDF5' : '#FEF2F2', border: `1px solid ${mlTestResult.ok ? '#A7F3D0' : '#FECACA'}`, borderRadius: '8px' }}>
+                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: mlTestResult.ok ? '#10B981' : '#EF4444' }} />
+                <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: mlTestResult.ok ? ACCENT : '#B91C1C' }}>
+                  {mlTestResult.msg}
+                </Typography>
+              </Box>
+            )}
+            <Tooltip title="Probar conexión con MercadoLibre">
+              <Button
+                size="small"
+                onClick={testMlConnection}
+                disabled={mlTesting}
+                variant="outlined"
+                sx={{
+                  borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                  borderColor: '#E5E7EB', color: '#374151', minWidth: 0,
+                  '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' },
+                }}
+              >
+                {mlTesting ? <CircularProgress size={13} sx={{ color: ACCENT }} /> : 'Probar ML'}
+              </Button>
+            </Tooltip>
+            {mlConnected === false && !mlTestResult && (
+              <Button
+                variant="outlined"
+                href={ML_AUTH_URL}
+                size="small"
+                sx={{
+                  borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                  borderColor: '#FFE600', color: '#333', bgcolor: '#FFE600',
+                  '&:hover': { bgcolor: '#F0D800', borderColor: '#F0D800' },
+                }}
+              >
+                Conectar MercadoLibre
+              </Button>
+            )}
+          </Box>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
