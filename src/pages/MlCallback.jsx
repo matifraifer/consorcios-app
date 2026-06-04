@@ -6,7 +6,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../services/supabase'
 
-const REDIRECT_URI = import.meta.env.VITE_ML_REDIRECT_URI
+const REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
 
 export default function MlCallback() {
   const [searchParams]        = useSearchParams()

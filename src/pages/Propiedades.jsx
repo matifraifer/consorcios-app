@@ -19,9 +19,9 @@ import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
 import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad, getMlToken } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-const ML_CLIENT_ID   = import.meta.env.VITE_ML_CLIENT_ID
-const ML_REDIRECT_URI = import.meta.env.VITE_ML_REDIRECT_URI
-const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}`
+const ML_CLIENT_ID    = '3889570283764172'
+const ML_REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
+const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=habita`
 
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
