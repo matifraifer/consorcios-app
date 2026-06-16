@@ -21,16 +21,19 @@ import Expensas         from './pages/Expensas'
 import NuevoPeriodo     from './pages/NuevoPeriodo'
 import ExpensasDetalle  from './pages/ExpensasDetalle'
 import PropiedadPublica from './pages/PropiedadPublica'
+import InmobiliariaPublica from './pages/InmobiliariaPublica'
 import Contratos        from './pages/Contratos'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
 import MlCallback       from './pages/MlCallback'
+import Configuracion    from './pages/Configuracion'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/p/:id" element={<PropiedadPublica />} />
+      <Route path="/inmobiliaria/:clienteId" element={<InmobiliariaPublica />} />
       <Route path="/ml-callback" element={<MlCallback />} />
 
       <Route element={<ProtectedRoute />}>
@@ -55,6 +58,7 @@ export default function App() {
           <Route path="/contratos"                          element={<Contratos />} />
           <Route path="/contactos"                          element={<Contactos />} />
           <Route path="/consultas-web"                      element={<ConsultasWeb />} />
+          <Route path="/configuracion"                      element={<Configuracion />} />
         </Route>
       </Route>
 

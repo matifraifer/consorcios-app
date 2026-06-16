@@ -702,6 +702,55 @@ export async function getPropiedadPublica(id) {
   return data
 }
 
+const CLIENTE_PUBLICO_FIELDS = 'id, nombre, logo_url, portada_urls, titulo_pagina, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas, redes_sociales, extension'
+
+export async function getClientePublico(slugOrId) {
+  // 1) intentar por extensión (slug personalizado)
+  const { data: porSlug, error: e1 } = await supabase
+    .from('clientes_servicio')
+    .select(CLIENTE_PUBLICO_FIELDS)
+    .eq('extension', slugOrId)
+    .maybeSingle()
+  if (e1) throw e1
+  if (porSlug) return porSlug
+
+  // 2) fallback: buscar por UUID
+  const { data: porId, error: e2 } = await supabase
+    .from('clientes_servicio')
+    .select(CLIENTE_PUBLICO_FIELDS)
+    .eq('id', slugOrId)
+    .maybeSingle()
+  if (e2) throw e2
+  return porId
+}
+
+export async function getPropiedadesPublicas(cliente_id) {
+  const { data, error } = await supabase
+    .from('propiedades')
+    .select('id, titulo, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, direccion, localidad, provincia, ambientes, dormitorios, banios, metros_cubiertos, metros_totales, created_at')
+    .eq('cliente_id', cliente_id)
+    .neq('estado', 'Baja')
+    .neq('estado', 'Vendida')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getImagenesPrincipales(propiedadIds) {
+  if (!propiedadIds.length) return {}
+  const { data, error } = await supabase
+    .from('propiedades_imagenes')
+    .select('propiedad_id, storage_path, orden')
+    .in('propiedad_id', propiedadIds)
+    .order('orden')
+  if (error) throw error
+  const map = {}
+  ;(data ?? []).forEach(row => {
+    if (!(row.propiedad_id in map)) map[row.propiedad_id] = getPublicImageUrl(row.storage_path)
+  })
+  return map
+}
+
 export async function createProspectoPublico({
   nombre, apellido, telefono, email,
   presupuesto, zona_interes, tipo_inmueble, credito_hipotecario,
@@ -793,6 +842,51 @@ const IMAGE_BUCKET = 'propiedades-imagenes'
 export function getPublicImageUrl(storagePath) {
   const { data } = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(storagePath)
   return data.publicUrl
+}
+
+export async function uploadClienteLogo(clienteId, file) {
+  const ext = file.name.split('.').pop()
+  const path = `logos/${clienteId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, file, { upsert: true })
+  if (error) throw error
+  return getPublicImageUrl(path)
+}
+
+export async function uploadPortadaImage(clienteId, file) {
+  const ext = file.name.split('.').pop()
+  const path = `portada/${clienteId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, file, { upsert: true })
+  if (error) throw error
+  return getPublicImageUrl(path)
+}
+
+export async function deletePortadaImage(url) {
+  const marker = '/propiedades-imagenes/'
+  const idx = url.indexOf(marker)
+  if (idx === -1) return
+  const path = url.slice(idx + marker.length)
+  await supabase.storage.from(IMAGE_BUCKET).remove([path])
+}
+
+export async function getClienteConfig(cliente_id) {
+  const { data, error } = await supabase
+    .from('clientes_servicio')
+    .select('id, nombre, logo_url, portada_urls, titulo_pagina, extension, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas, redes_sociales')
+    .eq('id', cliente_id)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateClienteConfig(cliente_id, payload) {
+  const { data, error } = await supabase
+    .from('clientes_servicio')
+    .update(payload)
+    .eq('id', cliente_id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
 }
 
 export async function uploadPropiedadImagen(clienteId, propiedadId, file) {
