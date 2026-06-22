@@ -9,6 +9,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import DescriptionIcon from '@mui/icons-material/Description'
 import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
 import LanguageIcon from '@mui/icons-material/Language'
+import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import LogoutIcon from '@mui/icons-material/Logout'
 import SettingsIcon from '@mui/icons-material/Settings'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -47,8 +48,9 @@ const comercialItems = [
 ]
 
 const baseDatosItems = [
-  { label: 'Propiedades en venta', path: '/propiedades', icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Contactos',            path: '/contactos',   icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Propiedades en venta',         path: '/propiedades',            icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Propiedades externas',          path: '/propiedades-comunidad',  icon: <TravelExploreIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Contactos',                    path: '/contactos',              icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const contratosItems = [

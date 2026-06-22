@@ -1102,6 +1102,64 @@ export async function getContactoPropiedades(contacto_id) {
   return (data ?? []).map(r => ({ ...r.propiedades, tipo: r.tipo })).filter(r => r?.id)
 }
 
+export async function getContactoPropiedadesExt(contacto_id) {
+  const { data, error } = await supabase
+    .from('contactos_propiedades_ext')
+    .select('propiedades_ext(id, titulo, precio, url, zona)')
+    .eq('contacto_id', contacto_id)
+  if (error) throw error
+  return (data ?? []).map(r => r.propiedades_ext).filter(Boolean)
+}
+
+export async function getPropiedadesExtSugeridas(zonas, limit = 30) {
+  let query = supabase
+    .from('propiedades_ext')
+    .select('id, titulo, precio, url, zona')
+    .order('scrapeado_en', { ascending: false })
+    .limit(limit)
+  if (zonas) {
+    const arr = Array.isArray(zonas) ? zonas.filter(Boolean) : [zonas]
+    if (arr.length === 1) {
+      query = query.ilike('zona', `%${arr[0]}%`)
+    } else if (arr.length > 1) {
+      query = query.or(arr.map(z => `zona.ilike.%${z}%`).join(','))
+    }
+  }
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getPropiedadesExt({ titulo, zona, ocultarSinPrecio, page = 0, pageSize = 50 } = {}) {
+  let query = supabase
+    .from('propiedades_ext')
+    .select('id, titulo, precio, url, zona, scrapeado_en, contactos_propiedades_ext(contacto_id)', { count: 'exact' })
+    .order('scrapeado_en', { ascending: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1)
+  if (titulo?.trim()) query = query.ilike('titulo', `%${titulo.trim()}%`)
+  if (zona?.trim()) query = query.ilike('zona', `%${zona.trim()}%`)
+  if (ocultarSinPrecio) {
+    query = query.not('precio', 'is', null).neq('precio', 'N/D').neq('precio', '')
+  }
+  const { data, error, count } = await query
+  if (error) throw error
+  return { data: data ?? [], count: count ?? 0 }
+}
+
+export async function vincularContactosExt(propiedadExtId, contactoIds) {
+  const { error: delError } = await supabase
+    .from('contactos_propiedades_ext')
+    .delete()
+    .eq('propiedad_ext_id', propiedadExtId)
+  if (delError) throw delError
+  if (contactoIds.length) {
+    const { error: insError } = await supabase
+      .from('contactos_propiedades_ext')
+      .insert(contactoIds.map(id => ({ propiedad_ext_id: propiedadExtId, contacto_id: id })))
+    if (insError) throw insError
+  }
+}
+
 export async function setContactoPropiedades(contacto_id, propiedad_ids) {
   const { data: existing } = await supabase
     .from('contactos_propiedades').select('propiedad_id').eq('contacto_id', contacto_id)

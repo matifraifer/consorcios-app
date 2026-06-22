@@ -26,7 +26,8 @@ import Contratos        from './pages/Contratos'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
 import MlCallback       from './pages/MlCallback'
-import Configuracion    from './pages/Configuracion'
+import Configuracion          from './pages/Configuracion'
+import PropiedadesComunidad  from './pages/PropiedadesComunidad'
 
 export default function App() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/contratos"                          element={<Contratos />} />
           <Route path="/contactos"                          element={<Contactos />} />
           <Route path="/consultas-web"                      element={<ConsultasWeb />} />
+          <Route path="/propiedades-comunidad"              element={<PropiedadesComunidad />} />
           <Route path="/configuracion"                      element={<Configuracion />} />
         </Route>
       </Route>

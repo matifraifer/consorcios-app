@@ -10,10 +10,12 @@ import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome'
 import AddIcon            from '@mui/icons-material/Add'
 import GroupIcon          from '@mui/icons-material/Group'
 import LanguageIcon       from '@mui/icons-material/Language'
+import OpenInNewIcon      from '@mui/icons-material/OpenInNew'
+import StorefrontIcon     from '@mui/icons-material/Storefront'
 import {
   createContacto, updateContacto, getPropiedades, getUsuarios,
-  getContactoPropiedades, setContactoPropiedades, checkDniExists,
-  sugerirPropiedadesPorContacto,
+  getContactoPropiedades, getContactoPropiedadesExt, setContactoPropiedades, checkDniExists,
+  sugerirPropiedadesPorContacto, getPropiedadesExtSugeridas,
 } from '../../services/supabase'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -191,9 +193,11 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   const isEdit = !!contacto
   const [form, setForm]                             = useState(FORM_EMPTY)
   const [propiedadesVinculadas, setPropVinculadas]  = useState([])
+  const [propiedadesExtVinculadas, setPropExtVinculadas] = useState([])
   const [propiedadesDisponibles, setPropDisponibles]= useState([])
   const [usuarios, setUsuarios]                     = useState([])
   const [sugeridas, setSugeridas]                   = useState([])
+  const [sugeridasExt, setSugeridasExt]             = useState([])
   const [showSugeridas, setShowSugeridas]           = useState(false)
   const [loadingIA, setLoadingIA]                   = useState(false)
   const [loadingProps, setLoadingProps]             = useState(false)
@@ -205,16 +209,18 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
-    setError(null); setSugeridas([]); setShowSugeridas(false)
+    setError(null); setSugeridas([]); setSugeridasExt([]); setShowSugeridas(false)
+    setPropExtVinculadas([])
 
     setLoadingProps(true)
     Promise.all([
       getPropiedades({ cliente_id: clienteId, estado: 'Disponible' }),
       isEdit && contacto ? getContactoPropiedades(contacto.id) : Promise.resolve([]),
+      isEdit && contacto ? getContactoPropiedadesExt(contacto.id) : Promise.resolve([]),
       getUsuarios(clienteId),
-    ]).then(([props, vin, usrs]) => {
+    ]).then(([props, vin, vinExt, usrs]) => {
       setPropDisponibles(props)
-      if (isEdit) setPropVinculadas(vin)
+      if (isEdit) { setPropVinculadas(vin); setPropExtVinculadas(vinExt) }
       setUsuarios(usrs ?? [])
     }).catch(() => {}).finally(() => setLoadingProps(false))
 
@@ -275,23 +281,45 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   }
 
   // ── AI suggestion ──────────────────────────────────────────────────────────
+  function parsePrecioExt(texto) {
+    if (!texto || texto === 'N/D') return { valor: null, moneda: null }
+    const esUSD = /USD|u\$s|dolar/i.test(texto)
+    const valor = Number(texto.replace(/[^\d]/g, '')) || null
+    return { valor, moneda: esUSD ? 'USD' : 'ARS' }
+  }
+
   async function handleSuggestIA() {
     setLoadingIA(true); setShowSugeridas(false)
     try {
       const { tipo_propiedad_busca, tipo_operacion, zona_interes, presupuesto, moneda_presupuesto } = form
       const opMatch = tipo_operacion === 'Alquiler' ? 'Alquiler' : tipo_operacion === 'Compraventa' ? 'Venta' : null
-      const res = await sugerirPropiedadesPorContacto({
-        clienteId,
-        tipoPropiedad:  tipo_propiedad_busca.length ? tipo_propiedad_busca : null,
-        tipoOperacion:  opMatch,
-        zonaInteres:    zona_interes.length ? zona_interes : null,
-        presupuesto:    presupuesto || null,
-        moneda:         moneda_presupuesto,
-        excluirIds:     propiedadesVinculadas.map(p => p.id),
-      })
+      const [res, extRaw] = await Promise.all([
+        sugerirPropiedadesPorContacto({
+          clienteId,
+          tipoPropiedad:  tipo_propiedad_busca.length ? tipo_propiedad_busca : null,
+          tipoOperacion:  opMatch,
+          zonaInteres:    zona_interes.length ? zona_interes : null,
+          presupuesto:    presupuesto || null,
+          moneda:         moneda_presupuesto,
+          excluirIds:     propiedadesVinculadas.map(p => p.id),
+        }),
+        getPropiedadesExtSugeridas(zona_interes.length ? zona_interes : null),
+      ])
+
+      // Filtrar externas por presupuesto si está cargado
+      const budget = presupuesto ? Number(presupuesto) : null
+      const ext = extRaw.filter(p => {
+        if (!budget) return true
+        const { valor, moneda } = parsePrecioExt(p.precio)
+        if (!valor || moneda !== moneda_presupuesto) return true // no se puede comparar → incluir
+        return valor <= budget * 1.15 // tolerancia del 15%
+      }).slice(0, 8)
+
       setSugeridas(res)
+      setSugeridasExt(ext)
     } catch {
       setSugeridas([])
+      setSugeridasExt([])
     } finally {
       setLoadingIA(false)
       setShowSugeridas(true)
@@ -545,13 +573,14 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
 
         {showSugeridas && (
           <Box mb={2} sx={{ borderRadius: '8px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+            {/* Propiedades del sistema */}
             <Box sx={{ px: 2, py: 1, bgcolor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6B7280' }}>
-                {sugeridas.length === 0 ? 'Sin coincidencias' : `${sugeridas.length} propiedad${sugeridas.length !== 1 ? 'es' : ''} sugerida${sugeridas.length !== 1 ? 's' : ''}`}
+                {sugeridas.length === 0 ? 'Sin coincidencias en el sistema' : `${sugeridas.length} propiedad${sugeridas.length !== 1 ? 'es' : ''} del sistema`}
               </Typography>
             </Box>
             {sugeridas.length === 0 ? (
-              <Box sx={{ px: 2, py: 2 }}>
+              <Box sx={{ px: 2, py: 1.5 }}>
                 <Typography sx={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
                   No hay propiedades disponibles que coincidan con los criterios.
                 </Typography>
@@ -593,16 +622,64 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
                 </Box>
               ))
             )}
+
+            {/* Propiedades externas */}
+            {sugeridasExt.length > 0 && (
+              <>
+                <Box sx={{ px: 2, py: 1, bgcolor: '#FFFBEB', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <StorefrontIcon sx={{ fontSize: 12, color: '#B45309' }} />
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#B45309' }}>
+                    {sugeridasExt.length} propiedad{sugeridasExt.length !== 1 ? 'es' : ''} del mercado externo
+                  </Typography>
+                </Box>
+                {sugeridasExt.map((p, i) => (
+                  <Box key={p.id} sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    px: 2, py: 1.25, bgcolor: '#FFFBEB',
+                    borderBottom: i < sugeridasExt.length - 1 ? '1px solid #FEF3C7' : 'none',
+                    '&:hover': { bgcolor: '#FEF3C7' },
+                  }}>
+                    <Box flex={1} minWidth={0} mr={1}>
+                      <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }} noWrap>{p.titulo}</Typography>
+                      <Box display="flex" alignItems="center" gap={0.75} mt={0.2}>
+                        {p.zona && <Typography sx={{ fontSize: '0.7rem', color: '#92400E' }}>{p.zona}</Typography>}
+                        {p.zona && p.precio && p.precio !== 'N/D' && <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>·</Typography>}
+                        {p.precio && p.precio !== 'N/D' && (
+                          <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#92400E' }}>{p.precio}</Typography>
+                        )}
+                      </Box>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      component="a"
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ver en el sitio"
+                      sx={{
+                        flexShrink: 0, color: '#B45309', bgcolor: '#FEF3C7',
+                        border: '1px solid #F59E0B', borderRadius: '6px', p: '4px',
+                        '&:hover': { bgcolor: '#F59E0B', color: 'white' },
+                      }}
+                    >
+                      <OpenInNewIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Box>
+                ))}
+              </>
+            )}
           </Box>
         )}
 
         {/* Lista de propiedades vinculadas */}
-        {propiedadesVinculadas.length > 0 && (
+        {(propiedadesVinculadas.length > 0 || propiedadesExtVinculadas.length > 0) && (
           <Box mb={1.5} sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+
+            {/* Internas */}
             {propiedadesVinculadas.map((p, i) => (
               <Box key={p.id} sx={{
                 display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1,
-                borderBottom: i < propiedadesVinculadas.length - 1 ? '1px solid #F3F4F6' : 'none',
+                borderBottom: (i < propiedadesVinculadas.length - 1 || propiedadesExtVinculadas.length > 0) ? '1px solid #F3F4F6' : 'none',
               }}>
                 <Box flex={1} minWidth={0}>
                   <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -616,6 +693,41 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
                   sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' }, flexShrink: 0 }}>
                   <CloseIcon sx={{ fontSize: 14 }} />
                 </IconButton>
+              </Box>
+            ))}
+
+            {/* Externas */}
+            {propiedadesExtVinculadas.map((p, i) => (
+              <Box key={p.id} sx={{
+                display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1,
+                bgcolor: '#FFFBEB',
+                borderBottom: i < propiedadesExtVinculadas.length - 1 ? '1px solid #FEF3C7' : 'none',
+              }}>
+                <LanguageIcon sx={{ fontSize: 13, color: '#B45309', flexShrink: 0 }} />
+                <Box flex={1} minWidth={0}>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {p.titulo}
+                  </Typography>
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {p.zona && <Typography sx={{ fontSize: '0.68rem', color: '#92400E' }}>{p.zona}</Typography>}
+                    {p.zona && p.precio && p.precio !== 'N/D' && <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF' }}>·</Typography>}
+                    {p.precio && p.precio !== 'N/D' && (
+                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: '#92400E' }}>{p.precio}</Typography>
+                    )}
+                  </Box>
+                </Box>
+                {p.url && (
+                  <IconButton
+                    size="small"
+                    component="a"
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: '#B45309', bgcolor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '6px', p: '3px', flexShrink: 0, '&:hover': { bgcolor: '#FCD34D' } }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 13 }} />
+                  </IconButton>
+                )}
               </Box>
             ))}
           </Box>
