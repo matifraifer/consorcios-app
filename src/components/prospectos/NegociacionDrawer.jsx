@@ -16,6 +16,7 @@ import {
   addPropiedadInteres,
   updatePropiedadInteres,
   deletePropiedadInteres,
+  getContactoPropiedades,
 } from '../../services/supabase'
 
 const ACCENT = '#065F46'
@@ -50,6 +51,7 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
   const [addingId, setAddingId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState(null)
+  const [vinculadasIds, setVinculadasIds] = useState(new Set())
   // Per-row edit state: { [interes_id]: { monto_propuesto, forma_pago, dirty, saving } }
   const [editRows, setEditRows] = useState({})
 
@@ -72,7 +74,16 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
   }
 
   useEffect(() => {
-    if (open && prospecto) { load(); setSearch(''); setError(null) }
+    if (open && prospecto) {
+      load(); setSearch(''); setError(null)
+      if (prospecto.contacto_id) {
+        getContactoPropiedades(prospecto.contacto_id)
+          .then(props => setVinculadasIds(new Set(props.map(p => p.id))))
+          .catch(() => setVinculadasIds(new Set()))
+      } else {
+        setVinculadasIds(new Set())
+      }
+    }
   }, [open, prospecto?.id])
 
   const interesIds = useMemo(() => new Set(interes.map(i => i.propiedad_id)), [interes])
@@ -85,19 +96,20 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
         (q === '' || p.titulo?.toLowerCase().includes(q) || p.localidad?.toLowerCase().includes(q))
       )
       .sort((a, b) => {
-        const aInterest = interesIds.has(a.id) ? 0 : 1
-        const bInterest = interesIds.has(b.id) ? 0 : 1
-        return aInterest - bInterest
+        const aDestacada = (interesIds.has(a.id) || vinculadasIds.has(a.id)) ? 0 : 1
+        const bDestacada = (interesIds.has(b.id) || vinculadasIds.has(b.id)) ? 0 : 1
+        return aDestacada - bDestacada
       })
-  }, [propiedades, interesIds, search])
+  }, [propiedades, interesIds, vinculadasIds, search])
 
   async function handleAgregar(propiedad_id) {
     setAddingId(propiedad_id)
     setError(null)
     try {
-      const row = await addPropiedadInteres({ prospecto_id: prospecto.id, propiedad_id })
+      const propiedad = propiedades.find(p => p.id === propiedad_id)
+      const row = await addPropiedadInteres({ prospecto_id: prospecto.id, propiedad_id, monto_propuesto: propiedad?.precio_publicacion ?? null })
       setInteres(prev => [...prev, row])
-      setEditRows(prev => ({ ...prev, [row.id]: { monto_propuesto: '', forma_pago: '', dirty: false, saving: false } }))
+      setEditRows(prev => ({ ...prev, [row.id]: { monto_propuesto: row.monto_propuesto ?? '', forma_pago: '', dirty: false, saving: false } }))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -189,6 +201,8 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
           ) : (
             propsFiltradas.map((p, i) => {
               const yaAgregada = interesIds.has(p.id)
+              const vinculada = vinculadasIds.has(p.id)
+              const destacar = yaAgregada || vinculada
               const dentroPresupuesto = prospecto.presupuesto && p.precio_publicacion
                 ? p.precio_publicacion <= prospecto.presupuesto
                 : null
@@ -196,13 +210,13 @@ export default function NegociacionDrawer({ open, onClose, prospecto, propiedade
                 <Box key={p.id} sx={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   px: 2, py: 1.25,
-                  bgcolor: yaAgregada ? ACCENT_LIGHT : 'transparent',
-                  borderBottom: i < propsFiltradas.length - 1 ? `1px solid ${yaAgregada ? '#A7F3D0' : '#F3F4F6'}` : 'none',
+                  bgcolor: destacar ? ACCENT_LIGHT : 'transparent',
+                  borderBottom: i < propsFiltradas.length - 1 ? `1px solid ${destacar ? '#A7F3D0' : '#F3F4F6'}` : 'none',
                 }}>
                   <Box flex={1} minWidth={0}>
                     <Box display="flex" alignItems="center" gap={1} mb={0.25}>
                       <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{p.titulo}</Typography>
-                      {yaAgregada && (
+                      {destacar && (
                         <Box sx={{ bgcolor: '#A7F3D0', borderRadius: '4px', px: 0.75, py: 0.125, flexShrink: 0 }}>
                           <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: ACCENT }}>Con interés</Typography>
                         </Box>

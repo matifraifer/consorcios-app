@@ -9,7 +9,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AddIcon from '@mui/icons-material/Add'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
-import { getVisitasByProspecto, createVisita, deleteVisita } from '../../services/supabase'
+import { getVisitasByProspecto, createVisita, deleteVisita, getContactoPropiedades } from '../../services/supabase'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -44,6 +44,7 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState(null)
+  const [vinculadasIds, setVinculadasIds] = useState(new Set())
 
   const propDisponibles = propiedades.filter(p => p.estado === 'Disponible')
 
@@ -61,7 +62,16 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
   }
 
   useEffect(() => {
-    if (open && prospecto) { load(); setForm(FORM_EMPTY); setError(null) }
+    if (open && prospecto) {
+      load(); setForm(FORM_EMPTY); setError(null)
+      if (prospecto.contacto_id) {
+        getContactoPropiedades(prospecto.contacto_id)
+          .then(props => setVinculadasIds(new Set(props.map(p => p.id))))
+          .catch(() => setVinculadasIds(new Set()))
+      } else {
+        setVinculadasIds(new Set())
+      }
+    }
   }, [open, prospecto?.id])
 
   function set(field, val) { setForm(prev => ({ ...prev, [field]: val })) }
@@ -175,15 +185,35 @@ export default function VisitaDrawer({ open, onClose, prospecto, propiedades = [
                 <MenuItem value="" disabled sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>
                   {propDisponibles.length === 0 ? 'No hay propiedades disponibles' : 'Seleccionar propiedad'}
                 </MenuItem>
-                {propDisponibles.map(p => (
-                  <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>{p.titulo}</Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: '#6B7280' }}>
-                      {p.localidad && `${p.localidad} · `}
-                      {p.precio_publicacion ? `${p.moneda ?? ''} ${Number(p.precio_publicacion).toLocaleString('es-AR')}`.trim() : 'Sin precio'}
-                    </Typography>
-                  </MenuItem>
-                ))}
+                {propDisponibles.map(p => {
+                  const vinculada = vinculadasIds.has(p.id)
+                  return (
+                    <MenuItem
+                      key={p.id}
+                      value={p.id}
+                      sx={{
+                        fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                        bgcolor: vinculada ? ACCENT_LIGHT : 'transparent',
+                        borderLeft: vinculada ? `3px solid ${ACCENT}` : '3px solid transparent',
+                        '&:hover': { bgcolor: vinculada ? '#D1FAE5' : undefined },
+                        '&.Mui-selected': { bgcolor: vinculada ? '#D1FAE5' : undefined },
+                      }}
+                    >
+                      <Box display="flex" alignItems="center" gap={0.75}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>{p.titulo}</Typography>
+                        {vinculada && (
+                          <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: ACCENT, bgcolor: '#A7F3D0', borderRadius: '4px', px: 0.6, py: 0.1 }}>
+                            VINCULADA
+                          </Typography>
+                        )}
+                      </Box>
+                      <Typography sx={{ fontSize: '0.72rem', color: '#6B7280' }}>
+                        {p.localidad && `${p.localidad} · `}
+                        {p.precio_publicacion ? `${p.moneda ?? ''} ${Number(p.precio_publicacion).toLocaleString('es-AR')}`.trim() : 'Sin precio'}
+                      </Typography>
+                    </MenuItem>
+                  )
+                })}
               </Select>
             </FormControl>
           </Box>

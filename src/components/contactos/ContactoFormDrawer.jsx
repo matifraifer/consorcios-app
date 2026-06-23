@@ -12,10 +12,12 @@ import GroupIcon          from '@mui/icons-material/Group'
 import LanguageIcon       from '@mui/icons-material/Language'
 import OpenInNewIcon      from '@mui/icons-material/OpenInNew'
 import StorefrontIcon     from '@mui/icons-material/Storefront'
+import PersonAddIcon      from '@mui/icons-material/PersonAdd'
 import {
   createContacto, updateContacto, getPropiedades, getUsuarios,
   getContactoPropiedades, getContactoPropiedadesExt, setContactoPropiedades, checkDniExists,
   sugerirPropiedadesPorContacto, getPropiedadesExtSugeridas,
+  getEtapasCRM, createProspecto,
 } from '../../services/supabase'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -203,6 +205,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   const [loadingProps, setLoadingProps]             = useState(false)
   const [saving, setSaving]                         = useState(false)
   const [error, setError]                           = useState(null)
+  const [creandoSeguimiento, setCreandoSeguimiento] = useState(false)
 
   const showDemandFields = form.tipos.includes('Comprador') || form.tipos.includes('Arrendatario')
 
@@ -350,32 +353,63 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
+  async function guardarContacto() {
+    const payload = {
+      tipos: form.tipos.length ? form.tipos : null,
+      tipo:  form.tipos[0] ?? null,
+      nombre: form.nombre.trim(), apellido: form.apellido.trim(),
+      telefono: form.telefono.trim(), email: form.email.trim() || null,
+      notas: form.notas.trim() || null,
+      tipo_propiedad_busca: form.tipo_propiedad_busca.length ? form.tipo_propiedad_busca : null,
+      tipo_operacion:  form.tipo_operacion || null,
+      presupuesto:     form.presupuesto ? Number(form.presupuesto) : null,
+      moneda_presupuesto: form.moneda_presupuesto,
+      zona_interes:    form.zona_interes.length ? form.zona_interes : null,
+      asignado_nombre: form.asignado_nombre || null,
+      cliente_id: clienteId,
+    }
+    if (!isEdit) { payload.dni = form.dni.trim(); payload.activo = true; payload.origen = 'APP' }
+    const result = isEdit ? await updateContacto(contacto.id, payload) : await createContacto(payload)
+    await setContactoPropiedades(result.id, propiedadesVinculadas.map(p => p.id))
+    return result
+  }
+
   async function handleSubmit() {
     const err = await validate()
     if (err) { setError(err); return }
     setSaving(true); setError(null)
     try {
-      const payload = {
-        tipos: form.tipos.length ? form.tipos : null,
-        tipo:  form.tipos[0] ?? null,
-        nombre: form.nombre.trim(), apellido: form.apellido.trim(),
-        telefono: form.telefono.trim(), email: form.email.trim() || null,
-        notas: form.notas.trim() || null,
-        tipo_propiedad_busca: form.tipo_propiedad_busca.length ? form.tipo_propiedad_busca : null,
-        tipo_operacion:  form.tipo_operacion || null,
-        presupuesto:     form.presupuesto ? Number(form.presupuesto) : null,
-        moneda_presupuesto: form.moneda_presupuesto,
-        zona_interes:    form.zona_interes.length ? form.zona_interes : null,
-        asignado_nombre: form.asignado_nombre || null,
-        cliente_id: clienteId,
-      }
-      if (!isEdit) { payload.dni = form.dni.trim(); payload.activo = true; payload.origen = 'APP' }
-      const result = isEdit ? await updateContacto(contacto.id, payload) : await createContacto(payload)
-      await setContactoPropiedades(result.id, propiedadesVinculadas.map(p => p.id))
+      const result = await guardarContacto()
       onSaved({ ...result, propiedades_count: propiedadesVinculadas.length })
       onClose()
     } catch (e) { setError(e.message) }
     finally { setSaving(false) }
+  }
+
+  async function handleCrearSeguimiento() {
+    const err = await validate()
+    if (err) { setError(err); return }
+    setCreandoSeguimiento(true); setError(null)
+    try {
+      const result = await guardarContacto()
+      const etapas = await getEtapasCRM()
+      const tipoOp = form.tipo_operacion === 'Alquiler' ? 'alquiler' : 'venta'
+      await createProspecto({
+        nombre:          result.nombre,
+        apellido:        result.apellido,
+        telefono:        result.telefono || null,
+        email:           result.email || null,
+        tipo_operacion:  tipoOp,
+        etapa_id:        etapas?.[0]?.id ?? null,
+        asignado_nombre: form.asignado_nombre || null,
+        cliente_id:      clienteId,
+        propiedad_id:    propiedadesVinculadas[0]?.id || null,
+        contacto_id:     result.id,
+      })
+      onSaved({ ...result, propiedades_count: propiedadesVinculadas.length })
+      onClose()
+    } catch (e) { setError(e.message) }
+    finally { setCreandoSeguimiento(false) }
   }
 
   const propOptions = propiedadesDisponibles.filter(p => !propiedadesVinculadas.find(v => v.id === p.id))
@@ -806,6 +840,20 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           }}
         >
           {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear contacto'}
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={handleCrearSeguimiento}
+          disabled={creandoSeguimiento || saving}
+          startIcon={creandoSeguimiento ? <CircularProgress size={14} color="inherit" /> : <PersonAddIcon sx={{ fontSize: 15 }} />}
+          sx={{
+            borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+            borderColor: ACCENT, color: ACCENT,
+            '&:hover': { bgcolor: '#ECFDF5', borderColor: ACCENT },
+            '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
+          }}
+        >
+          {creandoSeguimiento ? 'Creando...' : isEdit ? 'Crear seguimiento' : 'Crear y hacer seguimiento'}
         </Button>
         <Button
           onClick={onClose}

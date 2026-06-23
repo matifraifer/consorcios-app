@@ -568,10 +568,10 @@ export async function getPropiedadesInteresByProspecto(prospecto_id) {
   return data
 }
 
-export async function addPropiedadInteres({ prospecto_id, propiedad_id }) {
+export async function addPropiedadInteres({ prospecto_id, propiedad_id, monto_propuesto }) {
   const { data, error } = await supabase
     .from('propiedades_interes')
-    .insert([{ prospecto_id, propiedad_id }])
+    .insert([{ prospecto_id, propiedad_id, monto_propuesto: monto_propuesto ?? null }])
     .select('*, propiedades(id, titulo, precio_publicacion, moneda, localidad)').single()
   if (error) throw error
   return data

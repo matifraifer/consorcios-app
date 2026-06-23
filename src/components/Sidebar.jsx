@@ -12,6 +12,7 @@ import LanguageIcon from '@mui/icons-material/Language'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import LogoutIcon from '@mui/icons-material/Logout'
 import SettingsIcon from '@mui/icons-material/Settings'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -529,6 +530,33 @@ export default function Sidebar() {
             {!collapsed && (
               <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: 'inherit' }}>
                 Cerrar sesion
+              </Typography>
+            )}
+          </Box>
+        </Tooltip>
+
+        <Tooltip title={collapsed ? 'Necesito ayuda!' : ''} placement="right">
+          <Box
+            onClick={() => window.open('https://wa.me/+5492644159466', '_blank', 'noopener,noreferrer')}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              px: collapsed ? 0 : 1.5,
+              py: 0.875,
+              mt: 0.5,
+              borderRadius: '8px',
+              cursor: 'pointer',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              color: '#25D366',
+              transition: 'all 0.15s',
+              '&:hover': { bgcolor: 'rgba(37,211,102,0.1)' },
+            }}
+          >
+            <WhatsAppIcon sx={{ fontSize: 17 }} />
+            {!collapsed && (
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'inherit' }}>
+                Necesito ayuda!
               </Typography>
             )}
           </Box>
