@@ -90,7 +90,7 @@ export default function PropiedadesComunidad() {
   useEffect(() => {
     if (!clienteId) return
     setLoading(true)
-    getPropiedadesExt({ titulo: dBusqueda, zona: dZona, ocultarSinPrecio, page, pageSize: PAGE_SIZE })
+    getPropiedadesExt({ titulo: dBusqueda, zona: dZona, ocultarSinPrecio, page, pageSize: PAGE_SIZE, clienteId })
       .then(({ data, count }) => { setPropiedades(data); setTotal(count) })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -154,7 +154,7 @@ export default function PropiedadesComunidad() {
     setVinculando(true)
     try {
       const ids = [...seleccionados]
-      await vincularContactosExt(drawerProp.id, ids)
+      await vincularContactosExt(drawerProp.id, ids, clienteId)
       setPropiedades(prev => prev.map(p =>
         p.id === drawerProp.id
           ? { ...p, contactos_propiedades_ext: ids.map(id => ({ contacto_id: id })) }

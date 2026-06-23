@@ -1130,7 +1130,7 @@ export async function getPropiedadesExtSugeridas(zonas, limit = 30) {
   return data ?? []
 }
 
-export async function getPropiedadesExt({ titulo, zona, ocultarSinPrecio, page = 0, pageSize = 50 } = {}) {
+export async function getPropiedadesExt({ titulo, zona, ocultarSinPrecio, page = 0, pageSize = 50, clienteId } = {}) {
   let query = supabase
     .from('propiedades_ext')
     .select('id, titulo, precio, url, zona, scrapeado_en, contactos_propiedades_ext(contacto_id)', { count: 'exact' })
@@ -1141,21 +1141,23 @@ export async function getPropiedadesExt({ titulo, zona, ocultarSinPrecio, page =
   if (ocultarSinPrecio) {
     query = query.not('precio', 'is', null).neq('precio', 'N/D').neq('precio', '')
   }
+  if (clienteId) query = query.eq('contactos_propiedades_ext.cliente_id', clienteId)
   const { data, error, count } = await query
   if (error) throw error
   return { data: data ?? [], count: count ?? 0 }
 }
 
-export async function vincularContactosExt(propiedadExtId, contactoIds) {
+export async function vincularContactosExt(propiedadExtId, contactoIds, clienteId) {
   const { error: delError } = await supabase
     .from('contactos_propiedades_ext')
     .delete()
     .eq('propiedad_ext_id', propiedadExtId)
+    .eq('cliente_id', clienteId)
   if (delError) throw delError
   if (contactoIds.length) {
     const { error: insError } = await supabase
       .from('contactos_propiedades_ext')
-      .insert(contactoIds.map(id => ({ propiedad_ext_id: propiedadExtId, contacto_id: id })))
+      .insert(contactoIds.map(id => ({ propiedad_ext_id: propiedadExtId, contacto_id: id, cliente_id: clienteId })))
     if (insError) throw insError
   }
 }
