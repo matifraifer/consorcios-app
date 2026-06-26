@@ -13,14 +13,16 @@ import PhoneIcon from '@mui/icons-material/Phone'
 import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { useAuth } from '../contexts/AuthContext'
 import { getContactos, deleteContacto } from '../services/supabase'
 import ContactoFormDrawer from '../components/contactos/ContactoFormDrawer'
+import ImportarContactosDrawer from '../components/contactos/ImportarContactosDrawer'
 
 const ACCENT = '#065F46'
 
 const TIPOS_FILTRO   = ['Todos', 'Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
-const ORIGENES_FILTRO = ['Todos', 'APP', 'WEB']
+const ORIGENES_FILTRO = ['Todos', 'APP', 'WEB', 'IMPORTADO']
 
 const TIPO_COLORS = {
   Comprador:    { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
@@ -32,6 +34,7 @@ const TIPO_COLORS = {
 const ORIGEN_STYLES = {
   WEB: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
   APP: { bg: '#F3F4F6', color: '#374151', border: '#E5E7EB' },
+  IMPORTADO: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
 }
 
 function TipoBadge({ tipo }) {
@@ -79,6 +82,7 @@ export default function Contactos() {
   const [sortBy, setSortBy] = useState('apellido')
   const [sortDir, setSortDir] = useState('asc')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -229,14 +233,24 @@ export default function Contactos() {
             <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Gestión comercial</Typography>
           </Box>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleNew}
-          sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
-        >
-          Nuevo contacto
-        </Button>
+        <Box display="flex" gap={1.25}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setImportOpen(true)}
+            sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
+          >
+            Importar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleNew}
+            sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            Nuevo contacto
+          </Button>
+        </Box>
       </Box>
 
       {/* Filtros */}
@@ -379,6 +393,13 @@ export default function Contactos() {
         contacto={selected}
         clienteId={user.cliente_id}
         onSaved={handleSaved}
+      />
+
+      <ImportarContactosDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        clienteId={user.cliente_id}
+        onImported={() => { load(); showSnack('Contactos importados correctamente.') }}
       />
 
       <Dialog open={!!deleteDialog} onClose={() => setDeleteDialog(null)} maxWidth="xs" fullWidth>

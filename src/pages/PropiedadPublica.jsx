@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Box, Typography, CircularProgress, Alert, Button, Dialog,
@@ -11,7 +11,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import CloseIcon from '@mui/icons-material/Close'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ApartmentIcon from '@mui/icons-material/Apartment'
-import { getPropiedadPublica, getPropiedadImagenes, getPublicImageUrl, submitConsultaWeb } from '../services/supabase'
+import { getPropiedadPublica, getPropiedadImagenes, getPublicImageUrl, submitConsultaWeb, registrarVisitaPropiedad } from '../services/supabase'
 
 const ACCENT = '#065F46'
 
@@ -469,6 +469,7 @@ export default function PropiedadPublica() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [contactOpen, setContactOpen] = useState(false)
+  const visitaRegistrada = useRef(null)
 
   useEffect(() => {
     Promise.all([
@@ -481,6 +482,11 @@ export default function PropiedadPublica() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
+
+    if (visitaRegistrada.current !== id) {
+      visitaRegistrada.current = id
+      registrarVisitaPropiedad(id).catch(() => {})
+    }
   }, [id])
 
   if (loading) {

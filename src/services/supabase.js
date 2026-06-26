@@ -702,6 +702,31 @@ export async function getPropiedadPublica(id) {
   return data
 }
 
+export async function registrarVisitaPropiedad(propiedadId) {
+  const { error } = await supabase.rpc('increment_propiedad_visitas', { p_id: propiedadId })
+  if (error) throw error
+}
+
+export async function getMetricasPropiedad(propiedadId) {
+  const [
+    { data: prop, error: propErr },
+    { count: consultas, error: consultasErr },
+    { count: visitasFisicas, error: visitasErr },
+  ] = await Promise.all([
+    supabase.from('propiedades').select('visitas_count').eq('id', propiedadId).single(),
+    supabase.from('consultas_web').select('*', { count: 'exact', head: true }).eq('propiedad_id', propiedadId),
+    supabase.from('visitas').select('*', { count: 'exact', head: true }).eq('propiedad_id', propiedadId),
+  ])
+  if (propErr) throw propErr
+  if (consultasErr) throw consultasErr
+  if (visitasErr) throw visitasErr
+  return {
+    visitasWeb: prop?.visitas_count ?? 0,
+    consultas: consultas ?? 0,
+    visitasFisicas: visitasFisicas ?? 0,
+  }
+}
+
 const CLIENTE_PUBLICO_FIELDS = 'id, nombre, logo_url, portada_urls, titulo_pagina, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas, redes_sociales, extension'
 
 export async function getClientePublico(slugOrId) {
@@ -1252,6 +1277,58 @@ export async function updateContacto(id, data) {
     .from('contactos').update(data).eq('id', id).select().single()
   if (error) throw error
   return result
+}
+
+const TIPOS_CONTACTO_VALIDOS = ['Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
+
+export async function importarContactos(filas, clienteId) {
+  const { data: existentes, error: exErr } = await supabase
+    .from('contactos')
+    .select('dni, email')
+    .eq('cliente_id', clienteId)
+    .eq('activo', true)
+  if (exErr) throw exErr
+
+  const dnisExistentes   = new Set(existentes.filter(c => c.dni).map(c => c.dni.trim().toLowerCase()))
+  const emailsExistentes = new Set(existentes.filter(c => c.email).map(c => c.email.trim().toLowerCase()))
+
+  const resultados = []
+  for (const fila of filas) {
+    const { _fila, nombre, apellido, tipo, telefono, dni, email } = fila
+
+    if (!nombre || !apellido || !tipo || !telefono) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: 'Faltan campos obligatorios (Nombre, Apellido, Tipo o Teléfono).' })
+      continue
+    }
+
+    const tipoNormalizado = TIPOS_CONTACTO_VALIDOS.find(t => t.toLowerCase() === tipo.toLowerCase())
+    if (!tipoNormalizado) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: `Tipo "${tipo}" inválido. Use: ${TIPOS_CONTACTO_VALIDOS.join(', ')}.` })
+      continue
+    }
+
+    const dniNorm = dni ? dni.trim().toLowerCase() : null
+    const emailNorm = email ? email.trim().toLowerCase() : null
+    if ((dniNorm && dnisExistentes.has(dniNorm)) || (emailNorm && emailsExistentes.has(emailNorm))) {
+      resultados.push({ fila: _fila, estado: 'duplicado', motivo: 'Ya existe un contacto con ese DNI o correo electrónico.' })
+      continue
+    }
+
+    try {
+      const { error } = await supabase.from('contactos').insert([{
+        nombre, apellido, tipos: [tipoNormalizado], tipo: tipoNormalizado,
+        telefono, dni: dni || null, email: email || null,
+        cliente_id: clienteId, activo: true, origen: 'IMPORTADO',
+      }])
+      if (error) throw error
+      if (dniNorm) dnisExistentes.add(dniNorm)
+      if (emailNorm) emailsExistentes.add(emailNorm)
+      resultados.push({ fila: _fila, estado: 'importado' })
+    } catch (err) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: err.message })
+    }
+  }
+  return resultados
 }
 
 export async function buscarContactos(cliente_id, texto) {

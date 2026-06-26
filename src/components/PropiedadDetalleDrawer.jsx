@@ -12,8 +12,12 @@ import ImageNotSupportedIcon  from '@mui/icons-material/ImageNotSupported'
 import LinkIcon               from '@mui/icons-material/Link'
 import PersonIcon             from '@mui/icons-material/Person'
 import RoomIcon               from '@mui/icons-material/Room'
-import { getPropiedadImagenes, getPublicImageUrl, getPropiedadContactos } from '../services/supabase'
+import VisibilityIcon         from '@mui/icons-material/Visibility'
+import ChatBubbleOutlineIcon  from '@mui/icons-material/ChatBubbleOutline'
+import DownloadIcon           from '@mui/icons-material/Download'
+import { getPropiedadImagenes, getPublicImageUrl, getPropiedadContactos, getMetricasPropiedad, getClienteConfig } from '../services/supabase'
 import DocumentacionRespaldatoriaSection from './DocumentacionRespaldatoriaSection'
+import { generarReportePropiedad } from '../services/reportePropiedad'
 
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -44,6 +48,30 @@ function EstadoBadge({ estado }) {
       <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: s.color, letterSpacing: '0.04em' }}>
         {estado}
       </Typography>
+    </Box>
+  )
+}
+
+function MetricaCard({ icon, label, value, loading }) {
+  return (
+    <Box sx={{
+      flex: 1, display: 'flex', alignItems: 'center', gap: 1.25,
+      bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px',
+      px: 1.75, py: 1.25,
+    }}>
+      <Box sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: ACCENT_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {icon}
+      </Box>
+      <Box minWidth={0}>
+        {loading ? (
+          <CircularProgress size={14} sx={{ color: ACCENT }} />
+        ) : (
+          <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            {value}
+          </Typography>
+        )}
+        <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF', mt: 0.25 }}>{label}</Typography>
+      </Box>
     </Box>
   )
 }
@@ -290,6 +318,9 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
   const [copied, setCopied]           = useState(false)
   const [contactos, setContactos]     = useState([])
   const [loadingContactos, setLoadingContactos] = useState(false)
+  const [metricas, setMetricas]       = useState({ visitasWeb: 0, consultas: 0, visitasFisicas: 0 })
+  const [loadingMetricas, setLoadingMetricas] = useState(false)
+  const [downloadingReporte, setDownloadingReporte] = useState(false)
 
   useEffect(() => {
     if (!open || !propiedad?.id) { setContactos([]); return }
@@ -299,6 +330,38 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
       .catch(() => setContactos([]))
       .finally(() => setLoadingContactos(false))
   }, [open, propiedad?.id])
+
+  useEffect(() => {
+    if (!open || !propiedad?.id) { setMetricas({ visitasWeb: 0, consultas: 0, visitasFisicas: 0 }); return }
+    setLoadingMetricas(true)
+    getMetricasPropiedad(propiedad.id)
+      .then(setMetricas)
+      .catch(() => setMetricas({ visitasWeb: 0, consultas: 0, visitasFisicas: 0 }))
+      .finally(() => setLoadingMetricas(false))
+  }, [open, propiedad?.id])
+
+  async function handleDescargarReporte() {
+    setDownloadingReporte(true)
+    try {
+      const [imgs, clienteConfig] = await Promise.all([
+        getPropiedadImagenes(propiedad.id),
+        getClienteConfig(clienteId),
+      ])
+      const fotoUrl = imgs[0] ? getPublicImageUrl(imgs[0].storage_path) : null
+      await generarReportePropiedad({
+        propiedad,
+        clienteConfig,
+        fotoUrl,
+        visitasWeb: metricas.visitasWeb,
+        visitasFisicas: metricas.visitasFisicas,
+        contactosCount: contactos.length,
+      })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDownloadingReporte(false)
+    }
+  }
 
   if (!propiedad) return null
   const isAdmin = userRole?.toLowerCase() === 'admin'
@@ -370,6 +433,39 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
             </Typography>
           </Box>
         )}
+
+        {/* Métricas del sitio web */}
+        <Box display="flex" gap={1.25} mt={2}>
+          <MetricaCard
+            icon={<VisibilityIcon sx={{ fontSize: 15, color: ACCENT }} />}
+            label="Visitas a la web"
+            value={metricas.visitasWeb}
+            loading={loadingMetricas}
+          />
+          <MetricaCard
+            icon={<ChatBubbleOutlineIcon sx={{ fontSize: 15, color: ACCENT }} />}
+            label="Consultas recibidas"
+            value={metricas.consultas}
+            loading={loadingMetricas}
+          />
+        </Box>
+
+        {/* Descargar reporte */}
+        <Button
+          fullWidth
+          variant="outlined"
+          onClick={handleDescargarReporte}
+          disabled={downloadingReporte}
+          startIcon={downloadingReporte ? <CircularProgress size={14} sx={{ color: ACCENT }} /> : <DownloadIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            mt: 1.25, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.8rem',
+            borderColor: '#E5E7EB', color: ACCENT,
+            '&:hover': { borderColor: ACCENT, bgcolor: ACCENT_LIGHT },
+            '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
+          }}
+        >
+          {downloadingReporte ? 'Generando reporte...' : 'Descargar reporte'}
+        </Button>
       </Box>
 
       {/* Contenido */}
