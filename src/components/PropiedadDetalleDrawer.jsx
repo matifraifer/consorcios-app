@@ -13,6 +13,7 @@ import LinkIcon               from '@mui/icons-material/Link'
 import PersonIcon             from '@mui/icons-material/Person'
 import RoomIcon               from '@mui/icons-material/Room'
 import { getPropiedadImagenes, getPublicImageUrl, getPropiedadContactos } from '../services/supabase'
+import DocumentacionRespaldatoriaSection from './DocumentacionRespaldatoriaSection'
 
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -285,7 +286,7 @@ function ImageGallery({ propiedadId }) {
 }
 
 // ── Componente principal ───────────────────────────────────────────────────
-export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, onReactivar, userRole }) {
+export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, onReactivar, userRole, clienteId }) {
   const [copied, setCopied]           = useState(false)
   const [contactos, setContactos]     = useState([])
   const [loadingContactos, setLoadingContactos] = useState(false)
@@ -469,6 +470,14 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
             <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Sin contactos vinculados</Typography>
           </Box>
         )}
+
+        {/* Documentación respaldatoria */}
+        <DocumentacionRespaldatoriaSection
+          clienteId={clienteId}
+          entidadTipo="propiedad"
+          entidadId={propiedad.id}
+          inmediato
+        />
 
         {/* Observaciones internas */}
         {propiedad.observaciones_internas && (

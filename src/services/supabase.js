@@ -1314,6 +1314,78 @@ export async function getComprobanteUrl(storagePath) {
   return data.signedUrl
 }
 
+// ---- DOCUMENTACIÓN RESPALDATORIA (propiedades y contratos) ----
+
+const DOCUMENTOS_BUCKET = 'documentos-respaldatorios'
+
+export async function getTiposDocumentacion(clienteId) {
+  const { data, error } = await supabase
+    .from('tipos_documentacion')
+    .select('*')
+    .or(`cliente_id.eq.${clienteId},cliente_id.is.null`)
+    .order('orden')
+    .order('nombre')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getDocumentosRespaldatorios(entidadTipo, entidadId) {
+  const campo = entidadTipo === 'propiedad' ? 'propiedad_id' : 'contrato_id'
+  const { data, error } = await supabase
+    .from('documentos_respaldatorios')
+    .select('*')
+    .eq(campo, entidadId)
+    .order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function uploadDocumentoRespaldatorio(clienteId, entidadTipo, entidadId, file, { titulo, tipo_documentacion_id, tipo_personalizado }) {
+  const ext = file.name.split('.').pop()
+  const path = `${entidadTipo}/${entidadId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error: upErr } = await supabase.storage.from(DOCUMENTOS_BUCKET).upload(path, file)
+  if (upErr) throw upErr
+  const campo = entidadTipo === 'propiedad' ? 'propiedad_id' : 'contrato_id'
+  const { data, error } = await supabase
+    .from('documentos_respaldatorios')
+    .insert([{
+      cliente_id: clienteId,
+      [campo]: entidadId,
+      titulo,
+      tipo_documentacion_id,
+      tipo_personalizado,
+      storage_path: path,
+      nombre_archivo: file.name,
+      mime_type: file.type,
+    }])
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateDocumentoRespaldatorio(id, { titulo, tipo_documentacion_id, tipo_personalizado }) {
+  const { data, error } = await supabase
+    .from('documentos_respaldatorios')
+    .update({ titulo, tipo_documentacion_id, tipo_personalizado })
+    .eq('id', id)
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteDocumentoRespaldatorio(id, storagePath) {
+  await supabase.storage.from(DOCUMENTOS_BUCKET).remove([storagePath])
+  const { error } = await supabase.from('documentos_respaldatorios').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getDocumentoRespaldatorioUrl(storagePath) {
+  const { data, error } = await supabase.storage
+    .from(DOCUMENTOS_BUCKET).createSignedUrl(storagePath, 3600)
+  if (error) throw error
+  return data.signedUrl
+}
+
 export async function getIndicesActualizacion(clienteId) {
   const { data, error } = await supabase
     .from('indices_actualizacion').select('*').eq('cliente_id', clienteId).order('anio').order('mes')

@@ -551,6 +551,7 @@ export default function Propiedades() {
         onBaja={() => openBaja(detalleTarget)}
         onReactivar={handleReactivar}
         userRole={user?.rol}
+        clienteId={clienteId}
       />
 
       {/* ── Dialog Baja ── */}

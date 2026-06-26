@@ -11,6 +11,7 @@ import AddIcon              from '@mui/icons-material/Add'
 import RoomIcon             from '@mui/icons-material/Room'
 import CloseRoundedIcon     from '@mui/icons-material/CloseRounded'
 import ContactoFormDrawer from './contactos/ContactoFormDrawer'
+import DocumentacionRespaldatoriaSection from './DocumentacionRespaldatoriaSection'
 import imageCompression from 'browser-image-compression'
 import {
   createPropiedad, updatePropiedad,
@@ -121,6 +122,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
   const origExisting              = useRef([])
   const dragIndexRef              = useRef(null)
   const fileInputRef              = useRef(null)
+  const docsRef                   = useRef(null)
 
   useEffect(() => {
     if (!busquedaContacto.trim() || busquedaContacto.length < 2) { setContactoOpciones([]); return }
@@ -354,6 +356,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       }
 
       await setPropiedadContactos(result.id, contactosVinculados.map(c => c.id))
+      await docsRef.current?.persist(result.id)
 
       onSaved(result)
       onClose()
@@ -780,6 +783,14 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
             >
               Agregar fotos
             </Button>
+
+            {/* ── 9. Documentación respaldatoria ── */}
+            <DocumentacionRespaldatoriaSection
+              ref={docsRef}
+              clienteId={clienteId}
+              entidadTipo="propiedad"
+              entidadId={mode === 'edit' ? propiedad?.id : null}
+            />
 
             {/* Datos de venta */}
             {isVendida && (

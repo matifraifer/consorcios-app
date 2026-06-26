@@ -6,12 +6,11 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
-import AttachFileIcon from '@mui/icons-material/AttachFile'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import { createContrato, updateContrato, getPropiedades, getPropietarioCRM } from '../../services/supabase'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
 import ContactoPicker from '../ContactoPicker'
+import DocumentacionRespaldatoriaSection from '../DocumentacionRespaldatoriaSection'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -73,7 +72,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const isEdit = mode === 'edit'
 
   const [form, setForm] = useState(FORM_EMPTY)
-  const [files, setFiles] = useState([])
   const [propiedades, setPropiedades] = useState([])
   const [loadingProps, setLoadingProps] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -82,11 +80,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [propietarioLocked, setPropietarioLocked] = useState(false)
   const [pickerInquilinoOpen, setPickerInquilinoOpen] = useState(false)
   const [pickerPropietarioOpen, setPickerPropietarioOpen] = useState(false)
-  const fileInputRef = useRef(null)
+  const docsRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
-    setFiles([])
     setError(null)
     setPropietarioLocked(false)
     loadPropiedades()
@@ -148,16 +145,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     }
     setPropietarioLocked(false)
     setForm(prev => ({ ...prev, propiedad_id: propiedadId, propietario_nombre: '', propietario_apellido: '', propietario_dni: '' }))
-  }
-
-  function handleFilesSelected(e) {
-    const selected = Array.from(e.target.files)
-    setFiles(prev => [...prev, ...selected])
-    e.target.value = ''
-  }
-
-  function removeFile(idx) {
-    setFiles(prev => prev.filter((_, i) => i !== idx))
   }
 
   async function handlePropiedadSaved(nueva) {
@@ -228,8 +215,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       if (isEdit) {
         result = await updateContrato(contrato.id, payload)
       } else {
-        result = await createContrato(payload, files, clienteId)
+        result = await createContrato(payload, [], clienteId)
       }
+      await docsRef.current?.persist(result.id)
       onSaved(result)
       onClose()
     } catch (e) {
@@ -436,37 +424,13 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             </Box>
           </Box>
 
-          {/* Adjuntos — solo en creación */}
-          {!isEdit && <SectionTitle>Documentos adjuntos</SectionTitle>}
-          {isEdit && <Box height={8} />}
-          {!isEdit && <>
-          <input ref={fileInputRef} type="file" multiple hidden onChange={handleFilesSelected} />
-          <Button
-            variant="outlined"
-            startIcon={<AttachFileIcon sx={{ fontSize: 16 }} />}
-            onClick={() => fileInputRef.current?.click()}
-            sx={{ borderRadius: '8px', textTransform: 'none', fontSize: '0.82rem', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT } }}
-          >
-            Adjuntar archivos
-          </Button>
-
-          {files.length > 0 && (
-            <Box mt={1.5} display="flex" flexDirection="column" gap={0.75}>
-              {files.map((f, i) => (
-                <Box key={i} display="flex" alignItems="center" justifyContent="space-between" sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 0.75 }}>
-                  <Box display="flex" alignItems="center" gap={1} minWidth={0}>
-                    <AttachFileIcon sx={{ fontSize: 15, color: '#9CA3AF', flexShrink: 0 }} />
-                    <Typography sx={{ fontSize: '0.78rem', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', flexShrink: 0 }}>({(f.size / 1024).toFixed(0)} KB)</Typography>
-                  </Box>
-                  <IconButton size="small" onClick={() => removeFile(i)} sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
-                    <DeleteOutlineIcon sx={{ fontSize: 15 }} />
-                  </IconButton>
-                </Box>
-              ))}
-            </Box>
-          )}
-          </>}
+          {/* Documentación respaldatoria */}
+          <DocumentacionRespaldatoriaSection
+            ref={docsRef}
+            clienteId={clienteId}
+            entidadTipo="contrato"
+            entidadId={isEdit ? contrato?.id : null}
+          />
 
           {/* Observaciones */}
           <SectionTitle>Observaciones</SectionTitle>
