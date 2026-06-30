@@ -9,15 +9,16 @@ import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  getMlToken, deleteMlToken, supabase,
+  // getMlToken, deleteMlToken, supabase, // MercadoLibre — deshabilitado temporalmente
   getClienteConfig, updateClienteConfig, uploadClienteLogo,
   uploadPortadaImage, deletePortadaImage,
 } from '../services/supabase'
 
 const ACCENT = '#065F46'
-const ML_CLIENT_ID    = '3889570283764172'
-const ML_REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
-const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=habita`
+// MercadoLibre — deshabilitado temporalmente
+// const ML_CLIENT_ID    = '3889570283764172'
+// const ML_REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
+// const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=habita`
 
 const RED_SOCIAL_TIPOS = ['Instagram', 'Página web', 'Otro']
 const MAX_REDES = 3
@@ -158,55 +159,15 @@ const RED_SOCIAL_EMPTY = { tipo: '', valor: '' }
 export default function Configuracion() {
   const { clienteId } = useAuth()
 
-  // ── MercadoLibre ──
-  const [mlStatus, setMlStatus]   = useState('loading')
-  const [mlNickname, setMlNickname] = useState('')
-  const [mlToggling, setMlToggling] = useState(false)
-
-  useEffect(() => {
-    if (!clienteId) return
-    checkMlConnection()
-  }, [clienteId])
-
-  async function checkMlConnection() {
-    setMlStatus('loading')
-    try {
-      const token = await getMlToken(clienteId)
-      if (!token) { setMlStatus('disconnected'); return }
-      const { data, error } = await supabase.functions.invoke('ml-test', {
-        body: { cliente_id: clienteId },
-      })
-      if (error || !data?.connected) {
-        setMlStatus('disconnected')
-      } else {
-        setMlStatus('connected')
-        setMlNickname(data.nickname ?? '')
-      }
-    } catch {
-      setMlStatus('error')
-    }
-  }
-
-  async function handleMlToggle() {
-    if (mlToggling) return
-    if (mlStatus === 'connected') {
-      setMlToggling(true)
-      try {
-        await deleteMlToken(clienteId)
-        setMlStatus('disconnected')
-        setMlNickname('')
-      } catch {
-        // silencioso
-      } finally {
-        setMlToggling(false)
-      }
-    } else {
-      window.location.href = ML_AUTH_URL
-    }
-  }
-
-  const mlConnected = mlStatus === 'connected'
-  const mlLoading   = mlStatus === 'loading' || mlToggling
+  // MercadoLibre — deshabilitado temporalmente
+  // const [mlStatus, setMlStatus]   = useState('loading')
+  // const [mlNickname, setMlNickname] = useState('')
+  // const [mlToggling, setMlToggling] = useState(false)
+  // useEffect(() => { if (!clienteId) return; checkMlConnection() }, [clienteId])
+  // async function checkMlConnection() { ... }
+  // async function handleMlToggle() { ... }
+  // const mlConnected = mlStatus === 'connected'
+  // const mlLoading   = mlStatus === 'loading' || mlToggling
 
   // ── Configuración de web pública ──
   const [webLoading, setWebLoading] = useState(true)
@@ -352,12 +313,12 @@ export default function Configuracion() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <IntegrationCard
-            logo={<LanguageIcon sx={{ fontSize: 22, color: mlConnected ? ACCENT : '#9CA3AF' }} />}
+            logo={<LanguageIcon sx={{ fontSize: 22, color: '#9CA3AF' }} />}
             name="MercadoLibre"
-            description={mlConnected && mlNickname ? `Conectado como ${mlNickname}` : 'Publicá propiedades directamente en MercadoLibre'}
-            connected={mlConnected}
-            loading={mlLoading}
-            onToggle={handleMlToggle}
+            description="Próximamente disponible"
+            connected={false}
+            loading={false}
+            onToggle={() => {}}
           />
 
           <IntegrationCard

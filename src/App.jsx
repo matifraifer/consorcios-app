@@ -25,7 +25,7 @@ import InmobiliariaPublica from './pages/InmobiliariaPublica'
 import Contratos        from './pages/Contratos'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
-import MlCallback       from './pages/MlCallback'
+// import MlCallback       from './pages/MlCallback' // MercadoLibre — deshabilitado temporalmente
 import Configuracion          from './pages/Configuracion'
 import PropiedadesComunidad  from './pages/PropiedadesComunidad'
 
@@ -35,7 +35,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/p/:id" element={<PropiedadPublica />} />
       <Route path="/inmobiliaria/:clienteId" element={<InmobiliariaPublica />} />
-      <Route path="/ml-callback" element={<MlCallback />} />
+      {/* <Route path="/ml-callback" element={<MlCallback />} /> */}{/* MercadoLibre — deshabilitado temporalmente */}
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
