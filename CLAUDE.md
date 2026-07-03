@@ -4,8 +4,7 @@
 - React + Vite
 - Material UI (MUI v5)
 - React Router v6
-- Supabase (base de datos principal — CRUD completo)
-- Airtable (solo autenticación/login)
+- Supabase (base de datos principal — CRUD completo, y autenticación via Supabase Auth)
 
 ## Preferencias
 - **Idioma**: español en la UI, inglés en el código
@@ -21,10 +20,9 @@ src/
   main.jsx
   App.jsx                         # Rutas con React Router v6
   contexts/
-    AuthContext.jsx                # Login/logout, user en contexto global (custom, no Supabase Auth)
+    AuthContext.jsx                # Login/logout via Supabase Auth (signInWithPassword), perfil (rol/cliente_id) desde tabla usuarios
   services/
-    airtable.js                   # Login contra Airtable
-    supabase.js                   # CRUD principal (consorcios, departamentos, propietarios, expensas, reclamos, CRM, MercadoLibre)
+    supabase.js                   # CRUD principal (consorcios, departamentos, propietarios, expensas, reclamos, CRM, MercadoLibre) + auth
   components/
     Layout.jsx                    # Sidebar + Outlet
     Sidebar.jsx                   # Colapsable, color activo #065F46, secciones: Gestión comercial / Base de datos / Gestión de contratos
@@ -38,6 +36,7 @@ src/
     dashboard/                    # DashboardFiltros, DashboardKPIs, DeudaPorConsorcioTable, CRMSection
   pages/
     Login.jsx
+    CambiarPassword.jsx           # ruta /cambiar-password — fuera de ProtectedRoute pero requiere sesión; forzada cuando mustChangePassword es true
     Dashboard.jsx                 # CRMSection (hero + consultas web + propiedades + seguimiento + visitas); tabla cobros oculta temporalmente
     Configuracion.jsx             # Config. general (pendiente) + Integraciones (MercadoLibre, ZonaProp) — ruta /configuracion
     Consorcios.jsx                # Drawer detalle + Drawer nuevo consorcio
@@ -63,7 +62,8 @@ src/
     MlCallback.jsx                # Callback OAuth de MercadoLibre — ruta /ml-callback (fuera de ProtectedRoute)
     Contratos.jsx
 supabase/
-  functions/                      # Edge Functions (Deno) — deployadas con --no-verify-jwt (la app no usa Supabase Auth)
+  migrations/                    # SQL manuales, se corren a mano en el SQL Editor de Supabase
+  functions/                      # Edge Functions (Deno) — deployadas con --no-verify-jwt
     ml-auth/                      # Intercambia code de OAuth por access_token/refresh_token (usa ML_CLIENT_SECRET)
     ml-test/                      # Valida el token guardado llamando a /users/me de MercadoLibre
 ```
@@ -77,7 +77,7 @@ supabase/
 - `consorcios`: id (UUID PK), nombre, id_administrador (UUID FK a usuarios)
 - `departamentos`: id (serial PK), numeracion, inquilino, id_propietario (FK), id_consorcio (UUID FK), coeficiente
 - `propietarios`: id (serial PK), dni, nombre, apellido, id_consorcio (UUID FK)
-- `usuarios`: id (UUID PK), nombre_usuario, password, rol
+- `usuarios`: id (serial PK), nombre_usuario, rol, cliente_id, email (login), auth_user_id (FK a `auth.users.id`) — `password` en texto plano deprecado, ver sección Autenticación
 - `reclamos`: id, descripcion, estado, fecha, propietario_id, consorcio_id, departamento_id, usuario_id
 - `periodos_expensas`: id, consorcio_id, mes, anio, estado ('abierto'|'cerrado'), usuario_id
 - `gastos`: id, periodo_id, nombre, monto, categoria, tipo, proveedor, comprobante, departamentos_ids (INTEGER[])
@@ -93,26 +93,29 @@ supabase/
 - `historial_prospectos`: id, prospecto_id, usuario_nombre, accion, created_at
 - `ml_tokens`: id, cliente_id (UNIQUE), access_token, refresh_token, ml_user_id, expires_at — tokens OAuth de MercadoLibre por cliente
 - `clientes_servicio` (ojo: singular): id, nombre, logo_url, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas (texto "lat, lng"), redes_sociales (JSONB array de `{tipo, valor}`, tipo ∈ Instagram/Página web/Otro, máx 3) — configurado desde `Configuracion.jsx`, consumido por `InmobiliariaPublica.jsx`. Logo se sube al bucket `propiedades-imagenes` bajo `logos/{cliente_id}/`
-- RLS habilitado con políticas abiertas (auth manejada externamente)
+- RLS por `cliente_id`/`auth.uid()` en todas las tablas (ver sección Autenticación → RLS). Excepciones sin `cliente_id` (compartidas entre todos los clientes, solo lectura para `authenticated`): `etapas_crm`, `propiedades_ext`
 
 ## Integración MercadoLibre
 - App ID: `3889570283764172` (público, hardcodeado en frontend). Client secret SOLO vive en Supabase Edge Functions (`ML_CLIENT_SECRET`), nunca en el frontend.
 - Redirect URI fija: `https://consorcios-app.vercel.app/ml-callback` (ML no acepta localhost; testear siempre contra Vercel)
 - Flujo OAuth: botón conectar → `auth.mercadolibre.com.ar/authorization` → `/ml-callback` → Edge Function `ml-auth` intercambia code por tokens → guarda en `ml_tokens`
-- Edge Functions deployadas con `--no-verify-jwt` (la app no usa Supabase Auth, así que no hay JWT de sesión válido para Supabase)
+- Edge Functions deployadas con `--no-verify-jwt` (se llaman con la anon key, no con el JWT de sesión del usuario)
 - `ml-test`: llama a `GET /users/me` de ML con el token guardado para validar que la conexión sigue activa
 - Conexión/desconexión visible en `Propiedades.jsx` (botones) y en `Configuracion.jsx` (switch en card de integración)
 - Pendiente: Edge Function `ml-publish` para publicar propiedades (esperando que ML habilite la cuenta como inmobiliaria); usuarios de prueba de ML ya no se pueden crear desde el dashboard — usar cuenta secundaria real para testing
 
-## Airtable — Tabla usuarios
-- Campos: nombre_usuario, password, rol
-- Login: busca por nombre_usuario, compara password en cliente
+## Autenticación (Supabase Auth)
+- Login por **nombre de usuario** (no email) — el frontend resuelve `nombre_usuario` → `email` con la RPC `email_for_username` (SECURITY DEFINER, callable por `anon`, ver `0005_username_login_rpc.sql`) y recién ahí llama a `supabase.auth.signInWithPassword`
+- La tabla `usuarios` guarda el perfil de negocio (rol, cliente_id, nombre_usuario) y se vincula a `auth.users` via `usuarios.auth_user_id`
+- `AuthContext.jsx`: restaura sesión con `supabase.auth.getSession()` + `onAuthStateChange`, y busca el perfil con `getUsuarioByAuthId()` en `supabase.js`
+- Alta de usuarios: manual desde el dashboard de Supabase (Authentication → Users), no hay flujo de self-signup
+- **Cambio de contraseña obligatorio**: el flag `must_change_password` vive en `auth.users.raw_user_meta_data` (no en `usuarios`). `AuthContext` lo expone como `mustChangePassword`; `ProtectedRoute.jsx` redirige a `/cambiar-password` (`CambiarPassword.jsx`) mientras esté en `true`. Se limpia al guardar la nueva contraseña (`changePassword()` → `supabase.auth.updateUser`). **Default: `true`** — todo usuario nuevo lo exige automáticamente aunque no se toque el campo "User Metadata" al crearlo (`mustChangePassword` es `true` salvo que el metadata diga explícitamente `{"must_change_password": false}`)
+- **RLS**: función `public.current_cliente_id()` (SECURITY DEFINER) resuelve `auth.uid()` → `usuarios.cliente_id`. Todas las tablas tienen policies `for all to authenticated using (cliente_id = current_cliente_id())` (directo o vía `EXISTS` subquery cuando la tabla no tiene `cliente_id` propio, ej. `departamentos` valida contra `consorcios`). `usuarios` y `tipos_documentacion` son solo-lectura para `authenticated` (el frontend no escribe ahí). `propiedades`, `propiedades_imagenes` y `clientes_servicio` además permiten `select` a `anon` (páginas públicas); `consultas_web` permite `insert` a `anon` (formulario de contacto) pero no lectura. Ver `supabase/migrations/0001` a `0004`
+- Bucket de Storage `propiedades-imagenes`: policy que permite `insert/update/delete` a `authenticated` (no segmentada por cliente_id todavía); lectura pública porque el bucket es público
+- **Pendiente (prioridad baja)**: segmentar por `cliente_id` la escritura en el bucket `propiedades-imagenes`. Hoy cualquier usuario autenticado (de cualquier cliente) puede subir/editar/borrar archivos en la carpeta de storage de OTRO cliente si conoce/adivina su `cliente_id` (es adivinable: `clientes_servicio.id` es de lectura pública y aparece en la URL de `/inmobiliaria/:clienteId`). No es fuga de datos (el bucket ya es público para lectura, eso no cambia), es riesgo de que un usuario logueado de la inmobiliaria A borre/reemplace fotos de la inmobiliaria B. Al implementarlo, la policy tiene que cubrir 3 patrones de path distintos: `logos/{cliente_id}/...`, `portada/{cliente_id}/...`, `{cliente_id}/{propiedad_id}/...`
 
 ## Variables de entorno (.env) — NO commitear
 ```
-VITE_AIRTABLE_API_KEY=
-VITE_AIRTABLE_BASE_ID=
-VITE_AIRTABLE_USUARIOS_TABLE=usuarios
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
@@ -141,3 +144,6 @@ VITE_SUPABASE_ANON_KEY=
 -- Ejecutar en Supabase si no están aplicadas:
 ALTER TABLE gastos ADD COLUMN departamentos_ids INTEGER[];
 ```
+- `supabase/migrations/0001_auth_migration.sql`: agrega `email`/`auth_user_id` a `usuarios` y los vincula a `auth.users` — correr a mano en el SQL Editor (ver pasos en el archivo)
+- `supabase/migrations/0002_rls_propiedades_clientes.sql`, `0003_storage_authenticated_uploads.sql`, `0004_rls_resto_tablas.sql`: aplicadas — RLS por `cliente_id` en todas las tablas (ver sección Autenticación → RLS)
+- `supabase/migrations/0005_username_login_rpc.sql`, `0006_force_password_change.sql`: aplicadas — login por `nombre_usuario` y cambio de contraseña obligatorio

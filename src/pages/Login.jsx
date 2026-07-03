@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { Box, TextField, Button, Typography, Alert, CircularProgress, GlobalStyles } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -155,18 +155,20 @@ function useTypewriter(words) {
 }
 
 export default function Login() {
-  const { user, login, loading, error } = useAuth()
-  const navigate = useNavigate()
+  const { user, login, loading, error, initializing, mustChangePassword } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const cyclingWord = useTypewriter(WORDS)
 
-  if (user) return <Navigate to="/dashboard" replace />
+  if (initializing) return null
+  // El redirect se resuelve acá (no con un navigate() imperativo en handleSubmit)
+  // porque login() actualiza el estado de forma async: recién en el próximo
+  // render mustChangePassword refleja el valor correcto.
+  if (user) return <Navigate to={mustChangePassword ? '/cambiar-password' : '/dashboard'} replace />
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const success = await login(username, password)
-    if (success) navigate('/dashboard', { replace: true })
+    await login(username, password)
   }
 
   return (

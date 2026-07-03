@@ -7,15 +7,40 @@ export const supabase = createClient(
 
 // ---- AUTH ----
 
-export async function loginWithSupabase(username, password) {
+export async function resolveEmailForUsername(username) {
+  const { data, error } = await supabase.rpc('email_for_username', { p_username: username })
+  if (error) throw error
+  return data
+}
+
+export async function signInWithEmail(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw error
+  return data.user
+}
+
+export async function signOutSupabase() {
+  const { error } = await supabase.auth.signOut()
+  if (error) throw error
+}
+
+export async function updateUserPassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword,
+    data: { must_change_password: false },
+  })
+  if (error) throw error
+  return data.user
+}
+
+export async function getUsuarioByAuthId(authUserId) {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id, nombre_usuario, rol, password, cliente_id, clientes_servicio(nombre)')
-    .eq('nombre_usuario', username)
-    .single()
+    .select('id, nombre_usuario, rol, cliente_id, clientes_servicio(nombre)')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
 
   if (error || !data) return null
-  if (data.password !== password) return null
 
   return {
     id: data.id,

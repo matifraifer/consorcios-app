@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 
 import Login             from './pages/Login'
+import CambiarPassword   from './pages/CambiarPassword'
 import Dashboard         from './pages/Dashboard'
 import Consorcios        from './pages/Consorcios'
 import ConsorcioDetalle  from './pages/ConsorcioDetalle'
@@ -33,6 +34,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/cambiar-password" element={<CambiarPassword />} />
       <Route path="/p/:id" element={<PropiedadPublica />} />
       <Route path="/inmobiliaria/:clienteId" element={<InmobiliariaPublica />} />
       {/* <Route path="/ml-callback" element={<MlCallback />} /> */}{/* MercadoLibre — deshabilitado temporalmente */}

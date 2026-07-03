@@ -17,7 +17,6 @@
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@supabase/supabase-js": "^2.98.0",
-    "airtable": "^0.12.2",
     "browser-image-compression": "^2.0.2",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
