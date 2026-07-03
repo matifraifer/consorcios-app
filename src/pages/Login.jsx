@@ -261,7 +261,6 @@ export default function Login() {
           {/* Logo */}
           <Box sx={{ position: 'relative', zIndex: 1, animation: 'fadeUp 0.7s ease both' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 32, width: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
               <Typography
                 sx={{
                   fontFamily: "'Poppins', sans-serif",
@@ -271,7 +270,7 @@ export default function Login() {
                   color: 'rgba(255,255,255,0.9)',
                 }}
               >
-                Hábita
+                Granito
               </Typography>
             </Box>
           </Box>
@@ -322,7 +321,7 @@ export default function Login() {
                 animationFillMode: 'both',
               }}
             >
-              Administracion de consorcios,<br />expensas, propietarios<br />y contratos en un solo lugar.
+              Administracion de propiedades,<br />contactos, visitas<br />y contratos en un solo lugar.
             </Typography>
           </Box>
 
@@ -336,16 +335,7 @@ export default function Login() {
               animationFillMode: 'both',
             }}
           >
-            <Typography
-              sx={{
-                fontFamily: "'Poppins', sans-serif",
-                fontSize: 11,
-                color: 'rgba(255,255,255,0.2)',
-                letterSpacing: '0.06em',
-              }}
-            >
-              v1.0 — plataforma privada
-            </Typography>
+            
           </Box>
         </Box>
 
@@ -384,7 +374,6 @@ export default function Login() {
           >
             {/* Logo mobile */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, mb: 5 }}>
-              <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 28, width: 'auto' }} />
               <Typography
                 sx={{
                   fontFamily: "'Poppins', sans-serif",
@@ -394,7 +383,7 @@ export default function Login() {
                   color: '#111110',
                 }}
               >
-                Hábita
+                Granito
               </Typography>
             </Box>
 

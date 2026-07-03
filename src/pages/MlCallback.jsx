@@ -62,7 +62,7 @@ export default function MlCallback() {
         {/* Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 3 }}>
           <Box component="img" src="/logo.svg" sx={{ height: 28 }} />
-          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: '#065F46' }}>Hábita</Typography>
+          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: '#065F46' }}>Granito</Typography>
         </Box>
 
         {status === 'loading' && (

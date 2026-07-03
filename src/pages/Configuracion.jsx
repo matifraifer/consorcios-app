@@ -18,7 +18,7 @@ const ACCENT = '#065F46'
 // MercadoLibre — deshabilitado temporalmente
 // const ML_CLIENT_ID    = '3889570283764172'
 // const ML_REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
-// const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=habita`
+// const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=granito`
 
 const RED_SOCIAL_TIPOS = ['Instagram', 'Página web', 'Otro']
 const MAX_REDES = 3

@@ -208,7 +208,6 @@ export default function Sidebar() {
       >
         {!collapsed && (
           <Box display="flex" alignItems="center" gap={1.25}>
-            <Box component="img" src="/logo.svg" alt="Habita" sx={{ height: 28, width: 'auto', flexShrink: 0 }} />
             <Typography
               sx={{
                 fontSize: '0.95rem',
@@ -218,7 +217,7 @@ export default function Sidebar() {
                 whiteSpace: 'nowrap',
               }}
             >
-              Hábita
+              Granito
             </Typography>
           </Box>
         )}
