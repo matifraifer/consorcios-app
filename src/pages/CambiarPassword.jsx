@@ -15,7 +15,7 @@ const fieldSx = {
 }
 
 export default function CambiarPassword() {
-  const { user, initializing, changePassword, mustChangePassword } = useAuth()
+  const { user, initializing, changePassword, logout, mustChangePassword } = useAuth()
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirmar, setConfirmar] = useState('')
@@ -47,6 +47,11 @@ export default function CambiarPassword() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleCancelar() {
+    await logout()
+    navigate('/login', { replace: true })
   }
 
   return (
@@ -100,6 +105,7 @@ export default function CambiarPassword() {
               required
               autoFocus
               autoComplete="new-password"
+              helperText="Debe contener al menos 8 caracteres"
               sx={fieldSx}
             />
           </Box>
@@ -133,6 +139,18 @@ export default function CambiarPassword() {
             }}
           >
             {loading ? 'Guardando...' : 'Guardar contraseña'}
+          </Button>
+
+          <Button
+            fullWidth
+            disabled={loading}
+            onClick={handleCancelar}
+            sx={{
+              mt: 1.5, borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+              fontSize: 13, color: '#6B7280', '&:hover': { bgcolor: '#F3F4F6' },
+            }}
+          >
+            Cancelar
           </Button>
         </form>
       </Paper>
