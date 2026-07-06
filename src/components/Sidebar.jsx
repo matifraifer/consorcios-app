@@ -49,7 +49,7 @@ const comercialItems = [
 ]
 
 const baseDatosItems = [
-  { label: 'Propiedades en venta',         path: '/propiedades',            icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Propiedades',                  path: '/propiedades',            icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
   { label: 'Propiedades externas',          path: '/propiedades-comunidad',  icon: <TravelExploreIcon sx={{ fontSize: 18 }} /> },
   { label: 'Contactos',                    path: '/contactos',              icon: <PermContactCalendarIcon sx={{ fontSize: 18 }} /> },
 ]
