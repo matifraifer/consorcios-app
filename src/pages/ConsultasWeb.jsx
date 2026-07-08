@@ -2,8 +2,9 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Box, Typography, Paper, TextField, Switch, FormControlLabel,
   Table, TableHead, TableRow, TableCell, TableBody,
-  IconButton, Snackbar, Alert, CircularProgress, Tooltip,
+  IconButton, Snackbar, Alert, CircularProgress, Tooltip, useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import BlockIcon              from '@mui/icons-material/Block'
 import LanguageIcon           from '@mui/icons-material/Language'
@@ -62,6 +63,8 @@ function fmt(date) {
 
 export default function ConsultasWeb() {
   const { user } = useAuth()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [consultas, setConsultas]             = useState([])
   const [contactosPorDni, setContactosPorDni] = useState(new Map())
   const [loading, setLoading]                 = useState(true)
@@ -151,18 +154,24 @@ export default function ConsultasWeb() {
   }
 
   async function handleContactoSaved(contacto) {
+    let convertida = true
     if (consultaActiva) {
       try {
         const updated = await marcarConsultaConvertida(consultaActiva.id, contacto.id)
         setConsultas(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
-      } catch {}
+      } catch {
+        convertida = false
+      }
     }
     if (contacto.dni) {
       setContactosPorDni(prev => new Map([...prev, [contacto.dni.trim(), contacto]]))
     }
     setFormOpen(false)
     setConsultaActiva(null)
-    showSnack('Contacto creado y consulta convertida.')
+    showSnack(
+      convertida ? 'Contacto creado y consulta convertida.' : 'Contacto creado, pero no se pudo marcar la consulta como convertida.',
+      convertida ? 'success' : 'error'
+    )
   }
 
   function toggleSort(col) {
@@ -209,11 +218,15 @@ export default function ConsultasWeb() {
   const cols = [
     { label: 'Fecha',           col: 'created_at' },
     { label: 'Nombre y Apellido', col: 'apellido' },
-    { label: 'DNI',             col: null },
-    { label: 'Teléfono',        col: null },
+    ...(!isMobile ? [
+      { label: 'DNI',      col: null },
+      { label: 'Teléfono', col: null },
+    ] : []),
     { label: 'Propiedad',       col: null },
-    { label: 'Estado',          col: 'estado' },
-    { label: '',                col: null },
+    ...(!isMobile ? [
+      { label: 'Estado', col: 'estado' },
+      { label: '',       col: null },
+    ] : []),
   ]
 
   return (
@@ -280,6 +293,7 @@ export default function ConsultasWeb() {
             </Typography>
           </Box>
         ) : (
+          <Box sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
@@ -316,76 +330,83 @@ export default function ConsultasWeb() {
                   </TableCell>
 
                   {/* Nombre */}
-                  <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 110 : 'none' }}>
                     {c.apellido}, {c.nombre}
                   </TableCell>
 
                   {/* DNI */}
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={0.75}>
-                      <Typography sx={{ fontSize: '0.82rem', color: '#6B7280' }}>
-                        {c.dni ?? '—'}
-                      </Typography>
-                      {c.dni && contactosPorDni.has(c.dni.trim()) && (
-                        <Tooltip title="Ya existe un contacto con este DNI">
-                          <PersonIcon sx={{ fontSize: 14, color: '#1D4ED8' }} />
-                        </Tooltip>
-                      )}
-                    </Box>
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={0.75}>
+                        <Typography sx={{ fontSize: '0.82rem', color: '#6B7280' }}>
+                          {c.dni ?? '—'}
+                        </Typography>
+                        {c.dni && contactosPorDni.has(c.dni.trim()) && (
+                          <Tooltip title="Ya existe un contacto con este DNI">
+                            <PersonIcon sx={{ fontSize: 14, color: '#1D4ED8' }} />
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </TableCell>
+                  )}
 
                   {/* Teléfono */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
-                    {c.telefono}
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                      {c.telefono}
+                    </TableCell>
+                  )}
 
                   {/* Propiedad */}
-                  <TableCell sx={{ maxWidth: 180 }}>
+                  <TableCell sx={{ maxWidth: isMobile ? 110 : 180 }}>
                     {c.propiedades
-                      ? <Typography sx={{ fontSize: '0.82rem', color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{c.propiedades.titulo}</Typography>
+                      ? <Typography sx={{ fontSize: '0.82rem', color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 100 : 170 }}>{c.propiedades.titulo}</Typography>
                       : <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
                     }
                   </TableCell>
 
                   {/* Estado */}
-                  <TableCell><EstadoBadge estado={c.estado} /></TableCell>
+                  {!isMobile && <TableCell><EstadoBadge estado={c.estado} /></TableCell>}
 
                   {/* Acciones */}
-                  <TableCell align="right" onClick={e => e.stopPropagation()}>
-                    <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
-                      {c.estado === 'pendiente' && (
-                        <>
-                          <Tooltip title={contactosPorDni.has(c.dni?.trim()) ? 'Vincular propiedad al contacto existente' : 'Crear contacto y convertir'}>
-                            <IconButton
-                              size="small"
-                              disabled={loadingId === c.id}
-                              onClick={e => handleValidar(c, e)}
-                              sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
-                            >
-                              {loadingId === c.id
-                                ? <CircularProgress size={13} sx={{ color: ACCENT }} />
-                                : <CheckCircleOutlineIcon sx={{ fontSize: 15 }} />
-                              }
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Inactivar">
-                            <IconButton
-                              size="small"
-                              disabled={loadingId === c.id}
-                              onClick={e => handleInactivar(c, e)}
-                              sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}
-                            >
-                              <BlockIcon sx={{ fontSize: 15 }} />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      )}
-                    </Box>
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell align="right" onClick={e => e.stopPropagation()}>
+                      <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
+                        {c.estado === 'pendiente' && (
+                          <>
+                            <Tooltip title={contactosPorDni.has(c.dni?.trim()) ? 'Vincular propiedad al contacto existente' : 'Crear contacto y convertir'}>
+                              <IconButton
+                                size="small"
+                                disabled={loadingId === c.id}
+                                onClick={e => handleValidar(c, e)}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
+                              >
+                                {loadingId === c.id
+                                  ? <CircularProgress size={13} sx={{ color: ACCENT }} />
+                                  : <CheckCircleOutlineIcon sx={{ fontSize: 15 }} />
+                                }
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Inactivar">
+                              <IconButton
+                                size="small"
+                                disabled={loadingId === c.id}
+                                onClick={e => handleInactivar(c, e)}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}
+                              >
+                                <BlockIcon sx={{ fontSize: 15 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                      </Box>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          </Box>
         )}
       </Paper>
 

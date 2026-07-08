@@ -125,7 +125,13 @@ export default function ContactoDrawer({ open, onClose, prospecto, onPassToNextE
             <Typography sx={{ fontSize: '0.75rem', color: '#6B7280' }}>{prospecto.nombre} {prospecto.apellido}</Typography>
           </Box>
         </Box>
-        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{ bgcolor: '#FEE2E2', color: '#DC2626', '&:hover': { bgcolor: '#FECACA' } }}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 3 }}>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
-  Box, Typography, Drawer, IconButton, Button, CircularProgress, Tooltip, Snackbar, Chip,
+  Box, Typography, Drawer, IconButton, Button, CircularProgress, Tooltip, Snackbar, Chip, useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import CloseIcon              from '@mui/icons-material/Close'
 import EditIcon               from '@mui/icons-material/Edit'
 import BlockIcon              from '@mui/icons-material/Block'
@@ -220,11 +221,18 @@ function ImageGallery({ propiedadId }) {
   const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
-    setLoading(true)
-    getPropiedadImagenes(propiedadId)
-      .then(rows => setImages(rows.map(r => getPublicImageUrl(r.storage_path))))
-      .catch(() => setImages([]))
-      .finally(() => setLoading(false))
+    async function load() {
+      setLoading(true)
+      try {
+        const rows = await getPropiedadImagenes(propiedadId)
+        setImages(rows.map(r => getPublicImageUrl(r.storage_path)))
+      } catch {
+        setImages([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [propiedadId])
 
   if (loading) {
@@ -315,6 +323,8 @@ function ImageGallery({ propiedadId }) {
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdit, onBaja, onReactivar, userRole, clienteId }) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [copied, setCopied]           = useState(false)
   const [contactos, setContactos]     = useState([])
   const [loadingContactos, setLoadingContactos] = useState(false)
@@ -389,7 +399,7 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: 520, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
+      slotProps={{ paper: { sx: { width: { xs: '100vw', sm: 520 }, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
     >
       {/* Header */}
       <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
@@ -418,8 +428,19 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
                 {ubicacion}
               </Typography>
             )}
+            {caracteristicas && (
+              <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', mt: 0.5 }}>
+                {caracteristicas}
+              </Typography>
+            )}
           </Box>
-          <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+          <IconButton
+            size="small"
+            onClick={onClose}
+            sx={{ bgcolor: '#FEE2E2', color: '#DC2626', '&:hover': { bgcolor: '#FECACA' } }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Box>
 
         {/* Precio destacado */}
@@ -607,7 +628,7 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
 
       {/* Footer */}
       <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>
-        {!isBaja && (
+        {!isBaja && !isMobile && (
           <Button
             variant="contained"
             startIcon={<EditIcon sx={{ fontSize: 15 }} />}
@@ -624,6 +645,7 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
         <Tooltip title="Copiar enlace público">
           <Button
             variant="outlined"
+            fullWidth={isMobile}
             startIcon={<LinkIcon sx={{ fontSize: 15 }} />}
             onClick={copyPublicLink}
             sx={{
@@ -635,7 +657,7 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
             {copied ? 'Copiado' : 'Compartir'}
           </Button>
         </Tooltip>
-        {isAdmin && !isBaja && (
+        {isAdmin && !isBaja && !isMobile && (
           <Button
             variant="outlined"
             startIcon={<BlockIcon sx={{ fontSize: 15 }} />}
@@ -663,18 +685,20 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
             Reactivar
           </Button>
         )}
-        <Button
-          variant="outlined"
-          onClick={onClose}
-          sx={{
-            borderRadius: '8px', textTransform: 'none', fontWeight: 500,
-            fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280',
-            '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' },
-            ml: 'auto',
-          }}
-        >
-          Cerrar
-        </Button>
+        {!isMobile && (
+          <Button
+            variant="outlined"
+            onClick={onClose}
+            sx={{
+              borderRadius: '8px', textTransform: 'none', fontWeight: 500,
+              fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280',
+              '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' },
+              ml: 'auto',
+            }}
+          >
+            Cerrar
+          </Button>
+        )}
       </Box>
 
       <Snackbar

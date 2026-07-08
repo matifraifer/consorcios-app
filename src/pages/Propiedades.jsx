@@ -4,8 +4,9 @@ import {
   TableHead, TableRow, Paper, Alert, CircularProgress, Button,
   TextField, Select, MenuItem, FormControl, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, Pagination,
-  InputAdornment, Switch, FormControlLabel, Snackbar,
+  InputAdornment, Switch, FormControlLabel, Snackbar, useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
 import VisibilityIcon from '@mui/icons-material/Visibility'
@@ -106,6 +107,8 @@ const selectSx = {
 export default function Propiedades() {
   const { user, clienteId } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [propiedades, setPropiedades] = useState([])
   const [loading, setLoading]         = useState(true)
@@ -266,20 +269,22 @@ export default function Propiedades() {
         <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
           Propiedades
         </Typography>
-        <Box display="flex" alignItems="center" gap={1.5}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreate}
-            sx={{
-              bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-              fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
-              boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-            }}
-          >
-            Nueva propiedad
-          </Button>
-        </Box>
+        {!isMobile && (
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreate}
+              sx={{
+                bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
+                fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
+                boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+              }}
+            >
+              Nueva propiedad
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {/* ── Filtros ── */}
@@ -377,13 +382,14 @@ export default function Propiedades() {
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
                 {[
                   { label: 'Título',    col: null },
-                  { label: 'Dirección', col: null },
-                  { label: 'Tipo',      col: null },
+                  ...(!isMobile ? [{ label: 'Dirección', col: null }, { label: 'Tipo', col: null }] : []),
                   { label: 'Operación', col: null },
                   { label: 'Precio',    col: 'precio_publicacion' },
-                  { label: 'Estado',    col: null },
-                  { label: 'Alta',      col: 'created_at' },
-                  { label: '',          col: null },
+                  ...(!isMobile ? [
+                    { label: 'Estado', col: null },
+                    { label: 'Alta',   col: 'created_at' },
+                    { label: '',       col: null },
+                  ] : []),
                 ].map(({ label, col }, i) => (
                   <TableCell
                     key={i}
@@ -391,7 +397,7 @@ export default function Propiedades() {
                     sx={{
                       fontWeight: 700, fontSize: '0.72rem', color: '#6B7280',
                       letterSpacing: '0.05em', textTransform: 'uppercase',
-                      py: 1.5, borderBottom: '1px solid #E5E7EB',
+                      py: 1.5, px: isMobile ? 1 : 2, borderBottom: '1px solid #E5E7EB',
                       cursor: col ? 'pointer' : 'default',
                       userSelect: 'none',
                       '&:hover': col ? { color: ACCENT } : {},
@@ -409,7 +415,7 @@ export default function Propiedades() {
             <TableBody>
               {pageData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} sx={{ py: 8, textAlign: 'center', border: 0 }}>
+                  <TableCell colSpan={isMobile ? 3 : 8} sx={{ py: 8, textAlign: 'center', border: 0 }}>
                     <SellIcon sx={{ fontSize: 32, color: '#E5E7EB', mb: 1, display: 'block', mx: 'auto' }} />
                     <Typography sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>
                       {search || activeFilters > 0 ? 'No se encontraron propiedades con esos filtros.' : 'No hay propiedades registradas.'}
@@ -432,7 +438,7 @@ export default function Propiedades() {
                       }}
                     >
                       {/* Título */}
-                      <TableCell sx={{ py: 1.5, maxWidth: 200 }}>
+                      <TableCell sx={{ py: 1.5, px: isMobile ? 1 : 2, maxWidth: isMobile ? 120 : 200 }}>
                         <Typography sx={{
                           fontSize: '0.875rem', fontWeight: 600, color: '#111827',
                           textDecoration: isBaja ? 'line-through' : 'none',
@@ -440,74 +446,84 @@ export default function Propiedades() {
                         }}>
                           {p.titulo}
                         </Typography>
-                        <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
+                        <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.localidad}, {p.provincia}
                         </Typography>
                       </TableCell>
 
                       {/* Dirección */}
-                      <TableCell sx={{ py: 1.5, maxWidth: 160 }}>
-                        <Typography sx={{ fontSize: '0.82rem', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {p.direccion}
-                        </Typography>
-                      </TableCell>
+                      {!isMobile && (
+                        <TableCell sx={{ py: 1.5, maxWidth: 160 }}>
+                          <Typography sx={{ fontSize: '0.82rem', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {p.direccion}
+                          </Typography>
+                        </TableCell>
+                      )}
 
                       {/* Tipo */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <TipoBadge tipo={p.tipo_propiedad} />
-                      </TableCell>
+                      {!isMobile && (
+                        <TableCell sx={{ py: 1.5 }}>
+                          <TipoBadge tipo={p.tipo_propiedad} />
+                        </TableCell>
+                      )}
 
                       {/* Operación */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ py: 1.5, px: isMobile ? 1 : 2 }}>
                         <OperacionBadge operacion={p.tipo_operacion} />
                       </TableCell>
 
                       {/* Precio */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ py: 1.5, px: isMobile ? 1 : 2 }}>
                         <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
                           {fmt(p.precio_publicacion, p.moneda)}
                         </Typography>
                       </TableCell>
 
                       {/* Estado */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <EstadoBadge estado={p.estado} />
-                      </TableCell>
+                      {!isMobile && (
+                        <TableCell sx={{ py: 1.5 }}>
+                          <EstadoBadge estado={p.estado} />
+                        </TableCell>
+                      )}
 
                       {/* Fecha alta */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>
-                          {fmtDate(p.created_at)}
-                        </Typography>
-                      </TableCell>
+                      {!isMobile && (
+                        <TableCell sx={{ py: 1.5 }}>
+                          <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>
+                            {fmtDate(p.created_at)}
+                          </Typography>
+                        </TableCell>
+                      )}
 
                       {/* Acciones */}
-                      <TableCell align="right" sx={{ py: 1.5, pr: 2 }}>
-                        <Box className="row-actions" sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                          <Tooltip title="Ver detalle">
-                            <IconButton size="small" onClick={e => { e.stopPropagation(); openDetalle(p) }}
-                              sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
-                              <VisibilityIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          </Tooltip>
-                          {!isBaja && (
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={e => openEdit(p, e)}
-                                sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
-                                <EditIcon sx={{ fontSize: 16 }} />
+                      {!isMobile && (
+                        <TableCell align="right" sx={{ py: 1.5, pr: 2 }}>
+                          <Box className="row-actions" sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                            <Tooltip title="Ver detalle">
+                              <IconButton size="small" onClick={e => { e.stopPropagation(); openDetalle(p) }}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                                <VisibilityIcon sx={{ fontSize: 16 }} />
                               </IconButton>
                             </Tooltip>
-                          )}
-                          {isAdmin && !isBaja && (
-                            <Tooltip title="Dar de baja">
-                              <IconButton size="small" onClick={e => openBaja(p, e)}
-                                sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
-                                <BlockIcon sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Box>
-                      </TableCell>
+                            {!isBaja && (
+                              <Tooltip title="Editar">
+                                <IconButton size="small" onClick={e => openEdit(p, e)}
+                                  sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
+                                  <EditIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {isAdmin && !isBaja && (
+                              <Tooltip title="Dar de baja">
+                                <IconButton size="small" onClick={e => openBaja(p, e)}
+                                  sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
+                                  <BlockIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        </TableCell>
+                      )}
                     </TableRow>
                   )
                 })

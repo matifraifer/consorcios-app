@@ -3,13 +3,15 @@ import {
   Box, Typography, Button, Paper, TextField, Select, MenuItem,
   FormControl, Table, TableHead, TableRow, TableCell, TableBody,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  Snackbar, Alert, CircularProgress, Tooltip, Chip,
+  Snackbar, Alert, CircularProgress, Tooltip, Chip, useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import EmailIcon from '@mui/icons-material/Email'
 import PhoneIcon from '@mui/icons-material/Phone'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
@@ -75,6 +77,8 @@ function getContactTipos(c) {
 export default function Contactos() {
   const { user } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [contactos, setContactos] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -197,7 +201,11 @@ export default function Contactos() {
     borderBottom: '1px solid #E5E7EB', py: 1.5, userSelect: 'none',
   }
 
-  const cols = [
+  const cols = isMobile ? [
+    { label: 'Nombre y Apellido', col: 'apellido' },
+    { label: 'Tipo',              col: null },
+    { label: '',                  col: null },
+  ] : [
     { label: 'Nombre y Apellido', col: 'apellido' },
     { label: 'Tipo',              col: null },
     { label: 'DNI',               col: 'dni' },
@@ -238,22 +246,33 @@ export default function Contactos() {
           </Box>
         </Box>
         <Box display="flex" gap={1.25}>
-          <Button
-            variant="outlined"
-            startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
-            onClick={() => setImportOpen(true)}
-            sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
-          >
-            Importar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleNew}
-            sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
-          >
-            Nuevo contacto
-          </Button>
+          {!isMobile && (
+            <Button
+              variant="outlined"
+              startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setImportOpen(true)}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ECFDF5' } }}
+            >
+              Importar
+            </Button>
+          )}
+          {isMobile ? (
+            <IconButton
+              onClick={handleNew}
+              sx={{ bgcolor: ACCENT, color: 'white', width: 40, height: 40, '&:hover': { bgcolor: '#047857' } }}
+            >
+              <AddIcon />
+            </IconButton>
+          ) : (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleNew}
+              sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+            >
+              Nuevo contacto
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -318,9 +337,9 @@ export default function Contactos() {
               {filtrados.map(c => (
                 <TableRow
                   key={c.id}
-                  hover
-                  onClick={() => handleRowClick(c)}
-                  sx={{ cursor: 'pointer', '& td': { borderBottom: '1px solid #F3F4F6' }, '&:last-child td': { borderBottom: 0 }, '&:hover .row-actions': { opacity: 1 } }}
+                  hover={!isMobile}
+                  onClick={isMobile ? undefined : () => handleRowClick(c)}
+                  sx={{ cursor: isMobile ? 'default' : 'pointer', '& td': { borderBottom: '1px solid #F3F4F6' }, '&:last-child td': { borderBottom: 0 }, '&:hover .row-actions': { opacity: 1 } }}
                 >
                   {/* Nombre */}
                   <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
@@ -331,64 +350,93 @@ export default function Contactos() {
                   <TableCell><TiposBadges tipos={c.tipos} tipo={c.tipo} /></TableCell>
 
                   {/* DNI */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#6B7280' }}>{c.dni ?? '—'}</TableCell>
+                  {!isMobile && <TableCell sx={{ fontSize: '0.82rem', color: '#6B7280' }}>{c.dni ?? '—'}</TableCell>}
 
                   {/* Teléfono */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>{c.telefono ?? '—'}</TableCell>
+                  {!isMobile && <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>{c.telefono ?? '—'}</TableCell>}
 
                   {/* Origen */}
-                  <TableCell><OrigenBadge origen={c.origen} /></TableCell>
+                  {!isMobile && <TableCell><OrigenBadge origen={c.origen} /></TableCell>}
 
                   {/* Propiedades */}
-                  <TableCell>
-                    {c.propiedades_count > 0 ? (
-                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', bgcolor: '#ECFDF5', color: ACCENT, fontSize: '0.72rem', fontWeight: 800, border: '1px solid #A7F3D0' }}>
-                        {c.propiedades_count}
-                      </Box>
-                    ) : (
-                      <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
-                    )}
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell>
+                      {c.propiedades_count > 0 ? (
+                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', bgcolor: '#ECFDF5', color: ACCENT, fontSize: '0.72rem', fontWeight: 800, border: '1px solid #A7F3D0' }}>
+                          {c.propiedades_count}
+                        </Box>
+                      ) : (
+                        <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
+                      )}
+                    </TableCell>
+                  )}
 
                   {/* Asignado */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
-                    {c.asignado_nombre ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                      {c.asignado_nombre ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
+                    </TableCell>
+                  )}
 
                   {/* Creado por */}
-                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
-                    {c.creado_por ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
-                  </TableCell>
+                  {!isMobile && (
+                    <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                      {c.creado_por ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
+                    </TableCell>
+                  )}
+
+                  {/* WhatsApp (mobile) */}
+                  {isMobile && (
+                    <TableCell align="right">
+                      {c.telefono ? (
+                        <IconButton
+                          size="small"
+                          component="a"
+                          href={`https://wa.me/${c.telefono.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          sx={{ color: '#25D366' }}
+                        >
+                          <WhatsAppIcon sx={{ fontSize: 20 }} />
+                        </IconButton>
+                      ) : (
+                        <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
+                      )}
+                    </TableCell>
+                  )}
 
                   {/* Acciones */}
-                  <TableCell align="right">
-                    <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" onClick={e => e.stopPropagation()}>
-                      {c.email && (
-                        <Tooltip title="Copiar correo">
-                          <IconButton size="small" onClick={() => copyToClipboard(c.email, 'Correo')} sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
-                            <EmailIcon sx={{ fontSize: 15 }} />
+                  {!isMobile && (
+                    <TableCell align="right">
+                      <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" onClick={e => e.stopPropagation()}>
+                        {c.email && (
+                          <Tooltip title="Copiar correo">
+                            <IconButton size="small" onClick={() => copyToClipboard(c.email, 'Correo')} sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
+                              <EmailIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {c.telefono && (
+                          <Tooltip title="Copiar teléfono">
+                            <IconButton size="small" onClick={() => copyToClipboard(c.telefono, 'Teléfono')} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                              <PhoneIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => handleRowClick(c)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                            <EditIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Tooltip>
-                      )}
-                      {c.telefono && (
-                        <Tooltip title="Copiar teléfono">
-                          <IconButton size="small" onClick={() => copyToClipboard(c.telefono, 'Teléfono')} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
-                            <PhoneIcon sx={{ fontSize: 15 }} />
+                        <Tooltip title="Eliminar">
+                          <IconButton size="small" onClick={() => setDeleteDialog(c)} sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
+                            <DeleteOutlineIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Tooltip>
-                      )}
-                      <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => handleRowClick(c)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
-                          <EditIcon sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Eliminar">
-                        <IconButton size="small" onClick={() => setDeleteDialog(c)} sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
-                          <DeleteOutlineIcon sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
+                      </Box>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

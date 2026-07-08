@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, TextField, Button,
-  Alert, CircularProgress, Chip, Autocomplete, Select, MenuItem, FormControl,
+  Alert, CircularProgress, Chip, Autocomplete, Select, MenuItem, FormControl, useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import CloseIcon          from '@mui/icons-material/Close'
 import CheckIcon          from '@mui/icons-material/Check'
 import LockOutlinedIcon   from '@mui/icons-material/LockOutlined'
@@ -194,6 +195,8 @@ function ConsultaBanner({ consulta }) {
 
 export default function ContactoFormDrawer({ open, onClose, contacto, clienteId, onSaved, prefill }) {
   const { user } = useAuth()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const isEdit = !!contacto
   const [form, setForm]                             = useState(FORM_EMPTY)
@@ -429,7 +432,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: 520, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
+      slotProps={{ paper: { sx: { width: { xs: '100vw', sm: 520 }, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
     >
 
       {/* Header */}
@@ -447,7 +450,13 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
             </Typography>
           </Box>
         </Box>
-        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{ bgcolor: '#FEE2E2', color: '#DC2626', '&:hover': { bgcolor: '#FECACA' } }}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
       </Box>
 
       {/* Body */}
@@ -461,7 +470,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
 
         {/* Tipo de contacto */}
         <SectionTitle>Tipo de contacto</SectionTitle>
-        <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+        <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5}>
           {TIPOS_CONTACTO.map(t => (
             <TypeCard key={t} tipo={t} selected={form.tipos.includes(t)} onToggle={toggleTipo} />
           ))}
@@ -470,7 +479,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         {/* Datos personales */}
         <SectionTitle>Datos personales</SectionTitle>
 
-        <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={2}>
+        <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5} mb={2}>
           <Box>
             <Label required>Nombre</Label>
             <TextField fullWidth size="small" value={form.nombre} onChange={e => set('nombre', e.target.value)} sx={fieldSx} />
@@ -497,7 +506,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         {/* Datos de contacto */}
         <SectionTitle>Datos de contacto</SectionTitle>
 
-        <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={2}>
+        <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5} mb={2}>
           <Box>
             <Label required>Teléfono</Label>
             <TextField fullWidth size="small" value={form.telefono} onChange={e => set('telefono', e.target.value)} sx={fieldSx} />
@@ -528,26 +537,28 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           </Box>
         </Box>
 
-        <Box mb={2}>
-          <Label>Tipo de operación</Label>
-          <Box display="flex" gap={1} mt={0.5}>
-            {TIPOS_OPERACION.map(op => {
-              const active = form.tipo_operacion === op
-              return (
-                <Box key={op} onClick={() => set('tipo_operacion', active ? '' : op)} sx={{
-                  flex: 1, py: 1.1, textAlign: 'center', borderRadius: '8px', cursor: 'pointer',
-                  border: `1px solid ${active ? ACCENT : '#E5E7EB'}`,
-                  bgcolor: active ? '#ECFDF5' : 'white', transition: 'all 0.15s',
-                  '&:hover': { borderColor: ACCENT },
-                }}>
-                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: active ? ACCENT : '#6B7280' }}>
-                    {op}
-                  </Typography>
-                </Box>
-              )
-            })}
+        {!isMobile && (
+          <Box mb={2}>
+            <Label>Tipo de operación</Label>
+            <Box display="flex" gap={1} mt={0.5}>
+              {TIPOS_OPERACION.map(op => {
+                const active = form.tipo_operacion === op
+                return (
+                  <Box key={op} onClick={() => set('tipo_operacion', active ? '' : op)} sx={{
+                    flex: 1, py: 1.1, textAlign: 'center', borderRadius: '8px', cursor: 'pointer',
+                    border: `1px solid ${active ? ACCENT : '#E5E7EB'}`,
+                    bgcolor: active ? '#ECFDF5' : 'white', transition: 'all 0.15s',
+                    '&:hover': { borderColor: ACCENT },
+                  }}>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: active ? ACCENT : '#6B7280' }}>
+                      {op}
+                    </Typography>
+                  </Box>
+                )
+              })}
+            </Box>
           </Box>
-        </Box>
+        )}
 
         {showDemandFields && (
           <>
@@ -854,20 +865,22 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         >
           {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear contacto'}
         </Button>
-        <Button
-          variant="outlined"
-          onClick={handleCrearSeguimiento}
-          disabled={creandoSeguimiento || saving}
-          startIcon={creandoSeguimiento ? <CircularProgress size={14} color="inherit" /> : <PersonAddIcon sx={{ fontSize: 15 }} />}
-          sx={{
-            borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
-            borderColor: ACCENT, color: ACCENT,
-            '&:hover': { bgcolor: '#ECFDF5', borderColor: ACCENT },
-            '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
-          }}
-        >
-          {creandoSeguimiento ? 'Creando...' : isEdit ? 'Crear seguimiento' : 'Crear y hacer seguimiento'}
-        </Button>
+        {!isMobile && (
+          <Button
+            variant="outlined"
+            onClick={handleCrearSeguimiento}
+            disabled={creandoSeguimiento || saving}
+            startIcon={creandoSeguimiento ? <CircularProgress size={14} color="inherit" /> : <PersonAddIcon sx={{ fontSize: 15 }} />}
+            sx={{
+              borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+              borderColor: ACCENT, color: ACCENT,
+              '&:hover': { bgcolor: '#ECFDF5', borderColor: ACCENT },
+              '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
+            }}
+          >
+            {creandoSeguimiento ? 'Creando...' : isEdit ? 'Crear seguimiento' : 'Crear y hacer seguimiento'}
+          </Button>
+        )}
         <Button
           onClick={onClose}
           variant="outlined"

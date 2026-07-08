@@ -91,7 +91,11 @@ export default function ConsultaDetalleDrawer({
             </Typography>
           </Box>
         </Box>
-        <IconButton size="small" onClick={onClose} sx={{ color: '#9CA3AF', mt: 0.25 }}>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{ bgcolor: '#FEE2E2', color: '#DC2626', mt: 0.25, '&:hover': { bgcolor: '#FECACA' } }}
+        >
           <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
