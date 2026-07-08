@@ -74,6 +74,7 @@ function getContactTipos(c) {
 
 export default function Contactos() {
   const { user } = useAuth()
+  const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const [contactos, setContactos] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -109,6 +110,7 @@ export default function Contactos() {
   const filtrados = useMemo(() => {
     const q = search.toLowerCase().trim()
     let list = contactos.filter(c => {
+      if (!isAdmin && c.creado_por !== user?.nombre_usuario && c.asignado_nombre !== user?.nombre_usuario) return false
       if (tipoFiltro !== 'Todos') {
         if (!getContactTipos(c).includes(tipoFiltro)) return false
       }
@@ -134,11 +136,12 @@ export default function Contactos() {
       if (sortBy === 'telefono')        { va = a.telefono ?? ''; vb = b.telefono ?? '' }
       if (sortBy === 'origen')          { va = a.origen ?? 'APP'; vb = b.origen ?? 'APP' }
       if (sortBy === 'asignado_nombre') { va = a.asignado_nombre ?? ''; vb = b.asignado_nombre ?? '' }
+      if (sortBy === 'creado_por')      { va = a.creado_por ?? ''; vb = b.creado_por ?? '' }
       return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
     })
 
     return list
-  }, [contactos, search, tipoFiltro, origenFiltro, sortBy, sortDir])
+  }, [contactos, search, tipoFiltro, origenFiltro, sortBy, sortDir, isAdmin, user?.nombre_usuario])
 
   function toggleSort(col) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -202,6 +205,7 @@ export default function Contactos() {
     { label: 'Origen',            col: 'origen' },
     { label: 'Propiedades',       col: 'propiedades_count' },
     { label: 'Asignado',          col: 'asignado_nombre' },
+    { label: 'Creado por',        col: 'creado_por' },
     { label: '',                  col: null },
   ]
 
@@ -349,6 +353,11 @@ export default function Contactos() {
                   {/* Asignado */}
                   <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
                     {c.asignado_nombre ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
+                  </TableCell>
+
+                  {/* Creado por */}
+                  <TableCell sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                    {c.creado_por ?? <Typography component="span" sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>}
                   </TableCell>
 
                   {/* Acciones */}

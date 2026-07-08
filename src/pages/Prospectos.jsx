@@ -191,6 +191,7 @@ function KanbanColumn({ etapa, prospectos, onAction, onInfo }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Prospectos() {
   const { user, clienteId } = useAuth()
+  const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const [etapas, setEtapas] = useState([])
   const [prospectos, setProspectos] = useState([])
   const [propiedades, setPropiedades] = useState([])
@@ -220,7 +221,12 @@ export default function Prospectos() {
   }
 
   async function loadProspectos() {
-    const data = await getProspectos({ tipo_operacion: tipoFiltro, includeCierreNegativo: showNegativo, cliente_id: clienteId })
+    const data = await getProspectos({
+      tipo_operacion: tipoFiltro,
+      includeCierreNegativo: showNegativo,
+      cliente_id: clienteId,
+      asignado_nombre: isAdmin ? undefined : user?.nombre_usuario,
+    })
     setProspectos(data)
   }
 

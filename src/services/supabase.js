@@ -497,13 +497,15 @@ export async function getEtapasCRM() {
   return data
 }
 
-export async function getProspectos({ tipo_operacion, includeCierreNegativo = false, cliente_id }) {
-  const { data, error } = await supabase
+export async function getProspectos({ tipo_operacion, includeCierreNegativo = false, cliente_id, asignado_nombre }) {
+  let query = supabase
     .from('prospectos')
     .select('*, propiedades(id, titulo, precio_publicacion, moneda)')
     .eq('tipo_operacion', tipo_operacion)
     .eq('cliente_id', cliente_id)
     .order('created_at', { ascending: false })
+  if (asignado_nombre) query = query.eq('asignado_nombre', asignado_nombre)
+  const { data, error } = await query
   if (error) throw error
   return data.filter(p => {
     if (!p.cerrado) return true
@@ -1306,7 +1308,7 @@ export async function updateContacto(id, data) {
 
 const TIPOS_CONTACTO_VALIDOS = ['Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
 
-export async function importarContactos(filas, clienteId) {
+export async function importarContactos(filas, clienteId, creadoPor = null) {
   const { data: existentes, error: exErr } = await supabase
     .from('contactos')
     .select('dni, email')
@@ -1343,7 +1345,7 @@ export async function importarContactos(filas, clienteId) {
       const { error } = await supabase.from('contactos').insert([{
         nombre, apellido, tipos: [tipoNormalizado], tipo: tipoNormalizado,
         telefono, dni: dni || null, email: email || null,
-        cliente_id: clienteId, activo: true, origen: 'IMPORTADO',
+        cliente_id: clienteId, activo: true, origen: 'IMPORTADO', creado_por: creadoPor,
       }])
       if (error) throw error
       if (dniNorm) dnisExistentes.add(dniNorm)

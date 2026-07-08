@@ -19,6 +19,7 @@ import {
   sugerirPropiedadesPorContacto, getPropiedadesExtSugeridas,
   getEtapasCRM, createProspecto,
 } from '../../services/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,8 @@ function ConsultaBanner({ consulta }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ContactoFormDrawer({ open, onClose, contacto, clienteId, onSaved, prefill }) {
+  const { user } = useAuth()
+  const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const isEdit = !!contacto
   const [form, setForm]                             = useState(FORM_EMPTY)
   const [propiedadesVinculadas, setPropVinculadas]  = useState([])
@@ -246,6 +249,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
     } else {
       setForm({
         ...FORM_EMPTY,
+        asignado_nombre: user?.nombre_usuario ?? '',
         ...(prefill ? {
           nombre:         prefill.nombre          ?? '',
           apellido:       prefill.apellido        ?? '',
@@ -368,7 +372,12 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
       asignado_nombre: form.asignado_nombre || null,
       cliente_id: clienteId,
     }
-    if (!isEdit) { payload.dni = form.dni.trim(); payload.activo = true; payload.origen = 'APP' }
+    if (!isEdit) {
+      payload.dni = form.dni.trim()
+      payload.activo = true
+      payload.origen = 'APP'
+      payload.creado_por = user?.nombre_usuario ?? null
+    }
     const result = isEdit ? await updateContacto(contacto.id, payload) : await createContacto(payload)
     await setContactoPropiedades(result.id, propiedadesVinculadas.map(p => p.id))
     return result
@@ -791,27 +800,31 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         )}
 
         {/* Operador asignado */}
-        <SectionTitle>Operador asignado</SectionTitle>
-        <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-          <Select
-            value={form.asignado_nombre}
-            onChange={e => set('asignado_nombre', e.target.value)}
-            displayEmpty
-            sx={{
-              borderRadius: '8px', fontSize: '0.875rem',
-              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
-            }}
-          >
-            <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Sin asignar</MenuItem>
-            {usuarios.map(u => (
-              <MenuItem key={u.id} value={u.nombre_usuario} sx={{ fontSize: '0.875rem' }}>
-                {u.nombre_usuario}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        {isAdmin && (
+          <>
+            <SectionTitle>Operador asignado</SectionTitle>
+            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+              <Select
+                value={form.asignado_nombre}
+                onChange={e => set('asignado_nombre', e.target.value)}
+                displayEmpty
+                sx={{
+                  borderRadius: '8px', fontSize: '0.875rem',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
+                }}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Sin asignar</MenuItem>
+                {usuarios.map(u => (
+                  <MenuItem key={u.id} value={u.nombre_usuario} sx={{ fontSize: '0.875rem' }}>
+                    {u.nombre_usuario}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </>
+        )}
 
         {/* Notas */}
         <Box mt={2}>

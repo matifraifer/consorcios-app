@@ -156,6 +156,7 @@ export default function Sidebar() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, logout } = useAuth()
+  const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const [collapsed, setCollapsed] = useState(false)
 
   const [adminOpen, setAdminOpen] = useState(true)
@@ -485,28 +486,30 @@ export default function Sidebar() {
         )}
 
         {/* Configuración */}
-        <Tooltip title={collapsed ? 'Configuración de la cuenta' : ''} placement="right">
-          <Box
-            onClick={() => navigate('/configuracion')}
-            sx={{
-              display: 'flex', alignItems: 'center', gap: 1.25,
-              px: collapsed ? 0 : 1.5, py: 0.875, mb: 0.5,
-              borderRadius: '8px', cursor: 'pointer',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: location.pathname === '/configuracion' ? ACCENT : '#6B7C74',
-              bgcolor: location.pathname === '/configuracion' ? 'rgba(16,185,129,0.08)' : 'transparent',
-              transition: 'all 0.15s',
-              '&:hover': { bgcolor: 'rgba(16,185,129,0.08)', color: ACCENT },
-            }}
-          >
-            <SettingsIcon sx={{ fontSize: 17 }} />
-            {!collapsed && (
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: 'inherit' }}>
-                Configuración
-              </Typography>
-            )}
-          </Box>
-        </Tooltip>
+        {isAdmin && (
+          <Tooltip title={collapsed ? 'Configuración de la cuenta' : ''} placement="right">
+            <Box
+              onClick={() => navigate('/configuracion')}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 1.25,
+                px: collapsed ? 0 : 1.5, py: 0.875, mb: 0.5,
+                borderRadius: '8px', cursor: 'pointer',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                color: location.pathname === '/configuracion' ? ACCENT : '#6B7C74',
+                bgcolor: location.pathname === '/configuracion' ? 'rgba(16,185,129,0.08)' : 'transparent',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: 'rgba(16,185,129,0.08)', color: ACCENT },
+              }}
+            >
+              <SettingsIcon sx={{ fontSize: 17 }} />
+              {!collapsed && (
+                <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: 'inherit' }}>
+                  Configuración
+                </Typography>
+              )}
+            </Box>
+          </Tooltip>
+        )}
 
         <Tooltip title={collapsed ? 'Cerrar sesion' : ''} placement="right">
           <Box

@@ -12,6 +12,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import GroupAddIcon from '@mui/icons-material/GroupAdd'
 import { importarContactos } from '../../services/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -35,6 +36,7 @@ function CountBox({ icon, value, label, color, bg, border }) {
 }
 
 export default function ImportarContactosDrawer({ open, onClose, clienteId, onImported }) {
+  const { user } = useAuth()
   const fileInputRef = useRef(null)
   const [preview, setPreview] = useState([])
   const [resultados, setResultados] = useState([])
@@ -115,7 +117,7 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
     setImporting(true)
     setFileError(null)
     try {
-      const res = await importarContactos(preview, clienteId)
+      const res = await importarContactos(preview, clienteId, user?.nombre_usuario ?? null)
       setResultados(res)
     } catch (err) {
       setFileError(err.message)

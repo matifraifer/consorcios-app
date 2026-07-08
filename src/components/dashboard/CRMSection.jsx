@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Box, Typography, Button, IconButton, Tooltip, Snackbar } from '@mui/material'
+import { useEffect, useMemo, useState } from 'react'
+import { Box, Typography, Button, IconButton, Tooltip, Snackbar, FormControl, Select, MenuItem } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import LanguageIcon      from '@mui/icons-material/Language'
 import OtherHousesIcon   from '@mui/icons-material/OtherHouses'
@@ -10,9 +10,21 @@ import CheckIcon         from '@mui/icons-material/Check'
 import ArrowForwardIcon  from '@mui/icons-material/ArrowForward'
 import PersonOffIcon     from '@mui/icons-material/PersonOff'
 import { useAuth } from '../../contexts/AuthContext'
+import { getUsuarios } from '../../services/supabase'
 
 const ACCENT = '#065F46'
 const DARK   = '#071A0F'
+
+const selectSx = {
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  bgcolor: 'white',
+  borderRadius: '8px',
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#065F46' },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#065F46', borderWidth: 1 },
+  '& .MuiSelect-select': { py: 0.6, px: 1.25 },
+}
 
 const ETAPA_COLORS = [
   { color: '#1D4ED8', border: '#BFDBFE', bg: '#EFF6FF' },
@@ -70,14 +82,27 @@ function SectionHeader({ icon, title, right }) {
 }
 
 export default function CRMSection({ prospectos, etapas, visitas, consultasPendientes = 0, propiedadesData = [], sinAsignar = 0 }) {
-  const { user } = useAuth()
+  const { user, clienteId } = useAuth()
   const navigate = useNavigate()
   const nombre = user?.nombre_usuario?.split(' ')[0] ?? ''
+  const isAdmin = user?.rol?.toLowerCase() === 'admin'
 
-  const [copiedId, setCopiedId]   = useState(null)
-  const [snackOpen, setSnackOpen] = useState(false)
+  const [copiedId, setCopiedId]     = useState(null)
+  const [snackOpen, setSnackOpen]   = useState(false)
+  const [operadores, setOperadores] = useState([])
+  const [filtroOperador, setFiltroOperador] = useState('')
 
-  const active = prospectos.filter(p => !p.cerrado)
+  useEffect(() => {
+    if (!isAdmin || !clienteId) return
+    getUsuarios(clienteId)
+      .then(list => setOperadores(list.filter(u => u.rol?.toLowerCase() === 'operador')))
+      .catch(() => {})
+  }, [isAdmin, clienteId])
+
+  const activeAll = prospectos.filter(p => !p.cerrado)
+  const active = isAdmin
+    ? (filtroOperador ? activeAll.filter(p => p.asignado_nombre === filtroOperador) : activeAll)
+    : activeAll.filter(p => p.asignado_nombre === user?.nombre_usuario)
 
   const kpiEtapas = etapas.map((etapa, i) => ({
     ...etapa,
@@ -221,46 +246,48 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
       </Box>
 
       {/* ══ PROPIEDADES ══ */}
-      <Box sx={{ mb: 4 }}>
-        <SectionHeader
-          icon={<OtherHousesIcon sx={{ fontSize: 16, color: ACCENT }} />}
-          title="Propiedades disponibles"
-        />
+      {isAdmin && (
+        <Box sx={{ mb: 4 }}>
+          <SectionHeader
+            icon={<OtherHousesIcon sx={{ fontSize: 16, color: ACCENT }} />}
+            title="Propiedades disponibles"
+          />
 
-        <Box display="flex" gap={2} flexWrap="wrap">
-          {[
-            { label: 'VENTA',    props: ventaProps,    tipos: ventaTipos,    color: ACCENT,    bg: '#ECFDF5', border: '#A7F3D0', tipoColor: ACCENT },
-            { label: 'ALQUILER', props: alquilerProps, tipos: alquilerTipos, color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', tipoColor: '#1D4ED8' },
-          ].map(({ label, props, tipos, color, bg, border, tipoColor }) => (
-            <Box key={label} sx={{
-              flex: '1 1 220px', bgcolor: 'white',
-              border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden',
-            }}>
-              <Box sx={{ px: 3, pt: 2.5, pb: 2, borderBottom: tipos.length > 0 ? '1px solid #F3F4F6' : 'none' }}>
-                <Box sx={{ display: 'inline-flex', px: 1.25, py: 0.35, bgcolor: bg, border: `1px solid ${border}`, borderRadius: '6px', mb: 1.25 }}>
-                  <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color }}>{label}</Typography>
+          <Box display="flex" gap={2} flexWrap="wrap">
+            {[
+              { label: 'VENTA',    props: ventaProps,    tipos: ventaTipos,    color: ACCENT,    bg: '#ECFDF5', border: '#A7F3D0', tipoColor: ACCENT },
+              { label: 'ALQUILER', props: alquilerProps, tipos: alquilerTipos, color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', tipoColor: '#1D4ED8' },
+            ].map(({ label, props, tipos, color, bg, border, tipoColor }) => (
+              <Box key={label} sx={{
+                flex: '1 1 220px', bgcolor: 'white',
+                border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden',
+              }}>
+                <Box sx={{ px: 3, pt: 2.5, pb: 2, borderBottom: tipos.length > 0 ? '1px solid #F3F4F6' : 'none' }}>
+                  <Box sx={{ display: 'inline-flex', px: 1.25, py: 0.35, bgcolor: bg, border: `1px solid ${border}`, borderRadius: '6px', mb: 1.25 }}>
+                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color }}>{label}</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: '2.4rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>
+                    {props.length}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.65rem', color: '#9CA3AF', mt: 0.3 }}>
+                    propiedad{props.length !== 1 ? 'es' : ''} disponible{props.length !== 1 ? 's' : ''}
+                  </Typography>
                 </Box>
-                <Typography sx={{ fontSize: '2.4rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>
-                  {props.length}
-                </Typography>
-                <Typography sx={{ fontSize: '0.65rem', color: '#9CA3AF', mt: 0.3 }}>
-                  propiedad{props.length !== 1 ? 'es' : ''} disponible{props.length !== 1 ? 's' : ''}
-                </Typography>
+                {tipos.length > 0 && (
+                  <Box sx={{ px: 3, py: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    {tipos.map(([tipo, count]) => (
+                      <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.25, py: 0.4, bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px' }}>
+                        <Typography sx={{ fontSize: '0.65rem', color: '#374151', fontWeight: 500 }}>{tipo}</Typography>
+                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: tipoColor }}>{count}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
-              {tipos.length > 0 && (
-                <Box sx={{ px: 3, py: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {tipos.map(([tipo, count]) => (
-                    <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.25, py: 0.4, bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px' }}>
-                      <Typography sx={{ fontSize: '0.65rem', color: '#374151', fontWeight: 500 }}>{tipo}</Typography>
-                      <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: tipoColor }}>{count}</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Box>
-          ))}
+            ))}
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* ══ SEGUIMIENTO DE CONTACTOS ══ */}
       <Box sx={{ mb: 4 }}>
@@ -268,12 +295,29 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
           icon={<GroupIcon sx={{ fontSize: 16, color: '#7C3AED' }} />}
           title="Seguimiento de contactos"
           right={
-            sinAsignar > 0 ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.5, bgcolor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px' }}>
-                <PersonOffIcon sx={{ fontSize: 13, color: '#B45309' }} />
-                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>
-                  {sinAsignar} sin asignar
-                </Typography>
+            isAdmin ? (
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <FormControl size="small" sx={{ minWidth: 170 }}>
+                  <Select
+                    value={filtroOperador}
+                    onChange={e => setFiltroOperador(e.target.value)}
+                    displayEmpty
+                    sx={selectSx}
+                  >
+                    <MenuItem value=""><em style={{ fontStyle: 'normal', color: '#9CA3AF' }}>Todos los operadores</em></MenuItem>
+                    {operadores.map(o => (
+                      <MenuItem key={o.id} value={o.nombre_usuario} sx={{ fontSize: '0.78rem' }}>{o.nombre_usuario}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {sinAsignar > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.5, bgcolor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px' }}>
+                    <PersonOffIcon sx={{ fontSize: 13, color: '#B45309' }} />
+                    <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>
+                      {sinAsignar} sin asignar
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             ) : null
           }
