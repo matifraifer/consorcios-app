@@ -7,6 +7,7 @@ import LanguageIcon from '@mui/icons-material/Language'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import { useAuth } from '../contexts/AuthContext'
 import {
   // getMlToken, deleteMlToken, supabase, // MercadoLibre — deshabilitado temporalmente
@@ -462,11 +463,24 @@ export default function Configuracion() {
               sx={{ ...fieldSx, mb: 0.5 }}
               inputProps={{ maxLength: 60 }}
             />
-            <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF', mb: 2.5 }}>
-              URL pública: <span style={{ color: '#374151', fontWeight: 600 }}>
-                consorcios-app.vercel.app/inmobiliaria/{extension.trim() || '<extension>'}
-              </span>
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2.5 }}>
+              <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+                URL pública: <span style={{ color: '#374151', fontWeight: 600 }}>
+                  app.granito.com.ar/inmobiliaria/{extension.trim() || '<extension>'}
+                </span>
+              </Typography>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://app.granito.com.ar/inmobiliaria/${extension.trim()}`)
+                  setSnackMsg('URL copiada al portapapeles')
+                }}
+                disabled={!extension.trim()}
+                sx={{ p: 0.4 }}
+              >
+                <ContentCopyIcon sx={{ fontSize: 14, color: '#9CA3AF' }} />
+              </IconButton>
+            </Box>
 
             {/* Colores */}
             <Label>Colores</Label>
