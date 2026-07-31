@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Box, TextField, Button, Typography, Alert, CircularProgress, GlobalStyles } from '@mui/material'
+import { Navigate, Link as RouterLink } from 'react-router-dom'
+import { Box, TextField, Button, Typography, Alert, CircularProgress, GlobalStyles, Link } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 
 const loginStyles = (
@@ -499,6 +499,19 @@ export default function Login() {
               >
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </Button>
+
+              <Link
+                component={RouterLink}
+                to="/olvide-password"
+                sx={{
+                  display: 'block', textAlign: 'center', mt: 2.5, fontSize: 13,
+                  color: '#6B7280', textDecoration: 'none', fontWeight: 600,
+                  fontFamily: "'Poppins', sans-serif",
+                  '&:hover': { color: '#065F46' },
+                }}
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
             </form>
           </Box>
 
