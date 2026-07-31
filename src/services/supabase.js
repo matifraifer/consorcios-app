@@ -24,6 +24,15 @@ export async function signOutSupabase() {
   if (error) throw error
 }
 
+export async function requestPasswordReset(username) {
+  const email = await resolveEmailForUsername(username)
+  if (!email) return
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/cambiar-password`,
+  })
+  if (error) throw error
+}
+
 export async function updateUserPassword(newPassword) {
   const { data, error } = await supabase.auth.updateUser({
     password: newPassword,
