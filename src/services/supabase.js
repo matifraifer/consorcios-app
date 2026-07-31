@@ -75,7 +75,7 @@ export async function getConsorcios(cliente_id) {
 export async function getConsorcioById(id) {
   const { data, error } = await supabase
     .from('consorcios')
-    .select('id, nombre, usuarios(nombre_usuario)')
+    .select('id, nombre, tasa_mora')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -86,6 +86,17 @@ export async function createConsorcio({ nombre, cliente_id }) {
   const { data, error } = await supabase
     .from('consorcios')
     .insert([{ nombre, cliente_id }])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateConsorcio(id, { tasa_mora }) {
+  const { data, error } = await supabase
+    .from('consorcios')
+    .update({ tasa_mora })
+    .eq('id', id)
     .select()
     .single()
   if (error) throw error
@@ -123,10 +134,21 @@ export async function getDepartamentosByConsorcio(id_consorcio) {
   return data
 }
 
-export async function createDepartamento({ numeracion, inquilino, id_propietario, id_consorcio, coeficiente }) {
+export async function createDepartamento({ numeracion, inquilino, id_propietario, id_consorcio, coeficiente, email }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .insert([{ numeracion, inquilino, id_propietario: id_propietario || null, id_consorcio, coeficiente: coeficiente || null }])
+    .insert([{ numeracion, inquilino, id_propietario: id_propietario || null, id_consorcio, coeficiente: coeficiente || null, email: email || null }])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateDepartamento(id, { numeracion, inquilino, id_propietario, coeficiente, email }) {
+  const { data, error } = await supabase
+    .from('departamentos')
+    .update({ numeracion, inquilino: inquilino || null, id_propietario: id_propietario || null, coeficiente: coeficiente || null, email: email || null })
+    .eq('id', id)
     .select()
     .single()
   if (error) throw error
@@ -174,10 +196,10 @@ export async function getPropietariosConDetalle(id_consorcio) {
   return data
 }
 
-export async function createPropietario({ dni, nombre, apellido, id_consorcio }) {
+export async function createPropietario({ dni, nombre, apellido, id_consorcio, cliente_id }) {
   const { data, error } = await supabase
     .from('propietarios')
-    .insert([{ dni, nombre, apellido, id_consorcio }])
+    .insert([{ dni, nombre, apellido, id_consorcio, cliente_id }])
     .select()
     .single()
   if (error) throw error
@@ -195,7 +217,7 @@ export async function createPropietarioCRM({ nombre, apellido, dni, cliente_id }
   return data
 }
 
-export async function updatePropietarioCRM(id, { nombre, apellido, dni }) {
+export async function updatePropietario(id, { nombre, apellido, dni }) {
   const { data, error } = await supabase
     .from('propietarios')
     .update({ nombre, apellido, dni: dni || '' })
@@ -217,7 +239,7 @@ export async function getPropietarioCRM(id) {
   return data
 }
 
-export async function importarPropietarios(filas, id_consorcio) {
+export async function importarPropietarios(filas, id_consorcio, cliente_id) {
   // Traer departamentos del consorcio para poder vincular por numeracion
   const { data: deptos, error: dErr } = await supabase
     .from('departamentos')
@@ -246,7 +268,7 @@ export async function importarPropietarios(filas, id_consorcio) {
 
       const { data: prop, error: pErr } = await supabase
         .from('propietarios')
-        .insert([{ nombre, apellido, dni: fila.dni, id_consorcio }])
+        .insert([{ nombre, apellido, dni: fila.dni, id_consorcio, cliente_id }])
         .select()
         .single()
       if (pErr) throw pErr
@@ -335,6 +357,17 @@ export async function getPeriodos(cliente_id) {
   return data
 }
 
+export async function getPeriodosByConsorcio(consorcio_id) {
+  const { data, error } = await supabase
+    .from('periodos_expensas')
+    .select('*, gastos(monto)')
+    .eq('consorcio_id', consorcio_id)
+    .order('anio', { ascending: false })
+    .order('mes', { ascending: false })
+  if (error) throw error
+  return data
+}
+
 export async function getPeriodoById(id) {
   const { data, error } = await supabase
     .from('periodos_expensas')
@@ -345,10 +378,10 @@ export async function getPeriodoById(id) {
   return data
 }
 
-export async function createPeriodo({ consorcio_id, mes, anio, cliente_id }) {
+export async function createPeriodo({ consorcio_id, mes, anio, cliente_id, usuario_id, fecha_vencimiento }) {
   const { data, error } = await supabase
     .from('periodos_expensas')
-    .insert([{ consorcio_id, mes, anio, estado: 'abierto', cliente_id }])
+    .insert([{ consorcio_id, mes, anio, estado: 'abierto', cliente_id, usuario_id, fecha_vencimiento: fecha_vencimiento || null }])
     .select()
     .single()
   if (error) throw error
@@ -476,6 +509,38 @@ export async function getExpensasPendientes(cliente_id) {
     .eq('pagado', false)
   if (error) throw error
   return data
+}
+
+export async function getLiquidacionesConsorcio(consorcio_id) {
+  const [{ data: departamentos, error: depErr }, { data: periodos, error: perErr }] = await Promise.all([
+    supabase
+      .from('departamentos')
+      .select('id, numeracion, inquilino, propietarios(nombre, apellido)')
+      .eq('id_consorcio', consorcio_id)
+      .order('numeracion', { ascending: true }),
+    supabase
+      .from('periodos_expensas')
+      .select('id, mes, anio, fecha_vencimiento')
+      .eq('consorcio_id', consorcio_id)
+      .eq('estado', 'cerrado')
+      .order('anio', { ascending: false })
+      .order('mes', { ascending: false }),
+  ])
+  if (depErr) throw depErr
+  if (perErr) throw perErr
+
+  const periodoIds = periodos.map(p => p.id)
+  let expensas = []
+  if (periodoIds.length > 0) {
+    const { data, error } = await supabase
+      .from('expensas_departamento')
+      .select('id, periodo_id, departamento_id, monto_total, monto_pagado, pagado')
+      .in('periodo_id', periodoIds)
+    if (error) throw error
+    expensas = data
+  }
+
+  return { departamentos, periodos, expensas }
 }
 
 export async function getExpensasDepartamento(periodo_id) {

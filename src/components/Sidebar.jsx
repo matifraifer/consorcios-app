@@ -1,11 +1,9 @@
 import { Box, Collapse, Tooltip, Typography } from '@mui/material'
 import HomeIcon from '@mui/icons-material/Home'
 import ApartmentIcon from '@mui/icons-material/Apartment'
-import HomeWorkIcon from '@mui/icons-material/HomeWork'
 import OtherHousesIcon from '@mui/icons-material/OtherHouses'
 import GroupIcon from '@mui/icons-material/Group'
 import ReportProblemIcon from '@mui/icons-material/ReportProblem'
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import DescriptionIcon from '@mui/icons-material/Description'
 import PermContactCalendarIcon from '@mui/icons-material/PermContactCalendar'
 import LanguageIcon from '@mui/icons-material/Language'
@@ -33,9 +31,7 @@ const ACCENT       = '#10B981'
 const BORDER       = 'rgba(16,185,129,0.12)'
 
 const adminItems = [
-  { label: 'Listado de consorcios', path: '/consorcios', icon: <ApartmentIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Departamentos', path: '/departamentos', icon: <HomeWorkIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Expensas',      path: '/expensas',      icon: <ReceiptLongIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Consorcios activos', path: '/consorcios', icon: <ApartmentIcon sx={{ fontSize: 18 }} /> },
   { label: 'Reclamos',      path: '/reclamos',      icon: <ReportProblemIcon sx={{ fontSize: 18 }} /> },
 ]
 
@@ -270,81 +266,24 @@ export default function Sidebar() {
           />
         ))}
 
-        {/* Grupo: Consorcios — oculto temporalmente */}
-        {/* {collapsed ? (
+        {/* Grupo: Consorcios */}
+        {collapsed ? (
           adminItems.map(item => (
-            <NavItem
-              key={item.path}
-              item={item}
-              active={location.pathname === item.path}
-              collapsed={true}
-              onClick={() => navigate(item.path)}
-            />
+            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
           ))
         ) : (
           <>
-            <Box
-              onClick={() => setAdminOpen(prev => !prev)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                px: 2,
-                pt: 1.75,
-                pb: 0.75,
-                cursor: 'pointer',
-                userSelect: 'none',
-                '&:hover .g-label': { color: TEXT_DEFAULT },
-                '&:hover .g-icon': { color: TEXT_DEFAULT },
-              }}
-            >
-              <Typography
-                className="g-label"
-                sx={{
-                  fontSize: '0.58rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: TEXT_MUTED,
-                  transition: 'color 0.15s',
-                }}
-              >
-                Consorcios
-              </Typography>
-              <ExpandMoreIcon
-                className="g-icon"
-                sx={{
-                  fontSize: 14,
-                  color: TEXT_MUTED,
-                  transition: 'transform 0.2s ease, color 0.15s',
-                  transform: adminOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
-              />
-            </Box>
-
+            <SectionHeader label="Gestión de consorcios" cls="ad" open={adminOpen} onToggle={() => setAdminOpen(p => !p)} />
             <Collapse in={adminOpen}>
               {adminItems.map(item => (
-                <NavItem
-                  key={item.path}
-                  item={item}
-                  active={location.pathname === item.path}
-                  collapsed={false}
-                  indented
-                  onClick={() => navigate(item.path)}
-                />
+                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
               ))}
             </Collapse>
           </>
         )}
 
-        <Box
-          sx={{
-            mx: collapsed ? 1.25 : 2,
-            my: 1.5,
-            height: '1px',
-            bgcolor: BORDER,
-          }}
-        /> */}
+        {/* Divisor */}
+        <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
 
         {/* Grupo: Gestión comercial */}
         {collapsed ? (

@@ -54,7 +54,7 @@ export default function NuevoPropietario() {
     setLoading(true)
     setError(null)
     try {
-      await createPropietario(form)
+      await createPropietario({ ...form, cliente_id: clienteId })
       setSuccess(true)
       setTimeout(() => navigate('/propietarios'), 1500)
     } catch (err) {

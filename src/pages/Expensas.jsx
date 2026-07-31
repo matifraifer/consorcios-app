@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -32,6 +31,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import { getPeriodos, getConsorcios, createPeriodo } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -240,8 +240,7 @@ function PeriodoRow({ periodo, onClick }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Expensas() {
-  const { clienteId } = useAuth()
-  const navigate = useNavigate()
+  const { clienteId, user } = useAuth()
 
   const [periodos, setPeriodos]         = useState([])
   const [consorcios, setConsorcios]     = useState([])
@@ -260,6 +259,10 @@ export default function Expensas() {
   const [creating, setCreating]         = useState(false)
   const [formError, setFormError]       = useState(null)
   const [successMsg, setSuccessMsg]     = useState(false)
+
+  // Drawer gastos del período
+  const [gastosDrawerOpen, setGastosDrawerOpen] = useState(false)
+  const [selectedPeriodo, setSelectedPeriodo]   = useState(null)
 
   useEffect(() => {
     Promise.all([getPeriodos(clienteId), getConsorcios(clienteId)])
@@ -287,9 +290,12 @@ export default function Expensas() {
     setCreating(true)
     setFormError(null)
     try {
-      const periodo = await createPeriodo({ ...form, cliente_id: clienteId })
+      const periodo = await createPeriodo({ ...form, cliente_id: clienteId, usuario_id: user.id })
+      const consorcioNombre = consorcios.find(c => c.id === periodo.consorcio_id)?.nombre
+      const periodoConNombre = { ...periodo, consorcios: { nombre: consorcioNombre }, gastos: [] }
+      setPeriodos(prev => [...prev, periodoConNombre])
       setDrawerOpen(false)
-      navigate(`/expensas/${periodo.id}`)
+      openGastosDrawer(periodoConNombre)
     } catch (err) {
       if (err.message?.includes('duplicate') || err.message?.includes('unique') || err.code === '23505') {
         setFormError('Ya existe un período para este consorcio en ese mes y año.')
@@ -299,6 +305,27 @@ export default function Expensas() {
     } finally {
       setCreating(false)
     }
+  }
+
+  // ── Drawer gastos del período ────────────────────────────────────────────
+
+  function openGastosDrawer(periodo) {
+    setSelectedPeriodo(periodo)
+    setGastosDrawerOpen(true)
+  }
+
+  function closeGastosDrawer() {
+    setGastosDrawerOpen(false)
+  }
+
+  function syncPeriodoGastos(periodoId, gastos) {
+    setPeriodos(prev => prev.map(p =>
+      p.id === periodoId ? { ...p, gastos: gastos.map(g => ({ monto: g.monto })) } : p
+    ))
+  }
+
+  function syncPeriodoClosed(periodoId) {
+    setPeriodos(prev => prev.map(p => p.id === periodoId ? { ...p, estado: 'cerrado' } : p))
   }
 
   // ── Cómputos ──────────────────────────────────────────────────────────────
@@ -517,7 +544,7 @@ export default function Expensas() {
                       <PeriodoRow
                         key={p.id}
                         periodo={p}
-                        onClick={() => navigate(`/expensas/${p.id}`)}
+                        onClick={() => openGastosDrawer(p)}
                       />
                     )),
                   ]
@@ -665,6 +692,16 @@ export default function Expensas() {
           </Box>
         </form>
       </Drawer>
+
+      {/* ── Drawer Gastos del Período ── */}
+      <GastosPeriodoDrawer
+        open={gastosDrawerOpen}
+        periodo={selectedPeriodo}
+        subtitle={selectedPeriodo?.consorcios?.nombre}
+        onClose={closeGastosDrawer}
+        onGastosChange={syncPeriodoGastos}
+        onPeriodoClosed={syncPeriodoClosed}
+      />
 
       <Snackbar
         open={successMsg}
