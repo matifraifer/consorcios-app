@@ -95,7 +95,7 @@ export default function Propietarios() {
     setSaving(true)
     setFormError(null)
     try {
-      await createPropietario(form)
+      await createPropietario({ ...form, cliente_id: clienteId })
       setSuccess(true)
       setDrawerOpen(false)
       setLoading(true)
@@ -183,11 +183,11 @@ export default function Propietarios() {
     setImportError(null)
     setResultados([])
     try {
-      const res = await importarPropietarios(preview, importConsorcio)
+      const res = await importarPropietarios(preview, importConsorcio, clienteId)
       setResultados(res)
       // Recargar lista si al menos uno fue exitoso
       if (res.some(r => r.ok)) {
-        const data = await getPropietarios(user.id)
+        const data = await getPropietarios(clienteId)
         setPropietarios(data)
       }
     } catch (err) {

@@ -33,7 +33,7 @@ const MESES = [
 
 export default function NuevoPeriodo() {
   const navigate = useNavigate()
-  const { clienteId } = useAuth()
+  const { clienteId, user } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
   const [loadingConsorcios, setLoadingConsorcios] = useState(true)
@@ -63,7 +63,7 @@ export default function NuevoPeriodo() {
     setLoading(true)
     setError(null)
     try {
-      const periodo = await createPeriodo({ ...form, cliente_id: clienteId })
+      const periodo = await createPeriodo({ ...form, cliente_id: clienteId, usuario_id: user.id })
       navigate(`/expensas/${periodo.id}`)
     } catch (err) {
       if (err.message?.includes('duplicate') || err.message?.includes('unique') || err.code === '23505') {
