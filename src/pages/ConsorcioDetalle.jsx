@@ -289,7 +289,7 @@ export default function ConsorcioDetalle() {
   }
 
   function handleCopiarLink(depto) {
-    navigator.clipboard.writeText(`https://consorcios-app.vercel.app/consulta/${depto.token_consulta}`)
+    navigator.clipboard.writeText(`https://app.granito.com.ar/consulta/${depto.token_consulta}`)
     setLinkSnack('Link copiado al portapapeles')
   }
 
