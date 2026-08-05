@@ -790,6 +790,24 @@ export async function getCRMDashboardData(cliente_id) {
   }
 }
 
+// ---- CONSULTA DE DEUDA PÚBLICA (sin auth) ----
+
+// Valida email + unidad del lado del servidor (RPC security definer) y
+// devuelve los datos para calcular el saldo, o null si no coincide.
+export async function getConsultaDeuda(token, email, numeracion) {
+  const { data, error } = await supabase
+    .rpc('consultar_deuda_departamento', { p_token: token, p_email: email, p_numeracion: numeracion })
+  if (error) throw error
+  return data
+}
+
+export async function enviarLinkConsultaDeuda(departamento_id) {
+  const { data, error } = await supabase.functions.invoke('enviar-link-consulta', { body: { departamento_id } })
+  if (error) throw error
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+  return data
+}
+
 // ---- PROPIEDADES PÚBLICAS (sin auth) ----
 
 export async function getPropiedadPublica(id) {

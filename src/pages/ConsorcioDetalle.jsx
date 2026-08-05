@@ -49,6 +49,8 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import PaymentsIcon from '@mui/icons-material/Payments'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -69,10 +71,12 @@ import {
   getExpensasDepartamento,
   saveExpensasDepartamento,
   getLiquidacionesConsorcio,
+  enviarLinkConsultaDeuda,
 } from '../services/supabase'
 import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 import PagosDepartamentoDialog from '../components/expensas/PagosDepartamentoDialog'
 import { calcLiquidacion } from '../utils/calcLiquidacion'
+import { calcularSaldosMora } from '../utils/calcularSaldosMora'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -95,7 +99,6 @@ const MESES_LABEL = [
 ]
 const MESES_SELECT = MESES_LABEL.map((label, i) => ({ value: i + 1, label }))
 const PERIODO_FORM_INICIAL = { mes: new Date().getMonth() + 1, anio: new Date().getFullYear(), fecha_vencimiento: '' }
-const MS_POR_DIA = 1000 * 60 * 60 * 24
 
 function calcTotalGastos(gastos) {
   return (gastos || []).reduce((s, g) => s + Number(g.monto), 0)
@@ -103,53 +106,6 @@ function calcTotalGastos(gastos) {
 
 function fmt(value) {
   return `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// Saldo último período / saldo en mora / interés de mora por departamento.
-// periodos viene ordenado desc (más reciente primero); solo incluye períodos cerrados.
-function calcularSaldosMora(departamentos, periodos, expensas, tasaMora) {
-  const ultimoPeriodo = periodos[0] ?? null
-  const hoy = new Date()
-
-  return departamentos.map(dep => {
-    let saldoUltimo = 0
-    let saldoMora = 0
-    let interesMora = 0
-
-    for (const periodo of periodos) {
-      const exp = expensas.find(e => e.periodo_id === periodo.id && e.departamento_id === dep.id)
-      if (!exp || exp.pagado) continue
-
-      const saldo = Math.max(0, Number(exp.monto_total ?? 0) - Number(exp.monto_pagado ?? 0))
-      if (saldo <= 0) continue
-
-      if (ultimoPeriodo && periodo.id === ultimoPeriodo.id) {
-        saldoUltimo += saldo
-      } else {
-        saldoMora += saldo
-      }
-
-      if (periodo.fecha_vencimiento) {
-        const vencimiento = new Date(periodo.fecha_vencimiento)
-        const diasAtraso = (hoy - vencimiento) / MS_POR_DIA
-        const mesesAtraso = Math.floor(diasAtraso / 30)
-        if (mesesAtraso > 0) {
-          interesMora += saldo * (Number(tasaMora || 0) / 100) * mesesAtraso
-        }
-      }
-    }
-
-    return {
-      departamento_id: dep.id,
-      numeracion: dep.numeracion,
-      propietario: dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : null,
-      inquilino: dep.inquilino,
-      saldoUltimo,
-      saldoMora,
-      interesMora,
-      saldoTotal: saldoUltimo + saldoMora + interesMora,
-    }
-  })
 }
 
 // Monto del pago más reciente registrado (pagado = true) para un departamento,
@@ -193,6 +149,10 @@ export default function ConsorcioDetalle() {
   const [savingDepto, setSavingDepto] = useState(false)
   const [deptoFormError, setDeptoFormError] = useState(null)
   const [successDepto, setSuccessDepto] = useState(false)
+
+  // Link de consulta de deuda (copiar / reenviar por email)
+  const [linkSnack, setLinkSnack] = useState('')
+  const [reenviandoId, setReenviandoId] = useState(null)
 
   // Drawer nuevo período
   const [nuevoPeriodoOpen, setNuevoPeriodoOpen] = useState(false)
@@ -328,21 +288,47 @@ export default function ConsorcioDetalle() {
     setDeptoForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
+  function handleCopiarLink(depto) {
+    navigator.clipboard.writeText(`https://consorcios-app.vercel.app/consulta/${depto.token_consulta}`)
+    setLinkSnack('Link copiado al portapapeles')
+  }
+
+  async function handleReenviarEmail(depto) {
+    setReenviandoId(depto.id)
+    try {
+      await enviarLinkConsultaDeuda(depto.id)
+      setLinkSnack('Le enviamos el link de consulta de deuda por email')
+    } catch {
+      setLinkSnack('No se pudo enviar el email')
+    } finally {
+      setReenviandoId(null)
+    }
+  }
+
   async function handleSubmitDepto(e) {
     e.preventDefault()
     if (!deptoForm.numeracion.trim()) return
     setSavingDepto(true)
     setDeptoFormError(null)
     try {
+      const prevEmail = editingDeptoId ? departamentos.find(d => d.id === editingDeptoId)?.email : null
+      let savedDepto
       if (editingDeptoId) {
-        await updateDepartamento(editingDeptoId, deptoForm)
+        savedDepto = await updateDepartamento(editingDeptoId, deptoForm)
       } else {
-        await createDepartamento({ ...deptoForm, id_consorcio: id })
+        savedDepto = await createDepartamento({ ...deptoForm, id_consorcio: id })
       }
       setSuccessDepto(true)
       setNuevoDeptoOpen(false)
       const data = await getDepartamentosByConsorcio(id)
       setDepartamentos(data)
+
+      const emailCambio = (savedDepto.email || '') !== (prevEmail || '')
+      if (savedDepto.email && emailCambio) {
+        enviarLinkConsultaDeuda(savedDepto.id)
+          .then(() => setLinkSnack('Le enviamos el link de consulta de deuda por email'))
+          .catch(() => setLinkSnack('El departamento se guardó, pero no se pudo enviar el email con el link'))
+      }
     } catch (err) {
       setDeptoFormError(err.message)
     } finally {
@@ -1057,6 +1043,23 @@ export default function ConsorcioDetalle() {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ py: 1.5 }} align="right">
+                          <Tooltip title="Copiar link de consulta de deuda">
+                            <IconButton size="small" onClick={() => handleCopiarLink(d)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                              <ContentCopyIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={d.email ? 'Reenviar link por email' : 'Cargá un email para poder enviar el link'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleReenviarEmail(d)}
+                                disabled={!d.email || reenviandoId === d.id}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
+                              >
+                                {reenviandoId === d.id ? <CircularProgress size={15} /> : <ForwardToInboxIcon sx={{ fontSize: 15 }} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                           <Tooltip title="Editar">
                             <IconButton size="small" onClick={() => openEditDepto(d)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
                               <EditIcon sx={{ fontSize: 15 }} />
@@ -1850,6 +1853,14 @@ export default function ConsorcioDetalle() {
         autoHideDuration={3000}
         onClose={() => setSuccessDepto(false)}
         message={editingDeptoId ? 'Departamento actualizado exitosamente' : 'Departamento creado exitosamente'}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+
+      <Snackbar
+        open={!!linkSnack}
+        autoHideDuration={3000}
+        onClose={() => setLinkSnack('')}
+        message={linkSnack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
