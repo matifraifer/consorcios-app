@@ -8,6 +8,11 @@ import { calcularSaldosMora } from '../utils/calcularSaldosMora'
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
+const MESES_LABEL = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+]
+
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
     borderRadius: '8px',
@@ -85,7 +90,20 @@ export default function ConsultaDeudaPublica() {
         data.expensas,
         data.tasa_mora
       )
-      setResultado({ ...saldo, consorcioNombre: data.consorcio_nombre })
+      const periodosAdeudados = data.periodos
+        .map(periodo => {
+          const exp = data.expensas.find(e => e.periodo_id === periodo.id)
+          if (!exp || exp.pagado) return null
+          const saldoPeriodo = Math.max(0, Number(exp.monto_total ?? 0) - Number(exp.monto_pagado ?? 0))
+          if (saldoPeriodo <= 0) return null
+          return {
+            ...periodo,
+            saldo: saldoPeriodo,
+            gastos: (data.gastos ?? []).filter(g => g.periodo_id === periodo.id),
+          }
+        })
+        .filter(Boolean)
+      setResultado({ ...saldo, consorcioNombre: data.consorcio_nombre, periodosAdeudados })
     } catch {
       setError('Ocurrió un error al consultar. Intentá de nuevo.')
     } finally {
@@ -160,6 +178,44 @@ export default function ConsultaDeudaPublica() {
                 <Divider sx={{ my: 1 }} />
                 <SaldoRow label="Saldo total" value={resultado.saldoTotal} destacado />
               </Box>
+
+              {resultado.periodosAdeudados.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1.5 }}>
+                    Detalle por período adeudado
+                  </Typography>
+                  {resultado.periodosAdeudados.map(periodo => (
+                    <Box key={periodo.id} sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', mb: 1.5, overflow: 'hidden' }}>
+                      <Box sx={{ bgcolor: '#F9FAFB', px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+                          {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#B45309', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmt(periodo.saldo)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ px: 2, py: 1 }}>
+                        {periodo.gastos.length === 0 ? (
+                          <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', py: 1 }}>
+                            Sin gastos detallados para este período.
+                          </Typography>
+                        ) : (
+                          periodo.gastos.map((g, i) => (
+                            <Box key={i} display="flex" justifyContent="space-between" gap={1} py={0.6}
+                              sx={{ borderBottom: i < periodo.gastos.length - 1 ? '1px solid #F3F4F6' : 'none' }}
+                            >
+                              <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{g.nombre}</Typography>
+                              <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                                {fmt(g.monto)}
+                              </Typography>
+                            </Box>
+                          ))
+                        )}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
 
               <Button
                 fullWidth onClick={handleVolver}
