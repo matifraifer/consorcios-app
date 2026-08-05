@@ -5,7 +5,7 @@ const RESEND_API_KEY   = Deno.env.get('RESEND_API_KEY')!
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-const CONSULTA_BASE_URL = 'https://consorcios-app.vercel.app/consulta'
+const CONSULTA_BASE_URL = 'https://app.granito.com.ar/consulta'
 const EMAIL_FROM = 'no-reply@granito.com.ar'
 
 const CORS = {
