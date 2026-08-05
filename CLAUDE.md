@@ -61,11 +61,15 @@ src/
     InmobiliariaPublica.jsx       # Página PÚBLICA (sin auth) catálogo de TODAS las propiedades de un cliente — ruta /inmobiliaria/:clienteId, con filtros (operación/tipo/provincia/búsqueda); cada card navega a /p/:id
     MlCallback.jsx                # Callback OAuth de MercadoLibre — ruta /ml-callback (fuera de ProtectedRoute)
     Contratos.jsx
+    WhatsApp.jsx                   # ruta /whatsapp — lista de mensajes + envío (MVP de la integración WhatsApp)
 supabase/
   migrations/                    # SQL manuales, se corren a mano en el SQL Editor de Supabase
   functions/                      # Edge Functions (Deno) — deployadas con --no-verify-jwt
     ml-auth/                      # Intercambia code de OAuth por access_token/refresh_token (usa ML_CLIENT_SECRET)
     ml-test/                      # Valida el token guardado llamando a /users/me de MercadoLibre
+whatsapp-service/                 # Proceso Node persistente (Baileys) — deployado aparte en Railway, ver sección "Integración WhatsApp"
+  src/
+    index.js, sessions.js, authState.js, routes.js, supabaseAdmin.js, middleware/auth.js
 ```
 
 ## Páginas públicas (sin autenticación)
@@ -104,6 +108,15 @@ supabase/
 - Conexión/desconexión visible en `Propiedades.jsx` (botones) y en `Configuracion.jsx` (switch en card de integración)
 - Pendiente: Edge Function `ml-publish` para publicar propiedades (esperando que ML habilite la cuenta como inmobiliaria); usuarios de prueba de ML ya no se pueden crear desde el dashboard — usar cuenta secundaria real para testing
 
+## Integración WhatsApp (Baileys, MVP)
+- Librería `@whiskeysockets/baileys` (login por QR, protocolo no oficial). No corre en el frontend ni en una Edge Function — necesita un proceso Node persistente, primero de este tipo en el proyecto: `whatsapp-service/` (carpeta nueva en este mismo repo, deployada como servicio aparte en **Railway**, Root Directory = `whatsapp-service`)
+- Multi-tenant: cada `cliente_id` conecta su propio número, un socket de Baileys en memoria por cliente dentro del mismo proceso (`whatsapp-service/src/sessions.js`)
+- Persistencia de sesión: en vez de `useMultiFileAuthState` (disco efímero en Railway), las credenciales de Baileys se guardan serializadas en `whatsapp_sesiones.auth_state` (jsonb) — `whatsapp-service/src/authState.js`. Así un restart no obliga a re-escanear el QR
+- Tablas: `whatsapp_sesiones` (1 fila por cliente_id: estado, qr, numero, auth_state) y `whatsapp_mensajes` (log de mensajes entrante/saliente) — ver `supabase/migrations/0011_whatsapp.sql`. El servicio Node escribe con la service-role key (bypassa RLS); el frontend lee con la anon key (RLS por `current_cliente_id()`)
+- Frontend: card en `Configuracion.jsx` (conectar/desconectar + Dialog con QR, poll cada 2s a `whatsapp_sesiones`) y página `/whatsapp` (`WhatsApp.jsx`, lista de mensajes + envío, poll cada 5s). Funciones en `supabase.js`: `getWhatsappSesion`, `connectWhatsapp`, `disconnectWhatsapp`, `sendWhatsappMensaje`, `getWhatsappMensajes` — las de connect/disconnect/send llaman al servicio Node (`VITE_WHATSAPP_SERVICE_URL`) con el access token del usuario, no con la anon key
+- **MVP intencionalmente acotado**: sin auto-crear `contactos`/`prospectos` desde números entrantes, sin Realtime (polling, como el resto de la app), sin normalización de teléfono con código de país. Ver fase 2 en el plan original si hace falta retomarlo
+- Riesgo de ban del número por ser protocolo no oficial — `/send` tiene rate-limit (20 msj/min por cliente) en `whatsapp-service/src/routes.js`
+
 ## Autenticación (Supabase Auth)
 - Login por **nombre de usuario** (no email) — el frontend resuelve `nombre_usuario` → `email` con la RPC `email_for_username` (SECURITY DEFINER, callable por `anon`, ver `0005_username_login_rpc.sql`) y recién ahí llama a `supabase.auth.signInWithPassword`
 - La tabla `usuarios` guarda el perfil de negocio (rol, cliente_id, nombre_usuario) y se vincula a `auth.users` via `usuarios.auth_user_id`
@@ -118,6 +131,7 @@ supabase/
 ```
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_WHATSAPP_SERVICE_URL=   # URL pública del servicio Railway de whatsapp-service
 ```
 
 ## Patrones de diseño establecidos
@@ -147,3 +161,4 @@ ALTER TABLE gastos ADD COLUMN departamentos_ids INTEGER[];
 - `supabase/migrations/0001_auth_migration.sql`: agrega `email`/`auth_user_id` a `usuarios` y los vincula a `auth.users` — correr a mano en el SQL Editor (ver pasos en el archivo)
 - `supabase/migrations/0002_rls_propiedades_clientes.sql`, `0003_storage_authenticated_uploads.sql`, `0004_rls_resto_tablas.sql`: aplicadas — RLS por `cliente_id` en todas las tablas (ver sección Autenticación → RLS)
 - `supabase/migrations/0005_username_login_rpc.sql`, `0006_force_password_change.sql`: aplicadas — login por `nombre_usuario` y cambio de contraseña obligatorio
+- `supabase/migrations/0011_whatsapp.sql`: **pendiente** — crea `whatsapp_sesiones`/`whatsapp_mensajes` + RLS, correr a mano antes de deployar `whatsapp-service/`

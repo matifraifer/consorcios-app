@@ -42,6 +42,7 @@ const topItems = [
 const comercialItems = [
   { label: 'Consultas Web',           path: '/consultas-web', icon: <LanguageIcon sx={{ fontSize: 18 }} /> },
   { label: 'Seguimiento de contactos', path: '/prospectos',   icon: <GroupIcon sx={{ fontSize: 18 }} /> },
+  { label: 'WhatsApp',                 path: '/whatsapp',     icon: <WhatsAppIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const baseDatosItems = [

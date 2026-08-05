@@ -28,6 +28,7 @@ import ConsultaDeudaPublica from './pages/ConsultaDeudaPublica'
 import Contratos        from './pages/Contratos'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
+import WhatsApp         from './pages/WhatsApp'
 // import MlCallback       from './pages/MlCallback' // MercadoLibre — deshabilitado temporalmente
 import Configuracion          from './pages/Configuracion'
 import PropiedadesComunidad  from './pages/PropiedadesComunidad'
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/contratos"                          element={<Contratos />} />
           <Route path="/contactos"                          element={<Contactos />} />
           <Route path="/consultas-web"                      element={<ConsultasWeb />} />
+          <Route path="/whatsapp"                           element={<WhatsApp />} />
           <Route path="/propiedades-comunidad"              element={<PropiedadesComunidad />} />
           <Route path="/configuracion"                      element={<Configuracion />} />
         </Route>
