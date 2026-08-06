@@ -27,6 +27,7 @@ router.post('/sessions/:clienteId/connect', requireClienteAccess, async (req, re
     await startSession(req.params.clienteId)
     res.json({ ok: true })
   } catch (err) {
+    console.error(`[wa:${req.params.clienteId}] error en ${req.path}`, err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -36,6 +37,7 @@ router.post('/sessions/:clienteId/disconnect', requireClienteAccess, async (req,
     await stopSession(req.params.clienteId)
     res.json({ ok: true })
   } catch (err) {
+    console.error(`[wa:${req.params.clienteId}] error en ${req.path}`, err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -53,6 +55,7 @@ router.post('/sessions/:clienteId/send', requireClienteAccess, async (req, res) 
     await sendMessage(req.params.clienteId, telefono, body)
     res.json({ ok: true })
   } catch (err) {
+    console.error(`[wa:${req.params.clienteId}] error en ${req.path}`, err)
     res.status(err.status ?? 500).json({ error: err.message })
   }
 })

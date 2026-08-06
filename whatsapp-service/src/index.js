@@ -3,6 +3,9 @@ import express from 'express'
 import cors from 'cors'
 import routes from './routes.js'
 
+process.on('unhandledRejection', (err) => console.error('unhandledRejection', err))
+process.on('uncaughtException', (err) => console.error('uncaughtException', err))
+
 const app = express()
 const allowedOrigins = (process.env.ALLOWED_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean)
 

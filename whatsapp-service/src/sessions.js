@@ -23,62 +23,81 @@ export function isConnected(clienteId) {
 }
 
 export async function startSession(clienteId) {
-  if (sockets.has(clienteId)) return
+  if (sockets.has(clienteId)) {
+    console.log(`[wa:${clienteId}] ya hay una sesion activa, no se reinicia`)
+    return
+  }
 
+  console.log(`[wa:${clienteId}] iniciando sesion`)
   const { state, saveCreds } = await useSupabaseAuthState(clienteId)
-  const { version } = await fetchLatestBaileysVersion()
+  const { version, isLatest } = await fetchLatestBaileysVersion()
+  console.log(`[wa:${clienteId}] version de baileys ${version.join('.')} (ultima: ${isLatest})`)
 
   const sock = makeWASocket({ version, auth: state, logger, printQRInTerminal: false })
   sockets.set(clienteId, sock)
+  console.log(`[wa:${clienteId}] socket creado, esperando eventos de conexion`)
 
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', async (update) => {
-    const { connection, qr, lastDisconnect } = update
+    try {
+      const { connection, qr, lastDisconnect } = update
+      console.log(`[wa:${clienteId}] connection.update ->`, { connection, hasQr: !!qr })
 
-    if (qr) {
-      const qrDataUrl = await QRCode.toDataURL(qr)
-      await updateSesion(clienteId, { estado: 'qr_pendiente', qr: qrDataUrl })
-    }
-
-    if (connection === 'open') {
-      await updateSesion(clienteId, {
-        estado: 'conectado',
-        qr: null,
-        numero: sock.user?.id?.split(':')[0] ?? null,
-      })
-    }
-
-    if (connection === 'close') {
-      sockets.delete(clienteId)
-      const loggedOut = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut
-
-      if (loggedOut) {
-        await clearAuthState(clienteId)
-        await updateSesion(clienteId, { estado: 'desconectado', qr: null, numero: null })
-      } else {
-        await updateSesion(clienteId, { estado: 'desconectado', qr: null })
-        startSession(clienteId).catch((err) => logger.error(err, 'reconexión fallida'))
+      if (qr) {
+        const qrDataUrl = await QRCode.toDataURL(qr)
+        await updateSesion(clienteId, { estado: 'qr_pendiente', qr: qrDataUrl })
+        console.log(`[wa:${clienteId}] QR generado y guardado`)
       }
+
+      if (connection === 'open') {
+        await updateSesion(clienteId, {
+          estado: 'conectado',
+          qr: null,
+          numero: sock.user?.id?.split(':')[0] ?? null,
+        })
+        console.log(`[wa:${clienteId}] conectado como ${sock.user?.id}`)
+      }
+
+      if (connection === 'close') {
+        sockets.delete(clienteId)
+        const statusCode = lastDisconnect?.error?.output?.statusCode
+        const loggedOut = statusCode === DisconnectReason.loggedOut
+        console.log(`[wa:${clienteId}] conexion cerrada (statusCode=${statusCode}, loggedOut=${loggedOut})`, lastDisconnect?.error?.message)
+
+        if (loggedOut) {
+          await clearAuthState(clienteId)
+          await updateSesion(clienteId, { estado: 'desconectado', qr: null, numero: null })
+        } else {
+          await updateSesion(clienteId, { estado: 'desconectado', qr: null })
+          startSession(clienteId).catch((err) => console.error(`[wa:${clienteId}] reconexion fallida`, err))
+        }
+      }
+    } catch (err) {
+      console.error(`[wa:${clienteId}] error en connection.update`, err)
     }
   })
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
-    for (const m of messages) {
-      if (m.key.fromMe) continue
-      const body = m.message?.conversation ?? m.message?.extendedTextMessage?.text
-      if (!body) continue
+    try {
+      for (const m of messages) {
+        if (m.key.fromMe) continue
+        const body = m.message?.conversation ?? m.message?.extendedTextMessage?.text
+        if (!body) continue
 
-      const telefono = m.key.remoteJid?.split('@')[0]
-      if (!telefono) continue
+        const telefono = m.key.remoteJid?.split('@')[0]
+        if (!telefono) continue
 
-      await supabaseAdmin.from('whatsapp_mensajes').insert({
-        cliente_id: clienteId,
-        telefono,
-        direction: 'entrante',
-        body,
-        wa_message_id: m.key.id,
-      })
+        await supabaseAdmin.from('whatsapp_mensajes').insert({
+          cliente_id: clienteId,
+          telefono,
+          direction: 'entrante',
+          body,
+          wa_message_id: m.key.id,
+        })
+      }
+    } catch (err) {
+      console.error(`[wa:${clienteId}] error guardando mensaje entrante`, err)
     }
   })
 }
