@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Box, Typography, Switch, CircularProgress, TextField, Button,
   Select, MenuItem, FormControl, InputLabel, IconButton, Snackbar, Alert,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
 import LanguageIcon from '@mui/icons-material/Language'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
@@ -13,6 +15,7 @@ import {
   // getMlToken, deleteMlToken, supabase, // MercadoLibre — deshabilitado temporalmente
   getClienteConfig, updateClienteConfig, uploadClienteLogo,
   uploadPortadaImage, deletePortadaImage,
+  getWhatsappSesion, connectWhatsapp, disconnectWhatsapp,
 } from '../services/supabase'
 
 const ACCENT = '#065F46'
@@ -23,6 +26,9 @@ const ACCENT = '#065F46'
 
 const RED_SOCIAL_TIPOS = ['Instagram', 'Página web', 'Otro']
 const MAX_REDES = 3
+
+const WA_POLL_MS = 2000
+const WA_TIMEOUT_MS = 90000
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -170,6 +176,86 @@ export default function Configuracion() {
   // const mlConnected = mlStatus === 'connected'
   // const mlLoading   = mlStatus === 'loading' || mlToggling
 
+  // ── WhatsApp ──
+  const [waSesion, setWaSesion]     = useState(null)
+  const [waDialogOpen, setWaDialogOpen] = useState(false)
+  const [waBusy, setWaBusy]         = useState(false)
+  const [waError, setWaError]       = useState(null)
+  const [waTimedOut, setWaTimedOut] = useState(false)
+  const waPollRef = useRef(null)
+  const waTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    if (!clienteId) return
+    refreshWaSesion()
+    return stopWaPolling
+  }, [clienteId])
+
+  async function refreshWaSesion() {
+    try {
+      setWaSesion(await getWhatsappSesion(clienteId))
+    } catch { /* la card queda como "Desconectado" si falla */ }
+  }
+
+  function stopWaPolling() {
+    if (waPollRef.current) clearInterval(waPollRef.current)
+    if (waTimeoutRef.current) clearTimeout(waTimeoutRef.current)
+    waPollRef.current = null
+    waTimeoutRef.current = null
+  }
+
+  async function handleOpenWaDialog() {
+    setWaError(null)
+    setWaTimedOut(false)
+    setWaDialogOpen(true)
+    setWaBusy(true)
+    try {
+      await connectWhatsapp(clienteId)
+    } catch (err) {
+      setWaError(err.message)
+      setWaBusy(false)
+      return
+    }
+
+    waPollRef.current = setInterval(async () => {
+      try {
+        const data = await getWhatsappSesion(clienteId)
+        setWaSesion(data)
+        if (data?.estado === 'conectado') {
+          stopWaPolling()
+          setWaBusy(false)
+        }
+      } catch { /* se reintenta en el próximo tick */ }
+    }, WA_POLL_MS)
+
+    waTimeoutRef.current = setTimeout(() => {
+      stopWaPolling()
+      setWaTimedOut(true)
+      setWaBusy(false)
+    }, WA_TIMEOUT_MS)
+  }
+
+  function handleCloseWaDialog() {
+    stopWaPolling()
+    setWaDialogOpen(false)
+    setWaBusy(false)
+  }
+
+  async function handleDisconnectWa() {
+    setWaBusy(true)
+    setWaError(null)
+    try {
+      await disconnectWhatsapp(clienteId)
+      await refreshWaSesion()
+    } catch (err) {
+      setWaError(err.message)
+    } finally {
+      setWaBusy(false)
+    }
+  }
+
+  const waConnected = waSesion?.estado === 'conectado'
+
   // ── Configuración de web pública ──
   const [webLoading, setWebLoading] = useState(true)
   const [webSaving, setWebSaving]   = useState(false)
@@ -313,6 +399,15 @@ export default function Configuracion() {
         <SectionTitle>Integraciones</SectionTitle>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <IntegrationCard
+            logo={<WhatsAppIcon sx={{ fontSize: 22, color: waConnected ? '#25D366' : '#9CA3AF' }} />}
+            name="WhatsApp"
+            description={waConnected ? `Conectado${waSesion?.numero ? ` (${waSesion.numero})` : ''}` : 'Escaneá un código QR para conectar tu número'}
+            connected={waConnected}
+            loading={waBusy}
+            onToggle={() => (waConnected ? handleDisconnectWa() : handleOpenWaDialog())}
+          />
+
           <IntegrationCard
             logo={<LanguageIcon sx={{ fontSize: 22, color: '#9CA3AF' }} />}
             name="MercadoLibre"
@@ -582,6 +677,46 @@ export default function Configuracion() {
         message={snackMsg}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      <Dialog open={waDialogOpen} onClose={handleCloseWaDialog} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Conectar WhatsApp</DialogTitle>
+        <DialogContent>
+          {waError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{waError}</Alert>}
+
+          {waSesion?.estado === 'conectado' ? (
+            <Typography sx={{ fontSize: '0.85rem', color: '#374151', textAlign: 'center', py: 3 }}>
+              Conectado correctamente{waSesion.numero ? ` (${waSesion.numero})` : ''}.
+            </Typography>
+          ) : waTimedOut ? (
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              <Typography sx={{ fontSize: '0.82rem', color: '#9CA3AF', mb: 2 }}>
+                El código QR expiró. Volvé a intentarlo.
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={handleOpenWaDialog}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, borderColor: '#E5E7EB', color: '#374151' }}
+              >
+                Reintentar
+              </Button>
+            </Box>
+          ) : waSesion?.qr ? (
+            <Box sx={{ textAlign: 'center' }}>
+              <Box component="img" src={waSesion.qr} alt="Código QR de WhatsApp" sx={{ width: 220, height: 220, mx: 'auto', display: 'block' }} />
+              <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', mt: 2 }}>
+                Abrí WhatsApp en tu teléfono, entrá a Dispositivos vinculados y escaneá este código.
+              </Typography>
+            </Box>
+          ) : (
+            <Box display="flex" justifyContent="center" py={5}>
+              <CircularProgress size={24} sx={{ color: ACCENT }} />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseWaDialog} sx={{ textTransform: 'none', color: '#6B7280' }}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
