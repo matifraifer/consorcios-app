@@ -78,26 +78,51 @@ whatsapp-service/                 # Proceso Node persistente (Baileys) — deplo
 - `/ml-callback` → `MlCallback.jsx`: recibe el `code` de OAuth de MercadoLibre y llama a la Edge Function `ml-auth`
 
 ## Supabase — Tablas
-- `consorcios`: id (UUID PK), nombre, id_administrador (UUID FK a usuarios)
-- `departamentos`: id (serial PK), numeracion, inquilino, id_propietario (FK), id_consorcio (UUID FK), coeficiente
-- `propietarios`: id (serial PK), dni, nombre, apellido, id_consorcio (UUID FK)
-- `usuarios`: id (serial PK), nombre_usuario, rol, cliente_id, email (login), auth_user_id (FK a `auth.users.id`) — `password` en texto plano deprecado, ver sección Autenticación
-- `reclamos`: id, descripcion, estado, fecha, propietario_id, consorcio_id, departamento_id, usuario_id
-- `periodos_expensas`: id, consorcio_id, mes, anio, estado ('abierto'|'cerrado'), usuario_id
-- `gastos`: id, periodo_id, nombre, monto, categoria, tipo, proveedor, comprobante, departamentos_ids (INTEGER[])
+(relevado directo del proyecto via MCP de Supabase — `list_tables`)
+
+### Consorcios / expensas
+- `consorcios`: id (UUID PK), nombre, cliente_id (FK clientes_servicio), tasa_mora (numeric, default 0)
+- `departamentos`: id (serial PK), numeracion, propietario (text libre, aparte del FK), inquilino, id_propietario (FK propietarios), id_consorcio (UUID FK), coeficiente, email, token_consulta (UUID unique — link de consulta sin login para el propietario/inquilino)
+- `propietarios`: id (serial PK), dni, nombre, apellido, id_consorcio (UUID FK), cliente_id
+- `usuarios`: id (serial PK), nombre_usuario, rol, cliente_id, email (login), auth_user_id (FK a `auth.users.id`) — ya no tiene columna `password`, la autenticación es 100% Supabase Auth (ver sección Autenticación)
+- `reclamos`: id, descripcion, estado, fecha, propietario_id, consorcio_id, departamento_id, usuario_id, cliente_id
+- `periodos_expensas`: id, consorcio_id, mes, anio, estado ('abierto'|'cerrado'), usuario_id (text), cliente_id, created_at, fecha_vencimiento
+- `gastos`: id, periodo_id, nombre, monto, categoria, tipo, proveedor, comprobante, departamentos_ids (INTEGER[]), created_at
 - `expensas_departamento`: id, periodo_id, departamento_id, monto_ordinario, monto_extraordinario, monto_total, pagado (bool), monto_pagado
-- `propiedades`: id, cliente_id, titulo, tipo_propiedad (Casa/Departamento/Terreno/Local/Oficina), tipo_operacion ('Venta'/'Alquiler', con mayúscula), estado (Disponible/Reservada/Vendida/Baja), precio_publicacion, moneda, direccion, localidad, provincia, ambientes, dormitorios, banios, cochera, metros_cubiertos, metros_totales, descripcion, ml_item_id, ml_status
-- `propiedades_imagenes`: id, propiedad_id, storage_path, orden — fotos en Supabase Storage (bucket público), URL via `getPublicImageUrl()`
-- `contactos`: id, cliente_id, nombre, apellido, dni, telefono, email, tipos[], tipo_operacion, presupuesto, zona_interes[]
-- `contactos_propiedades`: tabla puente contacto↔propiedad (un contacto puede tener varias propiedades vinculadas)
-- `prospectos` (= "seguimientos" en la UI): id, cliente_id, nombre, apellido, telefono, email, etapa_id, asignado_nombre, cerrado, cierre_exitoso, contacto_id, propiedad_id, tipo_operacion, origen_web
-- `etapas_crm`: id, nombre, orden — etapas del Kanban de seguimiento (colores: azul/ámbar/violeta/verde por orden)
-- `visitas`: id, prospecto_id, propiedad_id, fecha, hora
-- `consultas_web`: id, cliente_id, nombre, apellido, dni, telefono, email, propiedad_id, estado ('pendiente'/'convertida'/'inactiva'), presupuesto, zona_interes, mensaje — alimentada desde `PropiedadPublica.jsx`
+
+### Propiedades / CRM inmobiliario
+- `propiedades`: id (UUID), cliente_id, titulo, tipo_propiedad, tipo_operacion ('Venta'/'Alquiler'), estado (Disponible/Reservada/Vendida/Baja), precio_publicacion, moneda, direccion, localidad, provincia, latitud, longitud, ambientes, dormitorios, banios, cochera, metros_cubiertos, metros_totales, descripcion, observaciones_internas, propietario_id (text libre), contacto_id (FK contactos), comprador_nombre/dni/telefono, fecha_venta, precio_final_venta, visitas_count, ml_item_id, ml_status, created_at, updated_at
+- `propiedades_imagenes`: id, propiedad_id, storage_path, orden, created_at — fotos en Supabase Storage (bucket público), URL via `getPublicImageUrl()`
+- `propiedades_ext`: id, anuncio_id (unique), url, titulo, precio/precio_moneda/precio_valor, zona, visitas, descripcion, dormitorios, banos, metros_cubiertos, metros_terreno, antiguedad, apta_credito, barrio_privado, estado, contacto_nombre, contacto_tel, contacto_id (FK contactos), scrapeado_en, actualizado_en — listados de terceros scrapeados (~3150 filas), sin `cliente_id` propio, compartida entre todos los clientes
+- `contactos`: id (serial), cliente_id, nombre, apellido, dni, telefono, email, notas, activo, origen (default 'APP'), creado_por, asignado_nombre, tipo (text legacy, singular), tipos (text[], reemplaza a `tipo`), tipo_propiedad_busca (text[]), tipo_operacion, presupuesto, moneda_presupuesto (default 'ARS'), zona_interes (text[])
+- `contactos_propiedades`: tabla puente contacto↔propiedad (id, contacto_id, propiedad_id, tipo, created_at)
+- `contactos_propiedades_ext`: tabla puente contacto↔propiedad_ext (PK compuesta contacto_id+propiedad_ext_id, cliente_id)
+- `prospectos` (= "seguimientos" en la UI): id (UUID), cliente_id, nombre, apellido, telefono, email, tipo_operacion, etapa_id (FK etapas_crm), propiedad_id, contacto_id, presupuesto, zona, zona_interes, tipo_inmueble, credito_hipotecario, asignado_nombre, cerrado, cierre_exitoso, origen_web, created_at, updated_at
+- `etapas_crm`: id, nombre, orden (unique) — etapas del Kanban de seguimiento (colores: azul/ámbar/violeta/verde por orden)
+- `visitas`: id, prospecto_id, propiedad_id, fecha, hora, created_at
+- `propiedades_interes`: id, prospecto_id, propiedad_id, monto_propuesto, forma_pago, created_at — ofertas/propuestas de un prospecto sobre una propiedad
 - `historial_prospectos`: id, prospecto_id, usuario_nombre, accion, created_at
-- `ml_tokens`: id, cliente_id (UNIQUE), access_token, refresh_token, ml_user_id, expires_at — tokens OAuth de MercadoLibre por cliente
-- `clientes_servicio` (ojo: singular): id, nombre, logo_url, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas (texto "lat, lng"), redes_sociales (JSONB array de `{tipo, valor}`, tipo ∈ Instagram/Página web/Otro, máx 3) — configurado desde `Configuracion.jsx`, consumido por `InmobiliariaPublica.jsx`. Logo se sube al bucket `propiedades-imagenes` bajo `logos/{cliente_id}/`
-- RLS por `cliente_id`/`auth.uid()` en todas las tablas (ver sección Autenticación → RLS). Excepciones sin `cliente_id` (compartidas entre todos los clientes, solo lectura para `authenticated`): `etapas_crm`, `propiedades_ext`
+- `consultas_web`: id, cliente_id, propiedad_id, contacto_id, dni, nombre, apellido, telefono, email, presupuesto, provincia, zona_interes, estado ('pendiente'/'convertida'/'inactiva'), mensaje, created_at — alimentada desde `PropiedadPublica.jsx`
+
+### Contratos (alquileres)
+- `contratos`: id (UUID), cliente_id, propiedad_id, inquilino_nombre/apellido/dni, propietario_nombre/apellido/dni, fecha_inicio, fecha_fin, monto_base, tipo_actualizacion, plazo_actualizacion, dia_vencimiento, observaciones, finalizado (bool), created_at, updated_at
+- `pagos_contrato`: id, contrato_id, periodo_numero, periodo_inicio, periodo_fin, monto_base, es_periodo_actualizacion (bool), estado (default 'pendiente'), monto_pagado, fecha_pago, comprobante_path, created_at — un registro por período/mes de alquiler
+- `cargos_extra_contrato`: id, pago_id (FK pagos_contrato), descripcion, monto, created_at — cargos adicionales sobre un pago puntual (expensas, reparaciones, etc.)
+- `contratos_adjuntos`: id, contrato_id, nombre, storage_path, created_at
+- `indices_actualizacion`: id, tipo, mes, anio, valor, cliente_id — índices (IPC/ICL/etc.) usados para calcular actualizaciones de `monto_base` en `pagos_contrato`
+- `tipos_documentacion`: id, cliente_id, nombre, orden, created_at — tipos configurables de documentación (usados por `documentos_respaldatorios`)
+- `documentos_respaldatorios`: id, cliente_id, propiedad_id, contrato_id, titulo, tipo_documentacion_id (FK), tipo_personalizado, storage_path, nombre_archivo, mime_type, created_at
+
+### Integraciones
+- `ml_tokens`: id, cliente_id (UNIQUE), access_token, refresh_token, ml_user_id, expires_at, created_at — tokens OAuth de MercadoLibre por cliente
+- `whatsapp_sesiones`: cliente_id (PK), estado ('qr_pendiente'|'conectado'|'desconectado'), qr, numero, auth_state (jsonb — credenciales Baileys serializadas), updated_at
+- `whatsapp_mensajes`: id, cliente_id, telefono, direction ('entrante'|'saliente'), body, wa_message_id, created_at
+- `twilio_config`: id, cliente_id (UNIQUE), account_sid, auth_token, whatsapp_number, display_name, created_at, updated_at — **tabla huérfana, no usada.** Fila única del 2026-07-30 con el número del sandbox de Twilio (`+14155238886`): prueba de la API de WhatsApp de Twilio anterior a la integración Baileys (que arrancó el 2026-08-05, ver `whatsapp_sesiones`/`whatsapp_mensajes` abajo). No tiene migración SQL en el repo (se creó a mano en el SQL Editor) ni referencias en el código actual. Evaluar borrarla si se descarta definitivamente esa vía
+
+### Otras
+- `clientes_servicio` (ojo: singular): id, nombre, logo_url, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas (texto "lat, lng"), redes_sociales (JSONB array de `{tipo, valor}`, tipo ∈ Instagram/Página web/Otro, máx 3), estado (default 'activo'), fecha_alta, extension (text, unique), portada_urls (text[]), titulo_pagina, color_principal, color_secundario, color_acentuaciones — configurado desde `Configuracion.jsx`, consumido por `InmobiliariaPublica.jsx`. Logo se sube al bucket `propiedades-imagenes` bajo `logos/{cliente_id}/`
+
+RLS por `cliente_id`/`auth.uid()` en todas las tablas (ver sección Autenticación → RLS). Excepciones sin `cliente_id` (compartidas entre todos los clientes, solo lectura para `authenticated`): `etapas_crm`, `propiedades_ext`
 
 ## Integración MercadoLibre
 - App ID: `3889570283764172` (público, hardcodeado en frontend). Client secret SOLO vive en Supabase Edge Functions (`ML_CLIENT_SECRET`), nunca en el frontend.

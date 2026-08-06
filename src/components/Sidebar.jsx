@@ -11,6 +11,7 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import LogoutIcon from '@mui/icons-material/Logout'
 import SettingsIcon from '@mui/icons-material/Settings'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -42,8 +43,9 @@ const topItems = [
 const comercialItems = [
   { label: 'Consultas Web',           path: '/consultas-web', icon: <LanguageIcon sx={{ fontSize: 18 }} /> },
   { label: 'Seguimiento de contactos', path: '/prospectos',   icon: <GroupIcon sx={{ fontSize: 18 }} /> },
-  { label: 'WhatsApp',                 path: '/whatsapp',     icon: <WhatsAppIcon sx={{ fontSize: 18 }} /> },
 ]
+
+const mensajeriaItem = { label: 'Mensajería', path: '/whatsapp', icon: <WhatsAppIcon sx={{ fontSize: 18 }} /> }
 
 const baseDatosItems = [
   { label: 'Propiedades',                  path: '/propiedades',            icon: <OtherHousesIcon sx={{ fontSize: 18 }} /> },
@@ -193,55 +195,111 @@ export default function Sidebar() {
       }}
     >
       {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: collapsed ? 'center' : 'space-between',
-          px: collapsed ? 0 : 2,
-          height: 60,
-          borderBottom: `1px solid ${BORDER}`,
-          flexShrink: 0,
-        }}
-      >
-        {!collapsed && (
-          <Box display="flex" alignItems="center" gap={1.25}>
-            <Typography
+      <Box sx={{ borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'space-between',
+            px: collapsed ? 0 : 2,
+            height: 60,
+          }}
+        >
+          {!collapsed && (
+            <Box display="flex" alignItems="center" gap={1.25}>
+              <Typography
+                sx={{
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  color: '#065F46',
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Granito
+              </Typography>
+            </Box>
+          )}
+
+          <Tooltip title={collapsed ? 'Expandir' : 'Colapsar'} placement="right">
+            <Box
+              onClick={() => setCollapsed(prev => !prev)}
               sx={{
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                color: '#065F46',
-                letterSpacing: '-0.01em',
-                whiteSpace: 'nowrap',
+                width: 28,
+                height: 28,
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: TEXT_MUTED,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: BG_HOVER, color: TEXT_DEFAULT },
               }}
             >
-              Granito
-            </Typography>
-          </Box>
-        )}
+              {collapsed
+                ? <ChevronRightIcon sx={{ fontSize: 17 }} />
+                : <ChevronLeftIcon sx={{ fontSize: 17 }} />
+              }
+            </Box>
+          </Tooltip>
+        </Box>
 
-        <Tooltip title={collapsed ? 'Expandir' : 'Colapsar'} placement="right">
-          <Box
-            onClick={() => setCollapsed(prev => !prev)}
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: TEXT_MUTED,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              '&:hover': { bgcolor: BG_HOVER, color: TEXT_DEFAULT },
-            }}
-          >
-            {collapsed
-              ? <ChevronRightIcon sx={{ fontSize: 17 }} />
-              : <ChevronLeftIcon sx={{ fontSize: 17 }} />
-            }
-          </Box>
-        </Tooltip>
+        {user && (
+          collapsed ? (
+            <Tooltip title={user.nombre_usuario ?? ''} placement="right">
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  bgcolor: BG_ACTIVE,
+                  border: `1px solid ${BORDER}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mx: 'auto',
+                  mb: 1.25,
+                  cursor: 'default',
+                }}
+              >
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
+                  {initials}
+                </Typography>
+              </Box>
+            </Tooltip>
+          ) : (
+            <Box display="flex" alignItems="center" gap={1.25} px={2} pb={1.5}>
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  bgcolor: BG_ACTIVE,
+                  border: `1px solid ${BORDER}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
+                  {initials}
+                </Typography>
+              </Box>
+              <Box overflow="hidden">
+                <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 600, color: TEXT_DEFAULT, lineHeight: 1.2 }}>
+                  {user?.nombre_usuario}
+                </Typography>
+                {user?.cliente_nombre && (
+                  <Typography noWrap sx={{ fontSize: '0.65rem', color: TEXT_MUTED }}>
+                    {user.cliente_nombre}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )
+        )}
       </Box>
 
       {/* Nav */}
@@ -341,6 +399,16 @@ export default function Sidebar() {
         )}
       </Box>
 
+      {/* Mensajería (fija, arriba del footer) */}
+      <Box sx={{ borderTop: `1px solid ${BORDER}`, pt: 0.75, flexShrink: 0 }}>
+        <NavItem
+          item={mensajeriaItem}
+          active={location.pathname === mensajeriaItem.path}
+          collapsed={collapsed}
+          onClick={() => navigate(mensajeriaItem.path)}
+        />
+      </Box>
+
       {/* Footer */}
       <Box
         sx={{
@@ -349,160 +417,59 @@ export default function Sidebar() {
           flexShrink: 0,
         }}
       >
-        {!collapsed && (
-          <>
-            {user?.cliente_nombre && (
+        {/* Acciones */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
+          {isAdmin && (
+            <Tooltip title="Configuración" placement="top">
               <Box
+                onClick={() => navigate('/configuracion')}
                 sx={{
-                  bgcolor: 'rgba(16,185,129,0.07)',
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: '8px',
-                  px: 1.5,
-                  py: 1,
-                  mb: 1.5,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34,
+                  borderRadius: '8px', cursor: 'pointer',
+                  color: location.pathname === '/configuracion' ? ACCENT : '#6B7C74',
+                  bgcolor: location.pathname === '/configuracion' ? 'rgba(16,185,129,0.08)' : 'transparent',
+                  transition: 'all 0.15s',
+                  '&:hover': { bgcolor: 'rgba(16,185,129,0.08)', color: ACCENT },
                 }}
               >
-                <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEXT_MUTED, mb: 0.25 }}>
-                  Cliente
-                </Typography>
-                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_DEFAULT }}>
-                  {user.cliente_nombre}
-                </Typography>
+                <SettingsIcon sx={{ fontSize: 18 }} />
               </Box>
-            )}
+            </Tooltip>
+          )}
 
-            <Box display="flex" alignItems="center" gap={1.25} mb={1.5}>
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  bgcolor: BG_ACTIVE,
-                  border: `1px solid ${BORDER}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
-                  {initials}
-                </Typography>
-              </Box>
-              <Box overflow="hidden">
-                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 600, color: TEXT_DEFAULT, lineHeight: 1.2 }}>
-                  {user?.nombre_usuario}
-                </Typography>
-                <Typography noWrap sx={{ fontSize: '0.65rem', color: TEXT_MUTED, textTransform: 'capitalize' }}>
-                  {user?.rol}
-                </Typography>
-              </Box>
-            </Box>
-          </>
-        )}
-
-        {collapsed && user && (
-          <Tooltip title={user.nombre_usuario ?? ''} placement="right">
+          <Tooltip title="Cerrar sesión" placement="top">
             <Box
+              onClick={handleLogout}
               sx={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                bgcolor: BG_ACTIVE,
-                border: `1px solid ${BORDER}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                mx: 'auto',
-                mb: 1,
-                cursor: 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 34, height: 34,
+                borderRadius: '8px', cursor: 'pointer',
+                color: '#6B7C74',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: 'rgba(239,68,68,0.08)', color: '#F87171' },
               }}
             >
-              <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: ACCENT }}>
-                {initials}
-              </Typography>
+              <LogoutIcon sx={{ fontSize: 18 }} />
             </Box>
           </Tooltip>
-        )}
 
-        {/* Configuración */}
-        {isAdmin && (
-          <Tooltip title={collapsed ? 'Configuración de la cuenta' : ''} placement="right">
+          <Tooltip title="Necesito ayuda!" placement="top">
             <Box
-              onClick={() => navigate('/configuracion')}
+              onClick={() => window.open('https://wa.me/+5492644159466', '_blank', 'noopener,noreferrer')}
               sx={{
-                display: 'flex', alignItems: 'center', gap: 1.25,
-                px: collapsed ? 0 : 1.5, py: 0.875, mb: 0.5,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 34, height: 34,
                 borderRadius: '8px', cursor: 'pointer',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                color: location.pathname === '/configuracion' ? ACCENT : '#6B7C74',
-                bgcolor: location.pathname === '/configuracion' ? 'rgba(16,185,129,0.08)' : 'transparent',
+                color: '#6B7C74',
                 transition: 'all 0.15s',
                 '&:hover': { bgcolor: 'rgba(16,185,129,0.08)', color: ACCENT },
               }}
             >
-              <SettingsIcon sx={{ fontSize: 17 }} />
-              {!collapsed && (
-                <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: 'inherit' }}>
-                  Configuración
-                </Typography>
-              )}
+              <HelpOutlineIcon sx={{ fontSize: 18 }} />
             </Box>
           </Tooltip>
-        )}
-
-        <Tooltip title={collapsed ? 'Cerrar sesion' : ''} placement="right">
-          <Box
-            onClick={handleLogout}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              px: collapsed ? 0 : 1.5,
-              py: 0.875,
-              borderRadius: '8px',
-              cursor: 'pointer',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: '#6B7C74',
-              transition: 'all 0.15s',
-              '&:hover': { bgcolor: 'rgba(239,68,68,0.08)', color: '#F87171' },
-            }}
-          >
-            <LogoutIcon sx={{ fontSize: 17 }} />
-            {!collapsed && (
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: 'inherit' }}>
-                Cerrar sesion
-              </Typography>
-            )}
-          </Box>
-        </Tooltip>
-
-        <Tooltip title={collapsed ? 'Necesito ayuda!' : ''} placement="right">
-          <Box
-            onClick={() => window.open('https://wa.me/+5492644159466', '_blank', 'noopener,noreferrer')}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              px: collapsed ? 0 : 1.5,
-              py: 0.875,
-              mt: 0.5,
-              borderRadius: '8px',
-              cursor: 'pointer',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: '#25D366',
-              transition: 'all 0.15s',
-              '&:hover': { bgcolor: 'rgba(37,211,102,0.1)' },
-            }}
-          >
-            <WhatsAppIcon sx={{ fontSize: 17 }} />
-            {!collapsed && (
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'inherit' }}>
-                Necesito ayuda!
-              </Typography>
-            )}
-          </Box>
-        </Tooltip>
+        </Box>
       </Box>
     </Box>
   )
