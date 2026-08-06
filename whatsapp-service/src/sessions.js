@@ -120,12 +120,23 @@ export async function sendMessage(clienteId, telefono, body) {
     throw err
   }
 
-  const jid = `${telefono.replace(/\D/g, '')}@s.whatsapp.net`
-  const sent = await sock.sendMessage(jid, { text: body })
+  const digits = telefono.replace(/\D/g, '')
+  // No armamos el JID a mano: WhatsApp normaliza del lado del servidor casos
+  // raros como el "9" de celular en Argentina. onWhatsApp() devuelve el JID
+  // real si el numero esta registrado.
+  const [lookup] = (await sock.onWhatsApp(digits)) ?? []
+  console.log(`[wa:${clienteId}] onWhatsApp(${digits}) ->`, lookup)
+  if (!lookup?.exists) {
+    const err = new Error('Ese número no tiene WhatsApp o el formato no es válido')
+    err.status = 400
+    throw err
+  }
+
+  const sent = await sock.sendMessage(lookup.jid, { text: body })
 
   await supabaseAdmin.from('whatsapp_mensajes').insert({
     cliente_id: clienteId,
-    telefono: telefono.replace(/\D/g, ''),
+    telefono: digits,
     direction: 'saliente',
     body,
     wa_message_id: sent?.key?.id ?? null,
