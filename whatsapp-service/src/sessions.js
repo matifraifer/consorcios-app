@@ -22,6 +22,29 @@ export function isConnected(clienteId) {
   return sockets.has(clienteId)
 }
 
+// WhatsApp reemplazó el numero de telefono por un identificador opaco ("LID")
+// en remoteJid para contactos ya migrados. Si no lo resolvemos, terminamos
+// guardando el LID como si fuera el numero real. remoteJidAlt suele traer ya
+// el JID de telefono cuando Baileys lo conoce; si no, se lo pedimos al
+// signalRepository (que mantiene el mapeo LID <-> numero).
+async function resolveTelefono(sock, key, clienteId) {
+  const jid = key.remoteJid
+  if (!jid) return null
+  if (!jid.endsWith('@lid')) return jid.split('@')[0]
+
+  if (key.remoteJidAlt) return key.remoteJidAlt.split('@')[0]
+
+  try {
+    const pn = await sock.signalRepository.lidMapping.getPNForLID(jid)
+    if (pn) return pn.split('@')[0]
+  } catch (err) {
+    console.error(`[wa:${clienteId}] no se pudo resolver LID ${jid}`, err)
+  }
+
+  console.warn(`[wa:${clienteId}] no se encontro numero real para LID ${jid}, se descarta el mensaje`)
+  return null
+}
+
 export async function startSession(clienteId) {
   if (sockets.has(clienteId)) {
     console.log(`[wa:${clienteId}] ya hay una sesion activa, no se reinicia`)
@@ -85,7 +108,7 @@ export async function startSession(clienteId) {
         const body = m.message?.conversation ?? m.message?.extendedTextMessage?.text
         if (!body) continue
 
-        const telefono = m.key.remoteJid?.split('@')[0]
+        const telefono = await resolveTelefono(sock, m.key, clienteId)
         if (!telefono) continue
 
         await supabaseAdmin.from('whatsapp_mensajes').insert({
