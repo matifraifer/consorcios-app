@@ -22,6 +22,12 @@ export function isConnected(clienteId) {
   return sockets.has(clienteId)
 }
 
+// El JID de un numero puede venir con sufijo de dispositivo (ej. "...:0"),
+// que hay que descartar para quedarnos solo con el numero.
+function numeroDeJid(jid) {
+  return jid.split('@')[0].split(':')[0]
+}
+
 // WhatsApp reemplazó el numero de telefono por un identificador opaco ("LID")
 // en remoteJid para contactos ya migrados. Si no lo resolvemos, terminamos
 // guardando el LID como si fuera el numero real. remoteJidAlt suele traer ya
@@ -30,13 +36,13 @@ export function isConnected(clienteId) {
 async function resolveTelefono(sock, key, clienteId) {
   const jid = key.remoteJid
   if (!jid) return null
-  if (!jid.endsWith('@lid')) return jid.split('@')[0]
+  if (!jid.endsWith('@lid')) return numeroDeJid(jid)
 
-  if (key.remoteJidAlt) return key.remoteJidAlt.split('@')[0]
+  if (key.remoteJidAlt) return numeroDeJid(key.remoteJidAlt)
 
   try {
     const pn = await sock.signalRepository.lidMapping.getPNForLID(jid)
-    if (pn) return pn.split('@')[0]
+    if (pn) return numeroDeJid(pn)
   } catch (err) {
     console.error(`[wa:${clienteId}] no se pudo resolver LID ${jid}`, err)
   }
