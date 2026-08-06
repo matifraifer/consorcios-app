@@ -1781,3 +1781,12 @@ export async function getWhatsappMensajes(cliente_id) {
   if (error) throw error
   return data
 }
+
+export async function marcarMensajesWhatsappLeidos(ids) {
+  if (!ids?.length) return
+  const { error } = await supabase
+    .from('whatsapp_mensajes')
+    .update({ leido: true })
+    .in('id', ids)
+  if (error) throw error
+}

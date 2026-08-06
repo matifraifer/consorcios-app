@@ -12,7 +12,10 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import { useAuth } from '../contexts/AuthContext'
-import { getWhatsappMensajes, sendWhatsappMensaje, getContactos, getContactoPropiedades } from '../services/supabase'
+import {
+  getWhatsappMensajes, sendWhatsappMensaje, getContactos, getContactoPropiedades,
+  marcarMensajesWhatsappLeidos,
+} from '../services/supabase'
 
 const ACCENT   = '#065F46'
 const POLL_MS  = 5000
@@ -141,7 +144,8 @@ export default function WhatsApp() {
       const ordenados = [...msjs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       const ultimo = ordenados[ordenados.length - 1]
       const contacto = contactos.find(c => telefonosCoinciden(c.telefono, ultimo.telefono))
-      return { telefono: ultimo.telefono, mensajes: ordenados, ultimo, contacto }
+      const noLeidos = ordenados.filter(m => m.direction === 'entrante' && !m.leido).length
+      return { telefono: ultimo.telefono, mensajes: ordenados, ultimo, contacto, noLeidos }
     })
     return lista.sort((a, b) => new Date(b.ultimo.created_at) - new Date(a.ultimo.created_at))
   }, [mensajes, contactos])
@@ -164,6 +168,19 @@ export default function WhatsApp() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [conversacionActual?.mensajes.length, selectedTelefono])
+
+  // Marca como leídos los mensajes entrantes de la conversación abierta
+  // (al abrirla, y de nuevo si llega uno nuevo mientras sigue abierta).
+  useEffect(() => {
+    if (!conversacionActual) return
+    const idsSinLeer = conversacionActual.mensajes
+      .filter(m => m.direction === 'entrante' && !m.leido)
+      .map(m => m.id)
+    if (!idsSinLeer.length) return
+
+    setMensajes(prev => prev.map(m => idsSinLeer.includes(m.id) ? { ...m, leido: true } : m))
+    marcarMensajesWhatsappLeidos(idsSinLeer).catch(() => {})
+  }, [conversacionActual])
 
   useEffect(() => {
     if (!contactoActual) { setContactoPropiedades([]); return }
@@ -277,16 +294,28 @@ export default function WhatsApp() {
                   <Avatar contacto={c.contacto} telefono={c.telefono} size={38} />
                   <Box flex={1} minWidth={0}>
                     <Box display="flex" justifyContent="space-between" alignItems="baseline" gap={1}>
-                      <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 600, color: '#111827' }}>
+                      <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: c.noLeidos > 0 ? 700 : 600, color: '#111827' }}>
                         {nombreConversacion(c)}
                       </Typography>
-                      <Typography sx={{ fontSize: '0.65rem', color: '#9CA3AF', flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: '0.65rem', color: c.noLeidos > 0 ? ACCENT : '#9CA3AF', fontWeight: c.noLeidos > 0 ? 700 : 400, flexShrink: 0 }}>
                         {fmtListaHora(c.ultimo.created_at)}
                       </Typography>
                     </Box>
-                    <Typography noWrap sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-                      {c.ultimo.direction === 'saliente' ? 'Vos: ' : ''}{c.ultimo.body}
-                    </Typography>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
+                      <Typography noWrap sx={{ fontSize: '0.75rem', color: c.noLeidos > 0 ? '#374151' : '#9CA3AF', fontWeight: c.noLeidos > 0 ? 600 : 400 }}>
+                        {c.ultimo.direction === 'saliente' ? 'Vos: ' : ''}{c.ultimo.body}
+                      </Typography>
+                      {c.noLeidos > 0 && (
+                        <Box sx={{
+                          flexShrink: 0, minWidth: 18, height: 18, borderRadius: '9px', px: 0.5,
+                          bgcolor: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: 'white' }}>
+                            {c.noLeidos}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               )

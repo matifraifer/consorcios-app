@@ -125,6 +125,7 @@ export async function startSession(clienteId) {
           direction: 'entrante',
           body,
           wa_message_id: m.key.id,
+          leido: false,
         })
         console.log(`[wa:${clienteId}] mensaje entrante guardado, telefono=${telefono}`)
       }
