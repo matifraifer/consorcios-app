@@ -101,9 +101,17 @@ export async function startSession(clienteId) {
     }
   })
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log(`[wa:${clienteId}] messages.upsert (type=${type}) x${messages.length}`)
     try {
       for (const m of messages) {
+        console.log(`[wa:${clienteId}] mensaje ->`, {
+          fromMe: m.key.fromMe,
+          remoteJid: m.key.remoteJid,
+          remoteJidAlt: m.key.remoteJidAlt,
+          tieneBody: !!(m.message?.conversation ?? m.message?.extendedTextMessage?.text),
+        })
+
         if (m.key.fromMe) continue
         const body = m.message?.conversation ?? m.message?.extendedTextMessage?.text
         if (!body) continue
@@ -118,6 +126,7 @@ export async function startSession(clienteId) {
           body,
           wa_message_id: m.key.id,
         })
+        console.log(`[wa:${clienteId}] mensaje entrante guardado, telefono=${telefono}`)
       }
     } catch (err) {
       console.error(`[wa:${clienteId}] error guardando mensaje entrante`, err)
