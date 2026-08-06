@@ -45,6 +45,16 @@ async function resolveTelefono(sock, key, clienteId) {
   return null
 }
 
+// Grupos (@g.us) y estados/broadcast no son conversaciones 1:1 con un
+// contacto -- no tiene sentido guardarlos como si fueran un "telefono".
+function esChatIndividual(jid) {
+  return !!jid && (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid'))
+}
+
+function extraerTexto(m) {
+  return m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? null
+}
+
 export async function startSession(clienteId) {
   if (sockets.has(clienteId)) {
     console.log(`[wa:${clienteId}] ya hay una sesion activa, no se reinicia`)
@@ -56,7 +66,7 @@ export async function startSession(clienteId) {
   const { version, isLatest } = await fetchLatestBaileysVersion()
   console.log(`[wa:${clienteId}] version de baileys ${version.join('.')} (ultima: ${isLatest})`)
 
-  const sock = makeWASocket({ version, auth: state, logger, printQRInTerminal: false })
+  const sock = makeWASocket({ version, auth: state, logger, printQRInTerminal: false, syncFullHistory: true })
   sockets.set(clienteId, sock)
   console.log(`[wa:${clienteId}] socket creado, esperando eventos de conexion`)
 
@@ -105,32 +115,66 @@ export async function startSession(clienteId) {
     console.log(`[wa:${clienteId}] messages.upsert (type=${type}) x${messages.length}`)
     try {
       for (const m of messages) {
-        console.log(`[wa:${clienteId}] mensaje ->`, {
-          fromMe: m.key.fromMe,
-          remoteJid: m.key.remoteJid,
-          remoteJidAlt: m.key.remoteJidAlt,
-          tieneBody: !!(m.message?.conversation ?? m.message?.extendedTextMessage?.text),
-        })
-
         if (m.key.fromMe) continue
-        const body = m.message?.conversation ?? m.message?.extendedTextMessage?.text
+        if (!esChatIndividual(m.key.remoteJid)) continue
+        const body = extraerTexto(m)
         if (!body) continue
 
         const telefono = await resolveTelefono(sock, m.key, clienteId)
         if (!telefono) continue
 
-        await supabaseAdmin.from('whatsapp_mensajes').insert({
+        const { error } = await supabaseAdmin.from('whatsapp_mensajes').upsert({
           cliente_id: clienteId,
           telefono,
           direction: 'entrante',
           body,
           wa_message_id: m.key.id,
           leido: false,
-        })
+        }, { onConflict: 'cliente_id,wa_message_id', ignoreDuplicates: true })
+        if (error) throw error
         console.log(`[wa:${clienteId}] mensaje entrante guardado, telefono=${telefono}`)
       }
     } catch (err) {
       console.error(`[wa:${clienteId}] error guardando mensaje entrante`, err)
+    }
+  })
+
+  // Al vincular un dispositivo nuevo, WhatsApp manda una tanda de mensajes
+  // historicos (recientes, no todo el historial) por este evento -- una sola
+  // vez, en el primer pairing. Reconexiones posteriores con las mismas
+  // credenciales no vuelven a dispararlo.
+  sock.ev.on('messaging-history.set', async ({ messages, isLatest }) => {
+    console.log(`[wa:${clienteId}] messaging-history.set x${messages.length} (isLatest=${isLatest})`)
+    try {
+      const filas = []
+      for (const m of messages) {
+        if (!esChatIndividual(m.key.remoteJid)) continue
+        const body = extraerTexto(m)
+        if (!body) continue
+
+        const telefono = await resolveTelefono(sock, m.key, clienteId)
+        if (!telefono) continue
+
+        const ts = Number(m.messageTimestamp) || Math.floor(Date.now() / 1000)
+        filas.push({
+          cliente_id: clienteId,
+          telefono,
+          direction: m.key.fromMe ? 'saliente' : 'entrante',
+          body,
+          wa_message_id: m.key.id,
+          leido: true,
+          created_at: new Date(ts * 1000).toISOString(),
+        })
+      }
+      if (!filas.length) return
+
+      const { error } = await supabaseAdmin
+        .from('whatsapp_mensajes')
+        .upsert(filas, { onConflict: 'cliente_id,wa_message_id', ignoreDuplicates: true })
+      if (error) throw error
+      console.log(`[wa:${clienteId}] historial sincronizado: ${filas.length} mensajes guardados`)
+    } catch (err) {
+      console.error(`[wa:${clienteId}] error sincronizando historial`, err)
     }
   })
 }
