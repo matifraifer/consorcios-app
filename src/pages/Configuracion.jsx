@@ -27,7 +27,7 @@ const ACCENT = '#065F46'
 // const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=granito`
 
 const MP_CLIENT_ID    = '834882963305769'
-const MP_REDIRECT_URI = 'https://consorcios-app.vercel.app/mp-callback'
+const MP_REDIRECT_URI = 'https://app.granito.com.ar/mp-callback'
 const MP_AUTH_URL = `https://auth.mercadopago.com.ar/authorization?client_id=${MP_CLIENT_ID}&response_type=code&platform_id=mp&redirect_uri=${encodeURIComponent(MP_REDIRECT_URI)}&state=granito`
 
 const RED_SOCIAL_TIPOS = ['Instagram', 'Página web', 'Otro']
