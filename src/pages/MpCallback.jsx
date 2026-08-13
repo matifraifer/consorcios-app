@@ -6,7 +6,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../services/supabase'
 
-const REDIRECT_URI = 'https://consorcios-app.vercel.app/mp-callback'
+const REDIRECT_URI = 'https://app.granito.com.ar/mp-callback'
 
 export default function MpCallback() {
   const [searchParams]        = useSearchParams()
