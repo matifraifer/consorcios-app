@@ -1,9 +1,27 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Box, Typography, TextField, Button, Alert, CircularProgress, Divider } from '@mui/material'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { Box, Typography, TextField, Button, Alert, CircularProgress, Divider, Checkbox } from '@mui/material'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import { getConsultaDeuda } from '../services/supabase'
+import { getConsultaDeuda, crearPreferenciaPago } from '../services/supabase'
 import { calcularSaldosMora } from '../utils/calcularSaldosMora'
+
+const MS_POR_DIA = 1000 * 60 * 60 * 24
+
+// Estimación de mora por período para mostrar en la UI antes de pagar; el
+// monto real que se cobra siempre lo recalcula mp-crear-preferencia server-side.
+function montoConMora(saldo, fechaVencimiento, tasaMora) {
+  if (!fechaVencimiento) return saldo
+  const diasAtraso = (new Date() - new Date(fechaVencimiento)) / MS_POR_DIA
+  const mesesAtraso = Math.floor(diasAtraso / 30)
+  if (mesesAtraso <= 0) return saldo
+  return saldo + saldo * (Number(tasaMora || 0) / 100) * mesesAtraso
+}
+
+const PAGO_BANNER = {
+  success: { severity: 'success', text: 'Pago aprobado. El estado de tu deuda se actualiza en unos segundos — volvé a consultar para verlo reflejado.' },
+  pending: { severity: 'warning', text: 'Tu pago quedó pendiente de aprobación en Mercado Pago.' },
+  failure: { severity: 'error', text: 'El pago no pudo procesarse. Podés intentarlo de nuevo.' },
+}
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -67,11 +85,16 @@ function SaldoRow({ label, value, destacado }) {
 
 export default function ConsultaDeudaPublica() {
   const { token } = useParams()
+  const [searchParams] = useSearchParams()
+  const pagoBanner = PAGO_BANNER[searchParams.get('pago')] ?? null
   const [email, setEmail] = useState('')
   const [numeracion, setNumeracion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [resultado, setResultado] = useState(null)
+  const [seleccionados, setSeleccionados] = useState(new Set())
+  const [pagando, setPagando] = useState(false)
+  const [payError, setPayError] = useState(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -99,11 +122,14 @@ export default function ConsultaDeudaPublica() {
           return {
             ...periodo,
             saldo: saldoPeriodo,
+            montoConMora: montoConMora(saldoPeriodo, periodo.fecha_vencimiento, data.tasa_mora),
             gastos: (data.gastos ?? []).filter(g => g.periodo_id === periodo.id),
           }
         })
         .filter(Boolean)
       setResultado({ ...saldo, consorcioNombre: data.consorcio_nombre, periodosAdeudados })
+      setSeleccionados(new Set())
+      setPayError(null)
     } catch {
       setError('Ocurrió un error al consultar. Intentá de nuevo.')
     } finally {
@@ -114,6 +140,32 @@ export default function ConsultaDeudaPublica() {
   function handleVolver() {
     setResultado(null)
     setError(null)
+    setSeleccionados(new Set())
+    setPayError(null)
+  }
+
+  function togglePeriodo(id) {
+    setSeleccionados(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handlePagar() {
+    setPagando(true)
+    setPayError(null)
+    try {
+      const data = await crearPreferenciaPago({
+        token, email: email.trim(), numeracion: numeracion.trim(),
+        periodos_ids: Array.from(seleccionados),
+      })
+      window.location.href = data.init_point
+    } catch (err) {
+      setPayError(err.message ?? 'No se pudo iniciar el pago. Intentá de nuevo.')
+      setPagando(false)
+    }
   }
 
   return (
@@ -135,6 +187,7 @@ export default function ConsultaDeudaPublica() {
               </Typography>
 
               <Box component="form" onSubmit={handleSubmit}>
+                {pagoBanner && <Alert severity={pagoBanner.severity} sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{pagoBanner.text}</Alert>}
                 {error && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
 
                 <TextField
@@ -186,12 +239,20 @@ export default function ConsultaDeudaPublica() {
                   </Typography>
                   {resultado.periodosAdeudados.map(periodo => (
                     <Box key={periodo.id} sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', mb: 1.5, overflow: 'hidden' }}>
-                      <Box sx={{ bgcolor: '#F9FAFB', px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
-                          {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
-                        </Typography>
+                      <Box sx={{ bgcolor: '#F9FAFB', px: 1, py: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                          <Checkbox
+                            size="small"
+                            checked={seleccionados.has(periodo.id)}
+                            onChange={() => togglePeriodo(periodo.id)}
+                            sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT }, p: 0.5 }}
+                          />
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+                            {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
+                          </Typography>
+                        </Box>
                         <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#B45309', fontVariantNumeric: 'tabular-nums' }}>
-                          {fmt(periodo.saldo)}
+                          {fmt(periodo.montoConMora)}
                         </Typography>
                       </Box>
                       <Box sx={{ px: 2, py: 1 }}>
@@ -214,6 +275,28 @@ export default function ConsultaDeudaPublica() {
                       </Box>
                     </Box>
                   ))}
+
+                  {payError && <Alert severity="error" sx={{ mt: 1, mb: 1, borderRadius: '8px', fontSize: '0.82rem' }}>{payError}</Alert>}
+
+                  <Button
+                    fullWidth variant="contained"
+                    disabled={seleccionados.size === 0 || pagando}
+                    startIcon={pagando ? <CircularProgress size={16} color="inherit" /> : null}
+                    onClick={handlePagar}
+                    sx={{
+                      mt: 1, bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
+                      fontWeight: 600, py: 1.1, boxShadow: 'none',
+                      '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+                    }}
+                  >
+                    {pagando
+                      ? 'Redirigiendo a Mercado Pago...'
+                      : seleccionados.size === 0
+                        ? 'Seleccioná uno o más períodos para pagar'
+                        : `Pagar seleccionados (${fmt(resultado.periodosAdeudados
+                            .filter(p => seleccionados.has(p.id))
+                            .reduce((acc, p) => acc + p.montoConMora, 0))})`}
+                  </Button>
                 </Box>
               )}
 

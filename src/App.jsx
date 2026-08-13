@@ -30,6 +30,7 @@ import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
 import WhatsApp         from './pages/WhatsApp'
 // import MlCallback       from './pages/MlCallback' // MercadoLibre — deshabilitado temporalmente
+import MpCallback       from './pages/MpCallback'
 import Configuracion          from './pages/Configuracion'
 import PropiedadesComunidad  from './pages/PropiedadesComunidad'
 
@@ -43,6 +44,7 @@ export default function App() {
       <Route path="/inmobiliaria/:clienteId" element={<InmobiliariaPublica />} />
       <Route path="/consulta/:token" element={<ConsultaDeudaPublica />} />
       {/* <Route path="/ml-callback" element={<MlCallback />} /> */}{/* MercadoLibre — deshabilitado temporalmente */}
+      <Route path="/mp-callback" element={<MpCallback />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

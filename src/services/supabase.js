@@ -1717,6 +1717,41 @@ export async function linkContactoPropiedad(contacto_id, propiedad_id) {
 //   if (error) throw error
 // }
 
+// ---- MERCADO PAGO ----
+
+export async function getMpToken(cliente_id) {
+  const { data, error } = await supabase
+    .from('mp_tokens')
+    .select('mp_user_id')
+    .eq('cliente_id', cliente_id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function testMercadoPago(cliente_id) {
+  const { data, error } = await supabase.functions.invoke('mp-test', { body: { cliente_id } })
+  if (error) throw error
+  return data
+}
+
+export async function disconnectMercadoPago(cliente_id) {
+  const { error } = await supabase
+    .from('mp_tokens')
+    .delete()
+    .eq('cliente_id', cliente_id)
+  if (error) throw error
+}
+
+export async function crearPreferenciaPago({ token, email, numeracion, periodos_ids }) {
+  const { data, error } = await supabase.functions.invoke('mp-crear-preferencia', {
+    body: { token, email, numeracion, periodos_ids },
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
 export async function marcarConsultaConvertida(id, contacto_id) {
   const { data, error } = await supabase
     .from('consultas_web')

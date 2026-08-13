@@ -60,6 +60,7 @@ src/
     PropiedadPublica.jsx          # Página PÚBLICA (sin auth) de UNA propiedad — ruta /p/:id, con modal de contacto
     InmobiliariaPublica.jsx       # Página PÚBLICA (sin auth) catálogo de TODAS las propiedades de un cliente — ruta /inmobiliaria/:clienteId, con filtros (operación/tipo/provincia/búsqueda); cada card navega a /p/:id
     MlCallback.jsx                # Callback OAuth de MercadoLibre — ruta /ml-callback (fuera de ProtectedRoute)
+    MpCallback.jsx                 # Callback OAuth de Mercado Pago — ruta /mp-callback (fuera de ProtectedRoute)
     Contratos.jsx
     WhatsApp.jsx                   # ruta /whatsapp — lista de mensajes + envío (MVP de la integración WhatsApp)
 supabase/
@@ -67,6 +68,10 @@ supabase/
   functions/                      # Edge Functions (Deno) — deployadas con --no-verify-jwt
     ml-auth/                      # Intercambia code de OAuth por access_token/refresh_token (usa ML_CLIENT_SECRET)
     ml-test/                      # Valida el token guardado llamando a /users/me de MercadoLibre
+    mp-auth/                       # Intercambia code de OAuth de Mercado Pago por tokens (usa MP_CLIENT_SECRET), upsert en mp_tokens
+    mp-test/                       # Valida el token guardado llamando a /users/me de Mercado Pago
+    mp-crear-preferencia/          # Pública (anon) — valida identidad por token_consulta+email+numeración, calcula el monto por período (con mora) server-side y crea la preferencia de Checkout Pro
+    mp-webhook/                    # Pública — recibe la notificación de pago, confirma el estado real contra la API de MP y marca expensas_departamento como pagado
 whatsapp-service/                 # Proceso Node persistente (Baileys) — deployado aparte en Railway, ver sección "Integración WhatsApp"
   src/
     index.js, sessions.js, authState.js, routes.js, supabaseAdmin.js, middleware/auth.js
@@ -75,7 +80,9 @@ whatsapp-service/                 # Proceso Node persistente (Baileys) — deplo
 ## Páginas públicas (sin autenticación)
 - `/p/:id` → `PropiedadPublica.jsx`: ficha pública de una propiedad individual, con modal de contacto que crea registros en `consultas_web`
 - `/inmobiliaria/:clienteId` → `InmobiliariaPublica.jsx`: catálogo público con todas las propiedades disponibles de un cliente (excluye Baja/Vendida), filtros por operación/tipo/provincia/búsqueda, cards clickeables que navegan a `/p/:id`
+- `/consulta/:token` → `ConsultaDeudaPublica.jsx`: consulta de deuda por unidad (valida email + número de unidad contra el `token_consulta` no adivinable, RPC `consultar_deuda_departamento`), con selección de períodos adeudados y pago vía Mercado Pago (ver sección "Integración Mercado Pago")
 - `/ml-callback` → `MlCallback.jsx`: recibe el `code` de OAuth de MercadoLibre y llama a la Edge Function `ml-auth`
+- `/mp-callback` → `MpCallback.jsx`: recibe el `code` de OAuth de Mercado Pago y llama a la Edge Function `mp-auth`
 
 ## Supabase — Tablas
 (relevado directo del proyecto via MCP de Supabase — `list_tables`)
@@ -115,6 +122,8 @@ whatsapp-service/                 # Proceso Node persistente (Baileys) — deplo
 
 ### Integraciones
 - `ml_tokens`: id, cliente_id (UNIQUE), access_token, refresh_token, ml_user_id, expires_at, created_at — tokens OAuth de MercadoLibre por cliente
+- `mp_tokens`: cliente_id (PK), access_token, refresh_token, public_key, mp_user_id, expires_at, created_at — tokens OAuth de Mercado Pago por cliente (cada consorcio cobra a su propia cuenta)
+- `mp_pagos`: id (UUID), cliente_id, departamento_id, periodos_ids (INTEGER[] — períodos de `periodos_expensas` cubiertos por ese pago), monto, preference_id, mp_payment_id, estado ('pendiente'|'aprobado'|'rechazado'), created_at, updated_at — un registro por intento de pago iniciado desde `/consulta/:token`
 - `whatsapp_sesiones`: cliente_id (PK), estado ('qr_pendiente'|'conectado'|'desconectado'), qr, numero, auth_state (jsonb — credenciales Baileys serializadas), updated_at
 - `whatsapp_mensajes`: id, cliente_id, telefono, direction ('entrante'|'saliente'), body, wa_message_id, created_at
 - `twilio_config`: id, cliente_id (UNIQUE), account_sid, auth_token, whatsapp_number, display_name, created_at, updated_at — **tabla huérfana, no usada.** Fila única del 2026-07-30 con el número del sandbox de Twilio (`+14155238886`): prueba de la API de WhatsApp de Twilio anterior a la integración Baileys (que arrancó el 2026-08-05, ver `whatsapp_sesiones`/`whatsapp_mensajes` abajo). No tiene migración SQL en el repo (se creó a mano en el SQL Editor) ni referencias en el código actual. Evaluar borrarla si se descarta definitivamente esa vía
@@ -132,6 +141,18 @@ RLS por `cliente_id`/`auth.uid()` en todas las tablas (ver sección Autenticaci�
 - `ml-test`: llama a `GET /users/me` de ML con el token guardado para validar que la conexión sigue activa
 - Conexión/desconexión visible en `Propiedades.jsx` (botones) y en `Configuracion.jsx` (switch en card de integración)
 - Pendiente: Edge Function `ml-publish` para publicar propiedades (esperando que ML habilite la cuenta como inmobiliaria); usuarios de prueba de ML ya no se pueden crear desde el dashboard — usar cuenta secundaria real para testing
+
+## Integración Mercado Pago (Checkout Pro, cobro de expensas)
+- Modelo: **cada consorcio/cliente conecta su propia cuenta de Mercado Pago** vía OAuth Connect (mismo patrón que MercadoLibre) — el dinero entra directo a esa cuenta, la app no centraliza fondos de terceros
+- App ID: pendiente de reemplazar `MP_CLIENT_ID` (constante en `Configuracion.jsx`, hoy `'REEMPLAZAR_MP_CLIENT_ID'`) por el Client ID real de una app de Mercado Pago Developers tipo "Marketplace/Plataforma". Client secret SOLO vive en Supabase Edge Functions (`MP_CLIENT_SECRET`). Client ID/Secret solo aparecen en la pestaña "Credenciales de producción" del panel de MP (no en la de prueba)
+- Secret opcional `MP_TEST_MODE=true` en `mp-auth`: agrega `test_token=true` al intercambio OAuth para recibir un access_token tipo `TEST` (sandbox) sin necesitar la cuenta de producción activada — sacarlo (o ponerlo en `false`) al pasar a producción real
+- Redirect URI fija: `https://consorcios-app.vercel.app/mp-callback`
+- Flujo OAuth: botón conectar en `Configuracion.jsx` → `auth.mercadopago.com.ar/authorization` → `/mp-callback` (`MpCallback.jsx`) → Edge Function `mp-auth` intercambia code por tokens → guarda en `mp_tokens`
+- `mp-test`: llama a `GET /users/me` de MP con el token guardado para validar que la conexión sigue activa
+- Flujo de cobro (desde `/consulta/:token`, sin login): el propietario/inquilino elige qué períodos adeudados pagar (checkbox por período) → `mp-crear-preferencia` revalida la identidad igual que la RPC `consultar_deuda_departamento`, recalcula el monto de cada período (saldo + mora prorateada) del lado del servidor — nunca confía en montos del cliente —, crea una fila en `mp_pagos` y una preferencia de Checkout Pro con `notification_url=mp-webhook?pago_id=<id>`, y devuelve `init_point` para redirigir al checkout hosteado por MP
+- `mp-webhook`: recibe la notificación de MP, busca `mp_pagos` por `pago_id`, y con el `access_token` del cliente dueño de ese pago confirma el estado real contra `GET /v1/payments/:id` (nunca confía en el payload del webhook a ciegas). Si `approved`, marca `mp_pagos.estado` y actualiza `expensas_departamento` (`pagado=true`) de cada período cubierto
+- Edge Functions deployadas con `--no-verify-jwt` (se llaman con la anon key)
+- Pendiente: crear la app real en Mercado Pago Developers y cargar `MP_CLIENT_ID`/`MP_CLIENT_SECRET`; correr `supabase/migrations/0013_mercadopago.sql` a mano en el SQL Editor
 
 ## Integración WhatsApp (Baileys, MVP)
 - Librería `@whiskeysockets/baileys` (login por QR, protocolo no oficial). No corre en el frontend ni en una Edge Function — necesita un proceso Node persistente, primero de este tipo en el proyecto: `whatsapp-service/` (carpeta nueva en este mismo repo, deployada como servicio aparte en **Railway**, Root Directory = `whatsapp-service`)
@@ -187,3 +208,4 @@ ALTER TABLE gastos ADD COLUMN departamentos_ids INTEGER[];
 - `supabase/migrations/0002_rls_propiedades_clientes.sql`, `0003_storage_authenticated_uploads.sql`, `0004_rls_resto_tablas.sql`: aplicadas — RLS por `cliente_id` en todas las tablas (ver sección Autenticación → RLS)
 - `supabase/migrations/0005_username_login_rpc.sql`, `0006_force_password_change.sql`: aplicadas — login por `nombre_usuario` y cambio de contraseña obligatorio
 - `supabase/migrations/0011_whatsapp.sql`: **pendiente** — crea `whatsapp_sesiones`/`whatsapp_mensajes` + RLS, correr a mano antes de deployar `whatsapp-service/`
+- `supabase/migrations/0013_mercadopago.sql`: **pendiente** — crea `mp_tokens`/`mp_pagos` + RLS, correr a mano antes de deployar las Edge Functions `mp-*`
