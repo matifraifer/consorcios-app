@@ -710,6 +710,18 @@ export default function ConsorcioDetalle() {
     [liquidacionesData, consorcio?.tasa_mora]
   )
 
+  const tokenPorDepartamento = useMemo(
+    () => Object.fromEntries(liquidacionesData.departamentos.map(d => [d.id, d.token_consulta])),
+    [liquidacionesData.departamentos]
+  )
+
+  function handleCopiarLinkPago(departamentoId) {
+    const token = tokenPorDepartamento[departamentoId]
+    if (!token) return
+    navigator.clipboard.writeText(`https://app.granito.com.ar/consulta/${token}`)
+    setLinkSnack('Link de pago copiado al portapapeles')
+  }
+
   if (loading) return <Box display="flex" justifyContent="center" mt={4}><CircularProgress sx={{ color: ACCENT }} /></Box>
   if (error) return <Alert severity="error">{error}</Alert>
 
@@ -1285,6 +1297,15 @@ export default function ConsorcioDetalle() {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ py: 1.5 }} align="right">
+                          <Tooltip title="Copiar link de pago (Mercado Pago)">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCopiarLinkPago(l.departamento_id)}
+                              sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Ver pagos">
                             <IconButton
                               size="small"

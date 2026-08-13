@@ -515,7 +515,7 @@ export async function getLiquidacionesConsorcio(consorcio_id) {
   const [{ data: departamentos, error: depErr }, { data: periodos, error: perErr }] = await Promise.all([
     supabase
       .from('departamentos')
-      .select('id, numeracion, inquilino, propietarios(nombre, apellido)')
+      .select('id, numeracion, inquilino, token_consulta, propietarios(nombre, apellido)')
       .eq('id_consorcio', consorcio_id)
       .order('numeracion', { ascending: true }),
     supabase
