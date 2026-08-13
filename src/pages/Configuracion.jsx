@@ -6,6 +6,7 @@ import {
 } from '@mui/material'
 import LanguageIcon from '@mui/icons-material/Language'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import PaymentIcon from '@mui/icons-material/Payment'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
@@ -16,6 +17,7 @@ import {
   getClienteConfig, updateClienteConfig, uploadClienteLogo,
   uploadPortadaImage, deletePortadaImage,
   getWhatsappSesion, connectWhatsapp, disconnectWhatsapp,
+  getMpToken, testMercadoPago, disconnectMercadoPago,
 } from '../services/supabase'
 
 const ACCENT = '#065F46'
@@ -23,6 +25,10 @@ const ACCENT = '#065F46'
 // const ML_CLIENT_ID    = '3889570283764172'
 // const ML_REDIRECT_URI = 'https://consorcios-app.vercel.app/ml-callback'
 // const ML_AUTH_URL = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=granito`
+
+const MP_CLIENT_ID    = '834882963305769'
+const MP_REDIRECT_URI = 'https://consorcios-app.vercel.app/mp-callback'
+const MP_AUTH_URL = `https://auth.mercadopago.com.ar/authorization?client_id=${MP_CLIENT_ID}&response_type=code&platform_id=mp&redirect_uri=${encodeURIComponent(MP_REDIRECT_URI)}&state=granito`
 
 const RED_SOCIAL_TIPOS = ['Instagram', 'Página web', 'Otro']
 const MAX_REDES = 3
@@ -175,6 +181,49 @@ export default function Configuracion() {
   // async function handleMlToggle() { ... }
   // const mlConnected = mlStatus === 'connected'
   // const mlLoading   = mlStatus === 'loading' || mlToggling
+
+  // ── Mercado Pago ──
+  const [mpStatus, setMpStatus]     = useState('loading') // 'loading' | 'connected' | 'disconnected'
+  const [mpNickname, setMpNickname] = useState('')
+  const [mpToggling, setMpToggling] = useState(false)
+
+  useEffect(() => { if (!clienteId) return; checkMpConnection() }, [clienteId])
+
+  async function checkMpConnection() {
+    try {
+      const tokenRow = await getMpToken(clienteId)
+      if (!tokenRow) { setMpStatus('disconnected'); return }
+      const result = await testMercadoPago(clienteId)
+      if (result?.connected) {
+        setMpNickname(result.nickname ?? '')
+        setMpStatus('connected')
+      } else {
+        setMpStatus('disconnected')
+      }
+    } catch {
+      setMpStatus('disconnected')
+    }
+  }
+
+  async function handleMpToggle() {
+    if (mpConnected) {
+      setMpToggling(true)
+      try {
+        await disconnectMercadoPago(clienteId)
+        setMpStatus('disconnected')
+        setMpNickname('')
+      } catch (err) {
+        setSnackMsg(err.message)
+      } finally {
+        setMpToggling(false)
+      }
+    } else {
+      window.location.href = MP_AUTH_URL
+    }
+  }
+
+  const mpConnected = mpStatus === 'connected'
+  const mpLoading   = mpStatus === 'loading' || mpToggling
 
   // ── WhatsApp ──
   const [waSesion, setWaSesion]     = useState(null)
@@ -406,6 +455,15 @@ export default function Configuracion() {
             connected={waConnected}
             loading={waBusy}
             onToggle={() => (waConnected ? handleDisconnectWa() : handleOpenWaDialog())}
+          />
+
+          <IntegrationCard
+            logo={<PaymentIcon sx={{ fontSize: 22, color: mpConnected ? '#009EE3' : '#9CA3AF' }} />}
+            name="Mercado Pago"
+            description={mpConnected ? `Conectado${mpNickname ? ` (${mpNickname})` : ''}` : 'Conectá tu cuenta para cobrar expensas online'}
+            connected={mpConnected}
+            loading={mpLoading}
+            onToggle={handleMpToggle}
           />
 
           <IntegrationCard
