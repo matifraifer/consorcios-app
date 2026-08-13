@@ -10,12 +10,17 @@ const REDIRECT_URI = 'https://consorcios-app.vercel.app/mp-callback'
 
 export default function MpCallback() {
   const [searchParams]        = useSearchParams()
-  const navigate              = useNavigate()
-  const { clienteId }         = useAuth()
+  const navigate               = useNavigate()
+  const { clienteId, initializing } = useAuth()
   const [status, setStatus]   = useState('loading')
   const [errorMsg, setError]  = useState('')
 
   useEffect(() => {
+    // El redirect de Mercado Pago hace una recarga completa de la página, así
+    // que AuthContext arranca de cero: hay que esperar a que termine de
+    // restaurar la sesión antes de mirar clienteId, si no siempre da falso negativo.
+    if (initializing) return
+
     const code  = searchParams.get('code')
     const error = searchParams.get('error')
 
@@ -47,7 +52,7 @@ export default function MpCallback() {
         setError(err.message ?? 'Error al conectar con Mercado Pago.')
         setStatus('error')
       })
-  }, [])
+  }, [initializing])
 
   return (
     <Box sx={{
