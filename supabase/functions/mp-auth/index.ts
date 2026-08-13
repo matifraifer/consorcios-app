@@ -1,8 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const MP_CLIENT_ID     = Deno.env.get('MP_CLIENT_ID')!
-const MP_CLIENT_SECRET = Deno.env.get('MP_CLIENT_SECRET')!
+// .trim() defensivo: es comun que copiar/pegar el secret desde el panel de MP
+// arrastre un espacio o salto de linea, y eso alcanza para que MP responda
+// invalid_client aunque el valor "se vea" bien.
+const MP_CLIENT_ID     = (Deno.env.get('MP_CLIENT_ID') ?? '').trim()
+const MP_CLIENT_SECRET = (Deno.env.get('MP_CLIENT_SECRET') ?? '').trim()
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -28,6 +31,8 @@ serve(async (req) => {
         status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
+
+    console.log(`mp-auth: client_id="${MP_CLIENT_ID}" (len ${MP_CLIENT_ID.length}), client_secret len ${MP_CLIENT_SECRET.length}, test_mode=${MP_TEST_MODE}`)
 
     // Intercambiar code por tokens
     const tokenRes = await fetch('https://api.mercadopago.com/oauth/token', {
