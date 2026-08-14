@@ -115,7 +115,7 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
       .then(([gastos, deptos, expDep]) => {
         setGastosPeriodo(gastos)
         setDepartamentosPeriodo(deptos)
-        setGastoForm(prev => ({ ...prev, departamentos_ids: deptos.map(d => d.id) }))
+        setGastoForm(prev => ({ ...prev, departamentos_ids: deptos.filter(d => d.activo !== false).map(d => d.id) }))
         setExpensasDep(expDep)
         setLiquidacionGuardada(expDep.length > 0)
       })
@@ -134,7 +134,7 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
 
   function resetGastoForm() {
     setEditingGasto(null)
-    setGastoForm({ ...GASTO_VACIO, departamentos_ids: departamentosPeriodo.map(d => d.id) })
+    setGastoForm({ ...GASTO_VACIO, departamentos_ids: departamentosPeriodo.filter(d => d.activo !== false).map(d => d.id) })
     setGastoFormError(null)
   }
 
@@ -149,7 +149,7 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
       comprobante: gasto.comprobante || '',
       departamentos_ids: gasto.departamentos_ids?.length
         ? gasto.departamentos_ids
-        : departamentosPeriodo.map(d => d.id),
+        : departamentosPeriodo.filter(d => d.activo !== false).map(d => d.id),
     })
     setGastoFormError(null)
     setFormCollapsed(false)
@@ -219,6 +219,11 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
   }
 
   const deptoNumMap = Object.fromEntries(departamentosPeriodo.map(d => [d.id, d.numeracion]))
+  // Unidades inactivas: no se les asigna un gasto nuevo por defecto ni aparecen
+  // como opción en el selector, pero si ya tenían un gasto asignado de antes
+  // siguen participando en calcLiquidacion (abajo, con `departamentosPeriodo`
+  // completo) para no perder esa deuda.
+  const departamentosActivos = departamentosPeriodo.filter(d => d.activo !== false)
   const totalOrdDrawer = gastosPeriodo.filter(g => g.tipo === 'ordinario').reduce((s, g) => s + Number(g.monto), 0)
   const totalExtDrawer = gastosPeriodo.filter(g => g.tipo === 'extraordinario').reduce((s, g) => s + Number(g.monto), 0)
   const totalGralDrawer = totalOrdDrawer + totalExtDrawer
@@ -364,9 +369,9 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                           if (val.includes('__all__')) {
                             setGastoForm(prev => ({
                               ...prev,
-                              departamentos_ids: prev.departamentos_ids.length === departamentosPeriodo.length
+                              departamentos_ids: prev.departamentos_ids.length === departamentosActivos.length
                                 ? []
-                                : departamentosPeriodo.map(d => d.id),
+                                : departamentosActivos.map(d => d.id),
                             }))
                           } else {
                             setGastoForm(prev => ({ ...prev, departamentos_ids: val }))
@@ -375,7 +380,7 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                         sx={selectSx}
                         renderValue={(selected) => {
                           if (selected.length === 0) return <span style={{ color: '#9CA3AF' }}>Ninguno seleccionado</span>
-                          if (selected.length === departamentosPeriodo.length) return 'Todos los departamentos'
+                          if (selected.length === departamentosActivos.length) return 'Todos los departamentos'
                           return (
                             <Box display="flex" gap={0.5} flexWrap="wrap">
                               {selected.map(depId => (
@@ -388,19 +393,19 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                         <MenuItem value="__all__">
                           <Checkbox
                             size="small"
-                            checked={gastoForm.departamentos_ids.length === departamentosPeriodo.length}
-                            indeterminate={gastoForm.departamentos_ids.length > 0 && gastoForm.departamentos_ids.length < departamentosPeriodo.length}
+                            checked={gastoForm.departamentos_ids.length === departamentosActivos.length}
+                            indeterminate={gastoForm.departamentos_ids.length > 0 && gastoForm.departamentos_ids.length < departamentosActivos.length}
                           />
                           <ListItemText
-                            primary={gastoForm.departamentos_ids.length === departamentosPeriodo.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                            primary={gastoForm.departamentos_ids.length === departamentosActivos.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
                           />
                         </MenuItem>
-                        {departamentosPeriodo.map((dep) => (
+                        {departamentosActivos.map((dep) => (
                           <MenuItem key={dep.id} value={dep.id}>
                             <Checkbox size="small" checked={gastoForm.departamentos_ids.includes(dep.id)} />
                             <ListItemText
                               primary={dep.numeracion}
-                              secondary={dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : 'Sin propietario'}
+                              secondary={dep.propietario_apellido ? `${dep.propietario_apellido}, ${dep.propietario_nombre}` : 'Sin propietario'}
                             />
                           </MenuItem>
                         ))}

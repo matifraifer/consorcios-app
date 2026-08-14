@@ -39,8 +39,9 @@ export function calcularSaldosMora(departamentos, periodos, expensas, tasaMora) 
     return {
       departamento_id: dep.id,
       numeracion: dep.numeracion,
-      propietario: dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : null,
+      propietario: dep.propietario_apellido ? `${dep.propietario_apellido}, ${dep.propietario_nombre}` : null,
       inquilino: dep.inquilino,
+      activo: dep.activo,
       saldoUltimo,
       saldoMora,
       interesMora,

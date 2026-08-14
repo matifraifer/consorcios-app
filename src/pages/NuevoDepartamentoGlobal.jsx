@@ -15,7 +15,7 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material'
-import { createDepartamento, getConsorcios, getPropietariosByConsorcio } from '../services/supabase'
+import { createDepartamento, getConsorcios } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function NuevoDepartamentoGlobal() {
@@ -23,11 +23,9 @@ export default function NuevoDepartamentoGlobal() {
   const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
-  const [propietarios, setPropietarios] = useState([])
-  const [form, setForm] = useState({ numeracion: '', id_consorcio: '', id_propietario: '', inquilino: '', coeficiente: '' })
+  const [form, setForm] = useState({ numeracion: '', id_consorcio: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', coeficiente: '' })
   const [loading, setLoading] = useState(false)
   const [loadingConsorcios, setLoadingConsorcios] = useState(true)
-  const [loadingPropietarios, setLoadingPropietarios] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
@@ -37,20 +35,6 @@ export default function NuevoDepartamentoGlobal() {
       .catch((err) => setError(err.message))
       .finally(() => setLoadingConsorcios(false))
   }, [clienteId])
-
-  // Cuando cambia el consorcio, recarga los propietarios
-  useEffect(() => {
-    if (!form.id_consorcio) {
-      setPropietarios([])
-      return
-    }
-    setLoadingPropietarios(true)
-    setForm((prev) => ({ ...prev, id_propietario: '' }))
-    getPropietariosByConsorcio(form.id_consorcio)
-      .then(setPropietarios)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingPropietarios(false))
-  }, [form.id_consorcio])
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -66,7 +50,9 @@ export default function NuevoDepartamentoGlobal() {
       await createDepartamento({
         numeracion: form.numeracion,
         inquilino: form.inquilino,
-        id_propietario: form.id_propietario || null,
+        propietario_nombre: form.propietario_nombre,
+        propietario_apellido: form.propietario_apellido,
+        propietario_dni: form.propietario_dni,
         id_consorcio: form.id_consorcio,
         coeficiente: form.coeficiente || null,
       })
@@ -122,28 +108,35 @@ export default function NuevoDepartamentoGlobal() {
             helperText="Identificador unico del departamento en el edificio"
           />
 
-          <FormControl fullWidth margin="normal" disabled={!form.id_consorcio || loadingPropietarios}>
-            <InputLabel>Propietario</InputLabel>
-            <Select
-              name="id_propietario"
-              value={form.id_propietario}
-              label="Propietario"
-              onChange={handleChange}
-            >
-              <MenuItem value="">
-                <em>Sin propietario</em>
-              </MenuItem>
-              {propietarios.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.apellido}, {p.nombre}
-                </MenuItem>
-              ))}
-            </Select>
-            {loadingPropietarios && <FormHelperText>Cargando propietarios...</FormHelperText>}
-            {!loadingPropietarios && form.id_consorcio && propietarios.length === 0 && (
-              <FormHelperText>No hay propietarios en este consorcio.</FormHelperText>
-            )}
-          </FormControl>
+          <TextField
+            label="Nombre del propietario"
+            name="propietario_nombre"
+            fullWidth
+            margin="normal"
+            value={form.propietario_nombre}
+            onChange={handleChange}
+            placeholder="Ej: Juan"
+          />
+
+          <TextField
+            label="Apellido del propietario"
+            name="propietario_apellido"
+            fullWidth
+            margin="normal"
+            value={form.propietario_apellido}
+            onChange={handleChange}
+            placeholder="Ej: García"
+          />
+
+          <TextField
+            label="DNI del propietario (opcional)"
+            name="propietario_dni"
+            fullWidth
+            margin="normal"
+            value={form.propietario_dni}
+            onChange={handleChange}
+            placeholder="Ej: 30123456"
+          />
 
           <TextField
             label="Inquilino"

@@ -117,7 +117,7 @@ export async function getDepartamentos(cliente_id) {
 
   const { data, error } = await supabase
     .from('departamentos')
-    .select('id, numeracion, inquilino, propietarios(nombre, apellido), consorcios(nombre)')
+    .select('id, numeracion, inquilino, propietario_nombre, propietario_apellido, consorcios(nombre)')
     .in('id_consorcio', ids)
     .order('numeracion', { ascending: true })
   if (error) throw error
@@ -127,27 +127,27 @@ export async function getDepartamentos(cliente_id) {
 export async function getDepartamentosByConsorcio(id_consorcio) {
   const { data, error } = await supabase
     .from('departamentos')
-    .select('*, propietarios(nombre, apellido)')
+    .select('*')
     .eq('id_consorcio', id_consorcio)
     .order('numeracion', { ascending: true })
   if (error) throw error
   return data
 }
 
-export async function createDepartamento({ numeracion, inquilino, id_propietario, id_consorcio, coeficiente, email, telefono }) {
+export async function createDepartamento({ numeracion, inquilino, propietario_nombre, propietario_apellido, propietario_dni, id_consorcio, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .insert([{ numeracion, inquilino, id_propietario: id_propietario || null, id_consorcio, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null }])
+    .insert([{ numeracion, inquilino, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, id_consorcio, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null }])
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateDepartamento(id, { numeracion, inquilino, id_propietario, coeficiente, email, telefono }) {
+export async function updateDepartamento(id, { numeracion, inquilino, propietario_nombre, propietario_apellido, propietario_dni, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .update({ numeracion, inquilino: inquilino || null, id_propietario: id_propietario || null, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null })
+    .update({ numeracion, inquilino: inquilino || null, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null })
     .eq('id', id)
     .select()
     .single()
@@ -285,6 +285,62 @@ export async function importarPropietarios(filas, id_consorcio, cliente_id) {
         const { data: nuevoDep, error: depErr } = await supabase
           .from('departamentos')
           .insert([{ numeracion: fila.unidad.trim(), id_consorcio, id_propietario: prop.id }])
+          .select()
+          .single()
+        if (depErr) throw depErr
+        deptoMap[fila.unidad.trim().toLowerCase()] = nuevoDep.id
+        deptoId = nuevoDep.id
+        deptoCreado = true
+      }
+
+      resultados.push({ ...fila, ok: true, vinculado: !!deptoId, deptoCreado })
+    } catch (err) {
+      resultados.push({ ...fila, ok: false, error: err.message })
+    }
+  }
+  return resultados
+}
+
+// Igual que importarPropietarios, pero para la pestaña "Unidades funcionales":
+// carga nombre/apellido/DNI directo en el departamento, sin crear fila en
+// la tabla propietarios. Usada solo desde ConsorcioDetalle.jsx — la
+// importación de la página global /propietarios sigue usando importarPropietarios.
+export async function importarDepartamentosExcel(filas, id_consorcio) {
+  const { data: deptos, error: dErr } = await supabase
+    .from('departamentos')
+    .select('id, numeracion')
+    .eq('id_consorcio', id_consorcio)
+  if (dErr) throw dErr
+
+  const deptoMap = Object.fromEntries(
+    deptos.map(d => [d.numeracion.trim().toLowerCase(), d.id])
+  )
+
+  const resultados = []
+  for (const fila of filas) {
+    try {
+      let nombre, apellido
+      if (fila.propietario.includes(',')) {
+        const [ap, nom] = fila.propietario.split(',').map(s => s.trim())
+        apellido = ap
+        nombre = nom || ''
+      } else {
+        const parts = fila.propietario.trim().split(/\s+/)
+        apellido = parts[0] ?? ''
+        nombre = parts.slice(1).join(' ')
+      }
+
+      let deptoId = deptoMap[fila.unidad.trim().toLowerCase()]
+      let deptoCreado = false
+      if (deptoId) {
+        await supabase
+          .from('departamentos')
+          .update({ propietario_nombre: nombre, propietario_apellido: apellido, propietario_dni: fila.dni || null })
+          .eq('id', deptoId)
+      } else if (fila.unidad.trim()) {
+        const { data: nuevoDep, error: depErr } = await supabase
+          .from('departamentos')
+          .insert([{ numeracion: fila.unidad.trim(), id_consorcio, propietario_nombre: nombre, propietario_apellido: apellido, propietario_dni: fila.dni || null }])
           .select()
           .single()
         if (depErr) throw depErr
@@ -452,9 +508,23 @@ export async function deleteGasto(id) {
 export async function getDepartamentosConCoeficiente(consorcio_id) {
   const { data, error } = await supabase
     .from('departamentos')
-    .select('id, numeracion, coeficiente, propietarios(nombre, apellido)')
+    .select('id, numeracion, coeficiente, propietario_nombre, propietario_apellido, activo')
     .eq('id_consorcio', consorcio_id)
     .order('numeracion', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+// "Eliminar" una unidad funcional no borra el registro (queda como dato
+// histórico de expensas/reclamos) — solo la inactiva. false = inactiva
+// (se oculta de la grilla y del selector de gastos), true = reactivarla.
+export async function setDepartamentoActivo(id, activo) {
+  const { data, error } = await supabase
+    .from('departamentos')
+    .update({ activo })
+    .eq('id', id)
+    .select()
+    .single()
   if (error) throw error
   return data
 }
@@ -515,7 +585,7 @@ export async function getLiquidacionesConsorcio(consorcio_id) {
   const [{ data: departamentos, error: depErr }, { data: periodos, error: perErr }] = await Promise.all([
     supabase
       .from('departamentos')
-      .select('id, numeracion, inquilino, token_consulta, propietarios(nombre, apellido)')
+      .select('id, numeracion, inquilino, token_consulta, propietario_nombre, propietario_apellido, activo')
       .eq('id_consorcio', consorcio_id)
       .order('numeracion', { ascending: true }),
     supabase

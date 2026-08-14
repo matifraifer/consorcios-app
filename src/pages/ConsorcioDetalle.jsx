@@ -33,6 +33,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AddIcon from '@mui/icons-material/Add'
@@ -42,9 +44,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
-import PersonIcon from '@mui/icons-material/Person'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import EditIcon from '@mui/icons-material/Edit'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import RestoreIcon from '@mui/icons-material/Restore'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -57,13 +60,11 @@ import autoTable from 'jspdf-autotable'
 import {
   getConsorcioById,
   updateConsorcio,
-  getPropietariosConDetalle,
-  createPropietario,
-  updatePropietario,
-  importarPropietarios,
+  importarDepartamentosExcel,
   getDepartamentosByConsorcio,
   createDepartamento,
   updateDepartamento,
+  setDepartamentoActivo,
   getPeriodosByConsorcio,
   createPeriodo,
   closePeriodo,
@@ -92,8 +93,7 @@ const fieldSx = {
   },
 }
 
-const FORM_INICIAL = { dni: '', nombre: '', apellido: '' }
-const DEPTO_FORM_INICIAL = { numeracion: '', id_propietario: '', inquilino: '', email: '', telefono: '', coeficiente: '' }
+const DEPTO_FORM_INICIAL = { numeracion: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', email: '', telefono: '', coeficiente: '' }
 
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -127,22 +127,15 @@ export default function ConsorcioDetalle() {
   const fileInputRef = useRef(null)
 
   const [consorcio, setConsorcio] = useState(null)
-  const [propietarios, setPropietarios] = useState([])
   const [departamentos, setDepartamentos] = useState([])
   const [periodos, setPeriodos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [busqueda, setBusqueda] = useState('')
   const [busquedaDepto, setBusquedaDepto] = useState('')
+  const [mostrarInactivas, setMostrarInactivas] = useState(false)
+  const [confirmEliminarDepto, setConfirmEliminarDepto] = useState(null)
+  const [eliminandoDepto, setEliminandoDepto] = useState(false)
   const [tab, setTab] = useState(0)
-
-  // Drawer nuevo/editar propietario
-  const [nuevoOpen, setNuevoOpen] = useState(false)
-  const [editingPropId, setEditingPropId] = useState(null)
-  const [form, setForm] = useState(FORM_INICIAL)
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState(null)
-  const [success, setSuccess] = useState(false)
 
   // Drawer nuevo/editar departamento
   const [nuevoDeptoOpen, setNuevoDeptoOpen] = useState(false)
@@ -201,15 +194,13 @@ export default function ConsorcioDetalle() {
 
   async function cargarDatos() {
     try {
-      const [cons, props, deptos, per, liq] = await Promise.all([
+      const [cons, deptos, per, liq] = await Promise.all([
         getConsorcioById(id),
-        getPropietariosConDetalle(id),
         getDepartamentosByConsorcio(id),
         getPeriodosByConsorcio(id),
         getLiquidacionesConsorcio(id),
       ])
       setConsorcio(cons)
-      setPropietarios(props)
       setDepartamentos(deptos)
       setPeriodos(per)
       setLiquidacionesData(liq)
@@ -224,52 +215,6 @@ export default function ConsorcioDetalle() {
 
   useEffect(() => { cargarDatos() }, [id])
 
-  // ── Nuevo / editar propietario ───────────────────────────────────────────
-
-  function openNuevo() {
-    setEditingPropId(null)
-    setForm(FORM_INICIAL)
-    setFormError(null)
-    setNuevoOpen(true)
-  }
-
-  function openEditProp(prop) {
-    setEditingPropId(prop.id)
-    setForm({
-      dni: prop.dni ?? '',
-      nombre: prop.nombre ?? '',
-      apellido: prop.apellido ?? '',
-    })
-    setFormError(null)
-    setNuevoOpen(true)
-  }
-
-  function handleChange(e) {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.dni.trim() || !form.nombre.trim() || !form.apellido.trim()) return
-    setSaving(true)
-    setFormError(null)
-    try {
-      if (editingPropId) {
-        await updatePropietario(editingPropId, form)
-      } else {
-        await createPropietario({ ...form, id_consorcio: id, cliente_id: clienteId })
-      }
-      setSuccess(true)
-      setNuevoOpen(false)
-      const data = await getPropietariosConDetalle(id)
-      setPropietarios(data)
-    } catch (err) {
-      setFormError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // ── Nuevo / editar departamento ──────────────────────────────────────────
 
   function openNuevoDepto() {
@@ -283,7 +228,9 @@ export default function ConsorcioDetalle() {
     setEditingDeptoId(depto.id)
     setDeptoForm({
       numeracion: depto.numeracion ?? '',
-      id_propietario: depto.id_propietario ?? '',
+      propietario_nombre: depto.propietario_nombre ?? '',
+      propietario_apellido: depto.propietario_apellido ?? '',
+      propietario_dni: depto.propietario_dni ?? '',
       inquilino: depto.inquilino ?? '',
       email: depto.email ?? '',
       telefono: depto.telefono ?? '',
@@ -342,6 +289,31 @@ export default function ConsorcioDetalle() {
       setDeptoFormError(err.message)
     } finally {
       setSavingDepto(false)
+    }
+  }
+
+  async function handleConfirmEliminarDepto() {
+    if (!confirmEliminarDepto) return
+    setEliminandoDepto(true)
+    try {
+      await setDepartamentoActivo(confirmEliminarDepto.id, false)
+      setDepartamentos(await getDepartamentosByConsorcio(id))
+      setLinkSnack('Unidad funcional eliminada')
+    } catch (err) {
+      setLinkSnack(err.message)
+    } finally {
+      setEliminandoDepto(false)
+      setConfirmEliminarDepto(null)
+    }
+  }
+
+  async function handleReactivarDepto(depto) {
+    try {
+      await setDepartamentoActivo(depto.id, true)
+      setDepartamentos(await getDepartamentosByConsorcio(id))
+      setLinkSnack('Unidad funcional reactivada')
+    } catch (err) {
+      setLinkSnack(err.message)
     }
   }
 
@@ -661,8 +633,8 @@ export default function ConsorcioDetalle() {
     ])
     ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }]
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Propietarios')
-    XLSX.writeFile(wb, 'plantilla_propietarios.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, 'Unidades')
+    XLSX.writeFile(wb, 'plantilla_unidades.xlsx')
   }
 
   function handleFileChange(e) {
@@ -704,15 +676,10 @@ export default function ConsorcioDetalle() {
     setImportError(null)
     setResultados([])
     try {
-      const res = await importarPropietarios(preview, id, clienteId)
+      const res = await importarDepartamentosExcel(preview, id)
       setResultados(res)
       if (res.some(r => r.ok)) {
-        const [data, deptos] = await Promise.all([
-          getPropietariosConDetalle(id),
-          getDepartamentosByConsorcio(id),
-        ])
-        setPropietarios(data)
-        setDepartamentos(deptos)
+        setDepartamentos(await getDepartamentosByConsorcio(id))
       }
     } catch (err) {
       setImportError(err.message)
@@ -726,16 +693,13 @@ export default function ConsorcioDetalle() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  const filtrados = propietarios.filter(p =>
-    `${p.apellido} ${p.nombre}`.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.dni?.includes(busqueda)
-  )
-
-  const filtradosDepto = departamentos.filter(d =>
-    d.numeracion?.toLowerCase().includes(busquedaDepto.toLowerCase()) ||
-    `${d.propietarios?.apellido ?? ''} ${d.propietarios?.nombre ?? ''}`.toLowerCase().includes(busquedaDepto.toLowerCase()) ||
-    d.inquilino?.toLowerCase().includes(busquedaDepto.toLowerCase())
-  )
+  const filtradosDepto = departamentos
+    .filter(d => mostrarInactivas || d.activo !== false)
+    .filter(d =>
+      d.numeracion?.toLowerCase().includes(busquedaDepto.toLowerCase()) ||
+      `${d.propietario_apellido ?? ''} ${d.propietario_nombre ?? ''}`.toLowerCase().includes(busquedaDepto.toLowerCase()) ||
+      d.inquilino?.toLowerCase().includes(busquedaDepto.toLowerCase())
+    )
 
   const liquidaciones = useMemo(
     () => calcularSaldosMora(
@@ -743,7 +707,9 @@ export default function ConsorcioDetalle() {
       liquidacionesData.periodos,
       liquidacionesData.expensas,
       consorcio?.tasa_mora
-    ),
+    // Las unidades inactivas sin deuda pendiente no aportan nada a esta pestaña;
+    // las que sí deben algo de antes de inactivarse se mantienen visibles.
+    ).filter(l => l.activo !== false || l.saldoTotal > 0),
     [liquidacionesData, consorcio?.tasa_mora]
   )
 
@@ -807,30 +773,17 @@ export default function ConsorcioDetalle() {
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
-                onClick={openNuevo}
+                onClick={openNuevoDepto}
                 sx={{
                   bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
                   fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
                   boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
                 }}
               >
-                Nuevo propietario
+                Nuevo departamento
               </Button>
             </>
           ) : tab === 1 ? (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={openNuevoDepto}
-              sx={{
-                bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-                fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1,
-                boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-              }}
-            >
-              Nuevo departamento
-            </Button>
-          ) : tab === 2 ? (
             <>
               <Button
                 variant="outlined"
@@ -857,7 +810,7 @@ export default function ConsorcioDetalle() {
                 Nuevo período
               </Button>
             </>
-          ) : tab === 3 ? (
+          ) : tab === 2 ? (
             <>
               <Button
                 variant="outlined"
@@ -900,122 +853,12 @@ export default function ConsorcioDetalle() {
           '& .Mui-selected': { color: `${ACCENT} !important` },
         }}
       >
-        <Tab label="Propietarios" />
-        <Tab label="Departamentos" />
+        <Tab label="Unidades funcionales" />
         <Tab label="Expensas" />
         <Tab label="Liquidaciones" />
       </Tabs>
 
       {tab === 0 ? (
-        <>
-          {/* Toolbar: buscador + contador */}
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <TextField
-              size="small"
-              placeholder="Buscar por nombre o DNI..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ fontSize: 17, color: '#9CA3AF' }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-              sx={{
-                width: 280,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '8px', fontSize: '0.82rem', bgcolor: 'white',
-                  '& fieldset': { borderColor: '#E5E7EB' },
-                  '&:hover fieldset': { borderColor: ACCENT },
-                  '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 },
-                },
-              }}
-            />
-            <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-              {filtrados.length} de {propietarios.length} propietario{propietarios.length !== 1 ? 's' : ''}
-            </Typography>
-          </Box>
-
-          {/* Tabla propietarios */}
-          <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                    {['Propietario', 'DNI', 'Departamentos', ''].map(h => (
-                      <TableCell
-                        key={h}
-                        sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#6B7280', letterSpacing: '0.05em', textTransform: 'uppercase', py: 1.5, borderBottom: '1px solid #E5E7EB' }}
-                      >
-                        {h}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtrados.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} sx={{ py: 8, textAlign: 'center', border: 0 }}>
-                        <PersonIcon sx={{ fontSize: 32, color: '#E5E7EB', mb: 1, display: 'block', mx: 'auto' }} />
-                        <Typography sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>
-                          {busqueda ? 'No se encontraron propietarios.' : 'No hay propietarios registrados.'}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filtrados.map(p => (
-                      <TableRow
-                        key={p.id}
-                        sx={{
-                          '&:last-child td': { border: 0 },
-                          '& td': { borderBottom: '1px solid #F3F4F6' },
-                        }}
-                      >
-                        <TableCell sx={{ py: 1.5 }}>
-                          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
-                            {p.apellido}, {p.nombre}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5 }}>
-                          <Typography sx={{ fontSize: '0.82rem', color: '#6B7280' }}>
-                            {p.dni || <span style={{ color: '#D1D5DB' }}>—</span>}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5 }}>
-                          <Box display="flex" gap={0.5} flexWrap="wrap">
-                            {(p.departamentos ?? []).length === 0 ? (
-                              <span style={{ fontSize: '0.82rem', color: '#D1D5DB' }}>—</span>
-                            ) : (
-                              (p.departamentos ?? []).map((dep, i) => (
-                                <Chip
-                                  key={i}
-                                  label={dep.numeracion}
-                                  size="small"
-                                  sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: ACCENT_LIGHT, color: ACCENT, border: 'none' }}
-                                />
-                              ))
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5 }} align="right">
-                          <Tooltip title="Editar">
-                            <IconButton size="small" onClick={() => openEditProp(p)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
-                              <EditIcon sx={{ fontSize: 15 }} />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </>
-      ) : tab === 1 ? (
         <>
           {/* Toolbar: buscador + contador */}
           <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -1043,9 +886,23 @@ export default function ConsorcioDetalle() {
                 },
               }}
             />
-            <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-              {filtradosDepto.length} de {departamentos.length} departamento{departamentos.length !== 1 ? 's' : ''}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={mostrarInactivas}
+                    onChange={e => setMostrarInactivas(e.target.checked)}
+                    sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT }, p: 0.5 }}
+                  />
+                }
+                label="Mostrar inactivas"
+                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: '0.78rem', color: '#6B7280' } }}
+              />
+              <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                {filtradosDepto.length} de {departamentos.filter(d => mostrarInactivas || d.activo !== false).length} departamento{departamentos.length !== 1 ? 's' : ''}
+              </Typography>
+            </Box>
           </Box>
 
           {/* Tabla departamentos */}
@@ -1079,20 +936,30 @@ export default function ConsorcioDetalle() {
                       <TableRow
                         key={d.id}
                         sx={{
+                          opacity: d.activo === false ? 0.55 : 1,
                           '&:last-child td': { border: 0 },
                           '& td': { borderBottom: '1px solid #F3F4F6' },
                         }}
                       >
                         <TableCell sx={{ py: 1.5 }}>
-                          <Chip
-                            label={d.numeracion}
-                            size="small"
-                            sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: ACCENT_LIGHT, color: ACCENT, border: 'none' }}
-                          />
+                          <Box display="flex" alignItems="center" gap={0.75}>
+                            <Chip
+                              label={d.numeracion}
+                              size="small"
+                              sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: ACCENT_LIGHT, color: ACCENT, border: 'none' }}
+                            />
+                            {d.activo === false && (
+                              <Chip
+                                label="Inactiva"
+                                size="small"
+                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, bgcolor: '#F3F4F6', color: '#6B7280', border: 'none' }}
+                              />
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell sx={{ py: 1.5 }}>
                           <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
-                            {d.propietarios ? `${d.propietarios.apellido}, ${d.propietarios.nombre}` : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>—</span>}
+                            {d.propietario_apellido ? `${d.propietario_apellido}, ${d.propietario_nombre}` : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>—</span>}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ py: 1.5 }}>
@@ -1128,6 +995,19 @@ export default function ConsorcioDetalle() {
                               <EditIcon sx={{ fontSize: 15 }} />
                             </IconButton>
                           </Tooltip>
+                          {d.activo === false ? (
+                            <Tooltip title="Reactivar">
+                              <IconButton size="small" onClick={() => handleReactivarDepto(d)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                                <RestoreIcon sx={{ fontSize: 15 }} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="Eliminar">
+                              <IconButton size="small" onClick={() => setConfirmEliminarDepto(d)} sx={{ color: '#9CA3AF', '&:hover': { color: '#DC2626' } }}>
+                                <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1137,7 +1017,7 @@ export default function ConsorcioDetalle() {
             </TableContainer>
           </Paper>
         </>
-      ) : tab === 2 ? (
+      ) : tab === 1 ? (
         <>
           {/* Toolbar: contador */}
           <Box display="flex" alignItems="center" justifyContent="flex-end" mb={2}>
@@ -1415,84 +1295,6 @@ export default function ConsorcioDetalle() {
         </>
       )}
 
-      {/* ── Drawer Nuevo / Editar Propietario ── */}
-      <Drawer
-        anchor="right"
-        open={nuevoOpen}
-        onClose={() => setNuevoOpen(false)}
-        slotProps={{ paper: { sx: { width: 400, p: 3, bgcolor: 'white' } } }}
-      >
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-              {editingPropId ? 'Editar Propietario' : 'Nuevo Propietario'}
-            </Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{consorcio?.nombre}</Typography>
-          </Box>
-          <IconButton size="small" onClick={() => setNuevoOpen(false)}><CloseIcon fontSize="small" /></IconButton>
-        </Box>
-
-        <Divider sx={{ mb: 3, borderColor: '#F3F4F6' }} />
-
-        {formError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{formError}</Alert>}
-
-        <form onSubmit={handleSubmit}>
-          {[
-            { label: 'DNI', name: 'dni', placeholder: 'Ej: 30123456' },
-            { label: 'Nombre', name: 'nombre', placeholder: 'Ej: Juan' },
-            { label: 'Apellido', name: 'apellido', placeholder: 'Ej: García' },
-          ].map(({ label, name, placeholder }) => (
-            <Box key={name} mb={2}>
-              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>{label}</Typography>
-              <TextField
-                fullWidth
-                name={name}
-                value={form[name]}
-                onChange={handleChange}
-                required
-                autoFocus={name === 'dni'}
-                placeholder={placeholder}
-                size="small"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px', fontSize: '0.875rem',
-                    '& fieldset': { borderColor: '#E5E7EB' },
-                    '&:hover fieldset': { borderColor: ACCENT },
-                    '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 },
-                  },
-                }}
-              />
-            </Box>
-          ))}
-          <Box mt={3} display="flex" gap={1.5}>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={saving}
-              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
-              sx={{
-                bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-                fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none',
-                '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-              }}
-            >
-              {saving ? 'Guardando...' : editingPropId ? 'Guardar cambios' : 'Crear propietario'}
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => setNuevoOpen(false)}
-              sx={{
-                borderRadius: '8px', textTransform: 'none', fontWeight: 500,
-                fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280',
-                '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' },
-              }}
-            >
-              Cancelar
-            </Button>
-          </Box>
-        </form>
-      </Drawer>
-
       {/* ── Drawer Importación Excel ── */}
       <Drawer
         anchor="right"
@@ -1688,20 +1490,42 @@ export default function ConsorcioDetalle() {
           </Box>
 
           <Box mb={2}>
-            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Propietario</Typography>
-            <FormControl fullWidth size="small" sx={fieldSx}>
-              <Select
-                name="id_propietario"
-                value={deptoForm.id_propietario}
-                onChange={handleChangeDepto}
-                displayEmpty
-              >
-                <MenuItem value=""><em>Sin propietario</em></MenuItem>
-                {propietarios.map(p => (
-                  <MenuItem key={p.id} value={p.id}>{p.apellido}, {p.nombre}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Nombre del propietario</Typography>
+            <TextField
+              fullWidth
+              name="propietario_nombre"
+              value={deptoForm.propietario_nombre}
+              onChange={handleChangeDepto}
+              placeholder="Ej: Juan"
+              size="small"
+              sx={fieldSx}
+            />
+          </Box>
+
+          <Box mb={2}>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Apellido del propietario</Typography>
+            <TextField
+              fullWidth
+              name="propietario_apellido"
+              value={deptoForm.propietario_apellido}
+              onChange={handleChangeDepto}
+              placeholder="Ej: García"
+              size="small"
+              sx={fieldSx}
+            />
+          </Box>
+
+          <Box mb={2}>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>DNI del propietario (opcional)</Typography>
+            <TextField
+              fullWidth
+              name="propietario_dni"
+              value={deptoForm.propietario_dni}
+              onChange={handleChangeDepto}
+              placeholder="Ej: 30123456"
+              size="small"
+              sx={fieldSx}
+            />
           </Box>
 
           <Box mb={2}>
@@ -1963,13 +1787,6 @@ export default function ConsorcioDetalle() {
         onPagoChange={handleLiquidacionChange}
       />
 
-      <Snackbar
-        open={success}
-        autoHideDuration={3000}
-        onClose={() => setSuccess(false)}
-        message={editingPropId ? 'Propietario actualizado exitosamente' : 'Propietario creado exitosamente'}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
 
       <Snackbar
         open={successDepto}
@@ -2006,6 +1823,29 @@ export default function ConsorcioDetalle() {
             sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
           >
             {enviandoLiquidacionWa ? 'Enviando...' : 'Enviar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!confirmEliminarDepto} onClose={() => setConfirmEliminarDepto(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Eliminar unidad funcional</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.85rem', color: '#374151' }}>
+            La unidad <strong>{confirmEliminarDepto?.numeracion}</strong> va a dejar de aparecer en la grilla y no se le van a poder asignar gastos nuevos. No se borra ningún dato — podés reactivarla cuando quieras desde "Mostrar inactivas".
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmEliminarDepto(null)} disabled={eliminandoDepto} sx={{ textTransform: 'none', color: '#6B7280' }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmEliminarDepto}
+            disabled={eliminandoDepto}
+            startIcon={eliminandoDepto ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={{ bgcolor: '#DC2626', borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+          >
+            {eliminandoDepto ? 'Eliminando...' : 'Eliminar'}
           </Button>
         </DialogActions>
       </Dialog>

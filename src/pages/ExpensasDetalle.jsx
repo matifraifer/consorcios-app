@@ -125,9 +125,15 @@ export default function ExpensasDetalle() {
   // Map id → numeracion para mostrar en la tabla de gastos
   const deptoNumMap = Object.fromEntries(departamentos.map(d => [d.id, d.numeracion]))
 
+  // Unidades inactivas: no se les asigna un gasto nuevo por defecto ni aparecen
+  // como opción en el selector, pero si ya tenían un gasto asignado de antes
+  // siguen participando en calcLiquidacion (arriba, con `departamentos` completo)
+  // para no perder esa deuda.
+  const departamentosActivos = departamentos.filter(d => d.activo !== false)
+
   // --- Gasto modal ---
   function openNuevoGasto() {
-    setGastoForm({ ...GASTO_VACIO, departamentos_ids: departamentos.map(d => d.id) })
+    setGastoForm({ ...GASTO_VACIO, departamentos_ids: departamentosActivos.map(d => d.id) })
     setGastoModal({ open: true, gasto: null })
     setGastoError(null)
   }
@@ -142,7 +148,7 @@ export default function ExpensasDetalle() {
       comprobante:      gasto.comprobante || '',
       departamentos_ids: gasto.departamentos_ids?.length
         ? gasto.departamentos_ids
-        : departamentos.map(d => d.id),
+        : departamentosActivos.map(d => d.id),
     })
     setGastoModal({ open: true, gasto })
     setGastoError(null)
@@ -606,9 +612,9 @@ export default function ExpensasDetalle() {
                 if (val.includes('__all__')) {
                   setGastoForm(prev => ({
                     ...prev,
-                    departamentos_ids: prev.departamentos_ids.length === departamentos.length
+                    departamentos_ids: prev.departamentos_ids.length === departamentosActivos.length
                       ? []
-                      : departamentos.map(d => d.id),
+                      : departamentosActivos.map(d => d.id),
                   }))
                 } else {
                   setGastoForm(prev => ({ ...prev, departamentos_ids: val }))
@@ -617,7 +623,7 @@ export default function ExpensasDetalle() {
               input={<OutlinedInput label="Departamentos asignados" />}
               renderValue={(selected) => {
                 if (selected.length === 0) return 'Ninguno seleccionado'
-                if (selected.length === departamentos.length) return 'Todos los departamentos'
+                if (selected.length === departamentosActivos.length) return 'Todos los departamentos'
                 return (
                   <Box display="flex" gap={0.5} flexWrap="wrap">
                     {selected.map(id => (
@@ -629,19 +635,19 @@ export default function ExpensasDetalle() {
             >
               <MenuItem value="__all__">
                 <Checkbox
-                  checked={gastoForm.departamentos_ids.length === departamentos.length}
-                  indeterminate={gastoForm.departamentos_ids.length > 0 && gastoForm.departamentos_ids.length < departamentos.length}
+                  checked={gastoForm.departamentos_ids.length === departamentosActivos.length}
+                  indeterminate={gastoForm.departamentos_ids.length > 0 && gastoForm.departamentos_ids.length < departamentosActivos.length}
                 />
                 <ListItemText
-                  primary={gastoForm.departamentos_ids.length === departamentos.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                  primary={gastoForm.departamentos_ids.length === departamentosActivos.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
                 />
               </MenuItem>
-              {departamentos.map((dep) => (
+              {departamentosActivos.map((dep) => (
                 <MenuItem key={dep.id} value={dep.id}>
                   <Checkbox checked={gastoForm.departamentos_ids.includes(dep.id)} />
                   <ListItemText
                     primary={dep.numeracion}
-                    secondary={dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : 'Sin propietario'}
+                    secondary={dep.propietario_apellido ? `${dep.propietario_apellido}, ${dep.propietario_nombre}` : 'Sin propietario'}
                   />
                 </MenuItem>
               ))}

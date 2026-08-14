@@ -41,7 +41,7 @@ src/
     Configuracion.jsx             # Config. general (pendiente) + Integraciones (MercadoLibre, ZonaProp) — ruta /configuracion
     Consorcios.jsx                # Drawer detalle + Drawer nuevo consorcio
     NuevoConsorcio.jsx            # (ruta legacy, la creación ahora es por drawer)
-    ConsorcioDetalle.jsx
+    ConsorcioDetalle.jsx            # Tabs: Unidades funcionales (ex "Departamentos", la pestaña "Propietarios" se eliminó por redundante) / Expensas / Liquidaciones
     NuevoDepartamento.jsx
     NuevoDepartamentoGlobal.jsx
     Departamentos.jsx
@@ -92,7 +92,7 @@ whatsapp-service/                 # Proceso Node persistente (Baileys) — deplo
 
 ### Consorcios / expensas
 - `consorcios`: id (UUID PK), nombre, cliente_id (FK clientes_servicio), tasa_mora (numeric, default 0), comision_plataforma_fee (numeric, nullable — fee fijo de la plataforma por pago vía Mercado Pago; null/0 = sin cargo), permite_pagos_parciales (bool, default true — si false, el propietario solo puede pagar el total adeudado, no períodos sueltos), dias_recordatorio_previo (integer, nullable — días antes del `fecha_vencimiento` del período en que se manda el recordatorio automático por WhatsApp vía Twilio; null = desactivado. Se edita en `ConsorcioDetalle.jsx`, junto a `tasa_mora`)
-- `departamentos`: id (serial PK), numeracion, propietario (text libre, aparte del FK), inquilino, id_propietario (FK propietarios), id_consorcio (UUID FK), coeficiente, email, telefono (text, nullable — formato E.164, usado por los recordatorios de WhatsApp vía Twilio), token_consulta (UUID unique — link de consulta sin login para el propietario/inquilino)
+- `departamentos`: id (serial PK), numeracion, propietario (text libre, legacy, sin uso), inquilino, id_propietario (FK propietarios, legacy — ya no se escribe desde ningún formulario, se mantiene por datos históricos), propietario_nombre, propietario_apellido, propietario_dni (text, nullable — dato del propietario cargado directo en el departamento, reemplaza al desplegable de `propietarios` en los formularios de alta; misma convención que `contratos.propietario_nombre/apellido/dni`), id_consorcio (UUID FK), coeficiente, email, telefono (text, nullable — formato E.164, usado por los recordatorios de WhatsApp vía Twilio), token_consulta (UUID unique — link de consulta sin login para el propietario/inquilino), activo (boolean, default true — baja lógica: "Eliminar" en la UI nunca borra la fila, solo pone `activo=false`)
 - `propietarios`: id (serial PK), dni, nombre, apellido, id_consorcio (UUID FK), cliente_id
 - `usuarios`: id (serial PK), nombre_usuario, rol, cliente_id, email (login), auth_user_id (FK a `auth.users.id`) — ya no tiene columna `password`, la autenticación es 100% Supabase Auth (ver sección Autenticación)
 - `reclamos`: id, descripcion, estado, fecha, propietario_id, consorcio_id, departamento_id, usuario_id, cliente_id
@@ -208,12 +208,12 @@ VITE_WHATSAPP_SERVICE_URL=   # URL pública del servicio Railway de whatsapp-ser
 - NULL en `departamentos_ids` = aplica a todos los departamentos
 - Distribución por coeficiente normalizado al subconjunto asignado; si ninguno tiene coeficiente → distribución igualitaria
 - `saveExpensasDepartamento`: delete + re-insert preservando pagado/monto_pagado
+- **Unidades inactivas (`departamentos.activo = false`)**: `getDepartamentosConCoeficiente` sigue devolviendo TODAS las unidades (activas e inactivas) — no filtra en el server — porque `calcLiquidacion`/`saveExpensasDepartamento` necesitan la lista completa para no perder la liquidación ya guardada de una unidad que se inactivó después de tener gastos asignados (el delete+re-insert de arriba borraría esa fila si se las excluyera acá). El filtro "no ofrecer unidades inactivas para asignar un gasto nuevo" se hace en la UI: `ExpensasDetalle.jsx` y `GastosPeriodoDrawer.jsx` derivan `departamentosActivos = departamentos.filter(d => d.activo !== false)` y lo usan solo para el `<Select>` de "Departamentos asignados" y los defaults de "seleccionar todos" — el resto (`calcLiquidacion`, `deptoNumMap`, el chip "Todos" de un gasto ya guardado) sigue usando la lista completa
 
-## Importación masiva de propietarios (Excel)
-- Librería: SheetJS (`xlsx`)
-- Columnas esperadas: Unidad, Propietario (Apellido Nombre), DNI
-- Si la Unidad no existe en el consorcio → se crea el departamento automáticamente
-- Función: `importarPropietarios(filas, id_consorcio)` en supabase.js
+## Importación masiva por Excel (Unidad / Propietario / DNI)
+- Librería: SheetJS (`xlsx`). Mismas columnas esperadas (Unidad, Propietario "Apellido Nombre", DNI) y misma lógica de "si la Unidad no existe se crea el departamento" en las dos variantes de abajo — solo cambia qué tabla actualizan.
+- `importarPropietarios(filas, id_consorcio, cliente_id)` en `supabase.js`: crea una fila en `propietarios` y linkea por `departamentos.id_propietario`. La usa **solo** la página global `/propietarios` (`Propietarios.jsx`).
+- `importarDepartamentosExcel(filas, id_consorcio)` en `supabase.js`: no toca `propietarios`, escribe `propietario_nombre/apellido/dni` directo en `departamentos`. La usa **solo** la pestaña "Unidades funcionales" de `ConsorcioDetalle.jsx` (botón "Importar desde Excel").
 
 ## Migraciones SQL pendientes / aplicadas
 ```sql
@@ -227,3 +227,5 @@ ALTER TABLE gastos ADD COLUMN departamentos_ids INTEGER[];
 - `supabase/migrations/0013_mercadopago.sql`: **pendiente** — crea `mp_tokens`/`mp_pagos` + RLS, correr a mano antes de deployar las Edge Functions `mp-*`
 - `supabase/migrations/0014_comision_plataforma.sql`: **pendiente** — agrega `comision_plataforma_fee`/`permite_pagos_parciales` a `consorcios`, columnas nuevas en `mp_pagos`, y actualiza la RPC `consultar_deuda_departamento` para devolver esos campos
 - `supabase/migrations/0015_recordatorios_whatsapp.sql`: **pendiente** — agrega `telefono` a `departamentos` y `dias_recordatorio_previo` a `consorcios`, crea `recordatorios_whatsapp_enviados`; el bloque de `pg_cron`/`pg_net` para automatizar el envío diario queda comentado dentro del archivo, correr aparte y a mano después de probar la Edge Function `enviar-recordatorios-whatsapp` (y de cargar los secrets `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_WHATSAPP_NUMBER`)
+- `supabase/migrations/0016_propietario_departamento_texto.sql`: **pendiente** — agrega `propietario_nombre`/`propietario_apellido`/`propietario_dni` a `departamentos` y hace backfill desde el propietario ya vinculado por `id_propietario` (que queda como FK legacy, sin escribirse más desde los formularios)
+- `supabase/migrations/0017_departamentos_activo.sql`: **pendiente** — agrega `departamentos.activo` (default true) para la baja lógica de unidades funcionales

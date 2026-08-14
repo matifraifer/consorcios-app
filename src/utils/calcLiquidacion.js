@@ -48,7 +48,7 @@ export function calcLiquidacion(departamentos, gastos) {
     return {
       departamento_id:      dep.id,
       numeracion:           dep.numeracion,
-      propietario:          dep.propietarios ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}` : '-',
+      propietario:          dep.propietario_apellido ? `${dep.propietario_apellido}, ${dep.propietario_nombre}` : '-',
       coeficiente:          dep.coeficiente,
       monto_ordinario:      monto_ord,
       monto_extraordinario: monto_ext,

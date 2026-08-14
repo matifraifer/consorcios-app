@@ -70,8 +70,8 @@ export default function Departamentos() {
                     <Chip label={dep.numeracion} size="small" variant="outlined" />
                   </TableCell>
                   <TableCell>
-                    {dep.propietarios
-                      ? `${dep.propietarios.apellido}, ${dep.propietarios.nombre}`
+                    {dep.propietario_apellido
+                      ? `${dep.propietario_apellido}, ${dep.propietario_nombre}`
                       : '-'}
                   </TableCell>
                   <TableCell>{dep.inquilino || '-'}</TableCell>
