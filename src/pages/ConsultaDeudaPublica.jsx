@@ -7,6 +7,11 @@ import { calcularSaldosMora } from '../utils/calcularSaldosMora'
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24
 
+// Comisión fija de Mercado Pago, usada solo para estimar en pantalla la
+// tarifa de servicio; el monto real que se cobra siempre lo recalcula
+// mp-crear-preferencia server-side con la misma fórmula.
+const MP_COMISION_PCT = 6.19
+
 // Estimación de mora por período para mostrar en la UI antes de pagar; el
 // monto real que se cobra siempre lo recalcula mp-crear-preferencia server-side.
 function montoConMora(saldo, fechaVencimiento, tasaMora) {
@@ -15,6 +20,16 @@ function montoConMora(saldo, fechaVencimiento, tasaMora) {
   const mesesAtraso = Math.floor(diasAtraso / 30)
   if (mesesAtraso <= 0) return saldo
   return saldo + saldo * (Number(tasaMora || 0) / 100) * mesesAtraso
+}
+
+// Recarga la deuda para que, después de que Mercado Pago descuente su propia
+// comisión, al consorcio le llegue el 100% de montoDeuda y a la plataforma
+// le llegue comisionPlataformaFee completo.
+function calcularTarifaServicio(montoDeuda, comisionPlataformaFee) {
+  const fee = Number(comisionPlataformaFee || 0)
+  if (fee <= 0 || montoDeuda <= 0) return { tarifaServicio: 0, montoTotal: montoDeuda }
+  const montoTotal = (montoDeuda + fee) / (1 - MP_COMISION_PCT / 100)
+  return { tarifaServicio: montoTotal - montoDeuda, montoTotal }
 }
 
 const PAGO_BANNER = {
@@ -61,6 +76,17 @@ function Header() {
       <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A' }}>
         Consulta de deuda
       </Typography>
+    </Box>
+  )
+}
+
+function DesgloseTarifa({ montoDeuda, tarifaServicio, montoTotal }) {
+  return (
+    <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', p: 1.5, mb: 1.5 }}>
+      <SaldoRow label="Monto de la expensa" value={montoDeuda} />
+      {tarifaServicio > 0 && <SaldoRow label="Tarifa por servicio" value={tarifaServicio} />}
+      <Divider sx={{ my: 1 }} />
+      <SaldoRow label="Total a pagar" value={montoTotal} destacado />
     </Box>
   )
 }
@@ -127,7 +153,13 @@ export default function ConsultaDeudaPublica() {
           }
         })
         .filter(Boolean)
-      setResultado({ ...saldo, consorcioNombre: data.consorcio_nombre, periodosAdeudados })
+      setResultado({
+        ...saldo,
+        consorcioNombre: data.consorcio_nombre,
+        periodosAdeudados,
+        comisionPlataformaFee: data.comision_plataforma_fee,
+        permitePagosParciales: data.permite_pagos_parciales !== false,
+      })
       setSeleccionados(new Set())
       setPayError(null)
     } catch {
@@ -153,13 +185,13 @@ export default function ConsultaDeudaPublica() {
     })
   }
 
-  async function handlePagar() {
+  async function handlePagar(periodosIds) {
     setPagando(true)
     setPayError(null)
     try {
       const data = await crearPreferenciaPago({
         token, email: email.trim(), numeracion: numeracion.trim(),
-        periodos_ids: Array.from(seleccionados),
+        periodos_ids: periodosIds,
       })
       window.location.href = data.init_point
     } catch (err) {
@@ -167,6 +199,12 @@ export default function ConsultaDeudaPublica() {
       setPagando(false)
     }
   }
+
+  const periodosAPagar = resultado?.permitePagosParciales
+    ? (resultado.periodosAdeudados ?? []).filter(p => seleccionados.has(p.id))
+    : (resultado?.periodosAdeudados ?? [])
+  const montoDeuda = periodosAPagar.reduce((acc, p) => acc + p.montoConMora, 0)
+  const { tarifaServicio, montoTotal } = calcularTarifaServicio(montoDeuda, resultado?.comisionPlataformaFee)
 
   return (
     <Box minHeight="100vh" bgcolor="#F8FAFC">
@@ -241,13 +279,15 @@ export default function ConsultaDeudaPublica() {
                     <Box key={periodo.id} sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', mb: 1.5, overflow: 'hidden' }}>
                       <Box sx={{ bgcolor: '#F9FAFB', px: 1, py: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Box display="flex" alignItems="center" gap={0.5}>
-                          <Checkbox
-                            size="small"
-                            checked={seleccionados.has(periodo.id)}
-                            onChange={() => togglePeriodo(periodo.id)}
-                            sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT }, p: 0.5 }}
-                          />
-                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+                          {resultado.permitePagosParciales && (
+                            <Checkbox
+                              size="small"
+                              checked={seleccionados.has(periodo.id)}
+                              onChange={() => togglePeriodo(periodo.id)}
+                              sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT }, p: 0.5 }}
+                            />
+                          )}
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827', pl: resultado.permitePagosParciales ? 0 : 1 }}>
                             {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
                           </Typography>
                         </Box>
@@ -278,11 +318,15 @@ export default function ConsultaDeudaPublica() {
 
                   {payError && <Alert severity="error" sx={{ mt: 1, mb: 1, borderRadius: '8px', fontSize: '0.82rem' }}>{payError}</Alert>}
 
+                  {(!resultado.permitePagosParciales || periodosAPagar.length > 0) && (
+                    <DesgloseTarifa montoDeuda={montoDeuda} tarifaServicio={tarifaServicio} montoTotal={montoTotal} />
+                  )}
+
                   <Button
                     fullWidth variant="contained"
-                    disabled={seleccionados.size === 0 || pagando}
+                    disabled={periodosAPagar.length === 0 || pagando}
                     startIcon={pagando ? <CircularProgress size={16} color="inherit" /> : null}
-                    onClick={handlePagar}
+                    onClick={() => handlePagar(periodosAPagar.map(p => p.id))}
                     sx={{
                       mt: 1, bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
                       fontWeight: 600, py: 1.1, boxShadow: 'none',
@@ -291,11 +335,11 @@ export default function ConsultaDeudaPublica() {
                   >
                     {pagando
                       ? 'Redirigiendo a Mercado Pago...'
-                      : seleccionados.size === 0
+                      : periodosAPagar.length === 0
                         ? 'Seleccioná uno o más períodos para pagar'
-                        : `Pagar seleccionados (${fmt(resultado.periodosAdeudados
-                            .filter(p => seleccionados.has(p.id))
-                            .reduce((acc, p) => acc + p.montoConMora, 0))})`}
+                        : resultado.permitePagosParciales
+                          ? `Pagar seleccionados (${fmt(montoTotal)})`
+                          : `Pagar total (${fmt(montoTotal)})`}
                   </Button>
                 </Box>
               )}

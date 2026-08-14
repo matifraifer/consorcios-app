@@ -7,6 +7,10 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const CONSULTA_BASE_URL = 'https://app.granito.com.ar/consulta'
 const MS_POR_DIA = 1000 * 60 * 60 * 24
 
+// Comisión fija que cobra Mercado Pago (no varía por consorcio, a diferencia
+// de comision_plataforma_fee que sí es configurable por consorcio).
+const MP_COMISION_PCT = 6.19
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -16,6 +20,10 @@ const MESES_LABEL = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
+
+function redondear(n: number) {
+  return Math.round(n * 100) / 100
+}
 
 function jsonError(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
@@ -40,7 +48,7 @@ serve(async (req) => {
     // no confiar solo en el link.
     const { data: depto, error: deptoError } = await supabase
       .from('departamentos')
-      .select('id, numeracion, email, id_consorcio, consorcios(cliente_id, nombre, tasa_mora)')
+      .select('id, numeracion, email, id_consorcio, consorcios(cliente_id, nombre, tasa_mora, comision_plataforma_fee, permite_pagos_parciales)')
       .eq('token_consulta', token)
       .maybeSingle()
 
@@ -60,7 +68,6 @@ serve(async (req) => {
     const { data: periodos, error: periodosError } = await supabase
       .from('periodos_expensas')
       .select('id, mes, anio, fecha_vencimiento')
-      .in('id', periodos_ids)
       .eq('consorcio_id', depto.id_consorcio)
       .eq('estado', 'cerrado')
     if (periodosError) throw periodosError
@@ -74,27 +81,50 @@ serve(async (req) => {
     if (expensasError) throw expensasError
 
     const hoy = new Date()
-    const items: { title: string; quantity: number; unit_price: number; currency_id: string }[] = []
-    const periodosAPagar: number[] = []
-    let montoTotal = 0
 
-    for (const periodo of periodos) {
-      const exp = expensas?.find(e => e.periodo_id === periodo.id)
-      if (!exp || exp.pagado) continue
-
-      const saldo = Math.max(0, Number(exp.monto_total ?? 0) - Number(exp.monto_pagado ?? 0))
-      if (saldo <= 0) continue
-
+    function calcularMontoPeriodo(periodo: { fecha_vencimiento: string | null }, saldo: number) {
       let monto = saldo
       if (periodo.fecha_vencimiento) {
         const diasAtraso = (hoy.getTime() - new Date(periodo.fecha_vencimiento).getTime()) / MS_POR_DIA
         const mesesAtraso = Math.floor(diasAtraso / 30)
         if (mesesAtraso > 0) monto += saldo * (Number(consorcio.tasa_mora || 0) / 100) * mesesAtraso
       }
-      monto = Math.round(monto * 100) / 100
+      return redondear(monto)
+    }
 
+    // Todos los períodos impagos del departamento (no solo los pedidos), para
+    // poder validar la regla de "no admite pagos parciales" del consorcio.
+    const periodosImpagosIds: number[] = []
+    for (const periodo of periodos) {
+      const exp = expensas?.find(e => e.periodo_id === periodo.id)
+      if (!exp || exp.pagado) continue
+      const saldo = Math.max(0, Number(exp.monto_total ?? 0) - Number(exp.monto_pagado ?? 0))
+      if (saldo <= 0) continue
+      periodosImpagosIds.push(periodo.id)
+    }
+
+    if (consorcio.permite_pagos_parciales === false) {
+      const solicitados = [...new Set(periodos_ids)].sort((a, b) => a - b)
+      const impagos = [...periodosImpagosIds].sort((a, b) => a - b)
+      const cubreTodo = solicitados.length === impagos.length && solicitados.every((id, i) => id === impagos[i])
+      if (!cubreTodo) return jsonError('Este consorcio no admite pagos parciales: tenés que pagar el total adeudado.')
+    }
+
+    const items: { title: string; quantity: number; unit_price: number; currency_id: string }[] = []
+    const periodosAPagar: number[] = []
+    let montoDeuda = 0
+
+    for (const periodo of periodos) {
+      if (!periodos_ids.includes(periodo.id)) continue
+      const exp = expensas?.find(e => e.periodo_id === periodo.id)
+      if (!exp || exp.pagado) continue
+
+      const saldo = Math.max(0, Number(exp.monto_total ?? 0) - Number(exp.monto_pagado ?? 0))
+      if (saldo <= 0) continue
+
+      const monto = calcularMontoPeriodo(periodo, saldo)
       periodosAPagar.push(periodo.id)
-      montoTotal += monto
+      montoDeuda += monto
       items.push({
         title: `Expensas ${MESES_LABEL[periodo.mes - 1]} ${periodo.anio} - Unidad ${depto.numeracion}`,
         quantity: 1,
@@ -104,6 +134,30 @@ serve(async (req) => {
     }
 
     if (periodosAPagar.length === 0) return jsonError('Los períodos seleccionados ya no tienen saldo pendiente.')
+    montoDeuda = redondear(montoDeuda)
+
+    // Comisión de la plataforma (opcional, por consorcio): si está configurada,
+    // se le recarga al propietario un monto calculado para que, después de
+    // que Mercado Pago descuente su propia comisión, al consorcio le llegue
+    // el 100% de montoDeuda y a la plataforma le llegue comisionPlataforma
+    // completo vía marketplace_fee.
+    const comisionPlataforma = Number(consorcio.comision_plataforma_fee || 0)
+    let montoTotal = montoDeuda
+    let tarifaServicio = 0
+    let recargoMp = 0
+
+    if (comisionPlataforma > 0) {
+      montoTotal = redondear((montoDeuda + comisionPlataforma) / (1 - MP_COMISION_PCT / 100))
+      tarifaServicio = redondear(montoTotal - montoDeuda)
+      recargoMp = redondear(tarifaServicio - comisionPlataforma)
+
+      items.push({
+        title: 'Tarifa por servicio',
+        quantity: 1,
+        unit_price: tarifaServicio,
+        currency_id: 'ARS',
+      })
+    }
 
     const { data: mpToken, error: mpTokenError } = await supabase
       .from('mp_tokens')
@@ -120,11 +174,26 @@ serve(async (req) => {
         departamento_id: depto.id,
         periodos_ids: periodosAPagar,
         monto: montoTotal,
+        comision_plataforma: comisionPlataforma > 0 ? comisionPlataforma : null,
+        recargo_mp: comisionPlataforma > 0 ? recargoMp : null,
         estado: 'pendiente',
       })
       .select('id')
       .single()
     if (pagoError) throw pagoError
+
+    const preferenceBody: Record<string, unknown> = {
+      items,
+      external_reference: pago.id,
+      notification_url: `${SUPABASE_URL}/functions/v1/mp-webhook?pago_id=${pago.id}`,
+      back_urls: {
+        success: `${CONSULTA_BASE_URL}/${token}?pago=success`,
+        failure: `${CONSULTA_BASE_URL}/${token}?pago=failure`,
+        pending: `${CONSULTA_BASE_URL}/${token}?pago=pending`,
+      },
+      auto_return: 'approved',
+    }
+    if (comisionPlataforma > 0) preferenceBody.marketplace_fee = comisionPlataforma
 
     const prefRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
@@ -132,17 +201,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${mpToken.access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        items,
-        external_reference: pago.id,
-        notification_url: `${SUPABASE_URL}/functions/v1/mp-webhook?pago_id=${pago.id}`,
-        back_urls: {
-          success: `${CONSULTA_BASE_URL}/${token}?pago=success`,
-          failure: `${CONSULTA_BASE_URL}/${token}?pago=failure`,
-          pending: `${CONSULTA_BASE_URL}/${token}?pago=pending`,
-        },
-        auto_return: 'approved',
-      }),
+      body: JSON.stringify(preferenceBody),
     })
 
     const preference = await prefRes.json()
