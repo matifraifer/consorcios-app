@@ -51,6 +51,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -72,6 +73,7 @@ import {
   saveExpensasDepartamento,
   getLiquidacionesConsorcio,
   enviarLinkConsultaDeuda,
+  enviarLiquidacionWhatsapp,
 } from '../services/supabase'
 import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 import PagosDepartamentoDialog from '../components/expensas/PagosDepartamentoDialog'
@@ -91,7 +93,7 @@ const fieldSx = {
 }
 
 const FORM_INICIAL = { dni: '', nombre: '', apellido: '' }
-const DEPTO_FORM_INICIAL = { numeracion: '', id_propietario: '', inquilino: '', email: '', coeficiente: '' }
+const DEPTO_FORM_INICIAL = { numeracion: '', id_propietario: '', inquilino: '', email: '', telefono: '', coeficiente: '' }
 
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -180,6 +182,11 @@ export default function ConsorcioDetalle() {
   const [tasaMora, setTasaMora] = useState('')
   const [savingTasaMora, setSavingTasaMora] = useState(false)
   const [tasaMoraError, setTasaMoraError] = useState(null)
+  const [diasRecordatorio, setDiasRecordatorio] = useState('')
+  const [savingDiasRecordatorio, setSavingDiasRecordatorio] = useState(false)
+  const [diasRecordatorioError, setDiasRecordatorioError] = useState(null)
+  const [confirmLiquidacionWaOpen, setConfirmLiquidacionWaOpen] = useState(false)
+  const [enviandoLiquidacionWa, setEnviandoLiquidacionWa] = useState(false)
 
   // Diálogo de pagos por departamento (pestaña Liquidaciones)
   const [pagosDialogOpen, setPagosDialogOpen] = useState(false)
@@ -207,6 +214,7 @@ export default function ConsorcioDetalle() {
       setPeriodos(per)
       setLiquidacionesData(liq)
       setTasaMora(cons.tasa_mora != null ? String(cons.tasa_mora) : '')
+      setDiasRecordatorio(cons.dias_recordatorio_previo != null ? String(cons.dias_recordatorio_previo) : '')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -278,6 +286,7 @@ export default function ConsorcioDetalle() {
       id_propietario: depto.id_propietario ?? '',
       inquilino: depto.inquilino ?? '',
       email: depto.email ?? '',
+      telefono: depto.telefono ?? '',
       coeficiente: depto.coeficiente ?? '',
     })
     setDeptoFormError(null)
@@ -452,6 +461,34 @@ export default function ConsorcioDetalle() {
       setTasaMoraError(err.message)
     } finally {
       setSavingTasaMora(false)
+    }
+  }
+
+  async function handleGuardarDiasRecordatorio() {
+    setSavingDiasRecordatorio(true)
+    setDiasRecordatorioError(null)
+    try {
+      const cons = await updateConsorcio(id, {
+        dias_recordatorio_previo: diasRecordatorio === '' ? null : Number(diasRecordatorio),
+      })
+      setConsorcio(prev => ({ ...prev, dias_recordatorio_previo: cons.dias_recordatorio_previo }))
+    } catch (err) {
+      setDiasRecordatorioError(err.message)
+    } finally {
+      setSavingDiasRecordatorio(false)
+    }
+  }
+
+  async function handleEnviarLiquidacionWhatsapp() {
+    setEnviandoLiquidacionWa(true)
+    try {
+      const r = await enviarLiquidacionWhatsapp(id)
+      setLinkSnack(`Liquidación enviada por WhatsApp a ${r.enviados} unidad${r.enviados === 1 ? '' : 'es'}${r.errores ? ` (${r.errores} con error)` : ''}${r.sinTelefono ? ` — ${r.sinTelefono} sin teléfono cargado` : ''}.`)
+    } catch (err) {
+      setLinkSnack(`No se pudo enviar la liquidación por WhatsApp: ${err.message}`)
+    } finally {
+      setEnviandoLiquidacionWa(false)
+      setConfirmLiquidacionWaOpen(false)
     }
   }
 
@@ -821,18 +858,32 @@ export default function ConsorcioDetalle() {
               </Button>
             </>
           ) : tab === 3 ? (
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-              onClick={handleExportLiquidacionesPDF}
-              sx={{
-                borderRadius: '8px', textTransform: 'none', fontWeight: 600,
-                fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151',
-                '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT },
-              }}
-            >
-              Descargar PDF
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<WhatsAppIcon sx={{ fontSize: 16 }} />}
+                onClick={() => setConfirmLiquidacionWaOpen(true)}
+                sx={{
+                  borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+                  fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151',
+                  '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT },
+                }}
+              >
+                Enviar liquidación por WhatsApp
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+                onClick={handleExportLiquidacionesPDF}
+                sx={{
+                  borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+                  fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#374151',
+                  '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT },
+                }}
+              >
+                Descargar PDF
+              </Button>
+            </>
           ) : null}
         </Box>
       </Box>
@@ -1220,6 +1271,44 @@ export default function ConsorcioDetalle() {
             </Button>
             {tasaMoraError && (
               <Typography sx={{ fontSize: '0.78rem', color: '#DC2626' }}>{tasaMoraError}</Typography>
+            )}
+          </Box>
+
+          {/* Recordatorio automático de vencimiento por WhatsApp (requiere Twilio configurado en Configuración) */}
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={1.5}
+            mb={3}
+            sx={{ bgcolor: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', p: 2 }}
+          >
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>
+              Días de aviso antes del vencimiento
+            </Typography>
+            <TextField
+              size="small"
+              type="number"
+              value={diasRecordatorio}
+              onChange={e => setDiasRecordatorio(e.target.value)}
+              inputProps={{ min: 0, step: '1' }}
+              placeholder="Desactivado"
+              sx={{ width: 120, ...fieldSx }}
+            />
+            <Button
+              variant="outlined"
+              onClick={handleGuardarDiasRecordatorio}
+              disabled={savingDiasRecordatorio}
+              startIcon={savingDiasRecordatorio ? <CircularProgress size={14} /> : null}
+              sx={{
+                borderRadius: '8px', textTransform: 'none', fontWeight: 600,
+                fontSize: '0.8rem', borderColor: '#E5E7EB', color: '#374151',
+                '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT },
+              }}
+            >
+              {savingDiasRecordatorio ? 'Guardando...' : 'Guardar'}
+            </Button>
+            {diasRecordatorioError && (
+              <Typography sx={{ fontSize: '0.78rem', color: '#DC2626' }}>{diasRecordatorioError}</Typography>
             )}
           </Box>
 
@@ -1643,6 +1732,19 @@ export default function ConsorcioDetalle() {
           </Box>
 
           <Box mb={2}>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Teléfono (WhatsApp)</Typography>
+            <TextField
+              fullWidth
+              name="telefono"
+              value={deptoForm.telefono}
+              onChange={handleChangeDepto}
+              placeholder="Ej: +5491122334455 (opcional)"
+              size="small"
+              sx={fieldSx}
+            />
+          </Box>
+
+          <Box mb={2}>
             <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Coeficiente (%)</Typography>
             <TextField
               fullWidth
@@ -1884,6 +1986,29 @@ export default function ConsorcioDetalle() {
         message={linkSnack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      <Dialog open={confirmLiquidacionWaOpen} onClose={() => setConfirmLiquidacionWaOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Enviar liquidación por WhatsApp</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.85rem', color: '#374151' }}>
+            Se va a enviar un WhatsApp con el saldo total adeudado y el link de pago a todas las unidades de este consorcio que tengan teléfono cargado y deuda pendiente. Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmLiquidacionWaOpen(false)} disabled={enviandoLiquidacionWa} sx={{ textTransform: 'none', color: '#6B7280' }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleEnviarLiquidacionWhatsapp}
+            disabled={enviandoLiquidacionWa}
+            startIcon={enviandoLiquidacionWa ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            {enviandoLiquidacionWa ? 'Enviando...' : 'Enviar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

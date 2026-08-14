@@ -92,10 +92,10 @@ export async function createConsorcio({ nombre, cliente_id }) {
   return data
 }
 
-export async function updateConsorcio(id, { tasa_mora }) {
+export async function updateConsorcio(id, { tasa_mora, dias_recordatorio_previo }) {
   const { data, error } = await supabase
     .from('consorcios')
-    .update({ tasa_mora })
+    .update({ tasa_mora, dias_recordatorio_previo })
     .eq('id', id)
     .select()
     .single()
@@ -134,20 +134,20 @@ export async function getDepartamentosByConsorcio(id_consorcio) {
   return data
 }
 
-export async function createDepartamento({ numeracion, inquilino, id_propietario, id_consorcio, coeficiente, email }) {
+export async function createDepartamento({ numeracion, inquilino, id_propietario, id_consorcio, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .insert([{ numeracion, inquilino, id_propietario: id_propietario || null, id_consorcio, coeficiente: coeficiente || null, email: email || null }])
+    .insert([{ numeracion, inquilino, id_propietario: id_propietario || null, id_consorcio, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null }])
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateDepartamento(id, { numeracion, inquilino, id_propietario, coeficiente, email }) {
+export async function updateDepartamento(id, { numeracion, inquilino, id_propietario, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .update({ numeracion, inquilino: inquilino || null, id_propietario: id_propietario || null, coeficiente: coeficiente || null, email: email || null })
+    .update({ numeracion, inquilino: inquilino || null, id_propietario: id_propietario || null, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null })
     .eq('id', id)
     .select()
     .single()
@@ -803,6 +803,13 @@ export async function getConsultaDeuda(token, email, numeracion) {
 
 export async function enviarLinkConsultaDeuda(departamento_id) {
   const { data, error } = await supabase.functions.invoke('enviar-link-consulta', { body: { departamento_id } })
+  if (error) throw error
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+  return data
+}
+
+export async function enviarLiquidacionWhatsapp(consorcio_id) {
+  const { data, error } = await supabase.functions.invoke('enviar-liquidacion-whatsapp', { body: { consorcio_id } })
   if (error) throw error
   if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
   return data
