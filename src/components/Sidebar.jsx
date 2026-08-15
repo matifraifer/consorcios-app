@@ -11,6 +11,9 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import LogoutIcon from '@mui/icons-material/Logout'
 import SettingsIcon from '@mui/icons-material/Settings'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import ConstructionIcon from '@mui/icons-material/Construction'
+import TimelineIcon from '@mui/icons-material/Timeline'
+import PaidIcon from '@mui/icons-material/Paid'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -55,6 +58,12 @@ const baseDatosItems = [
 
 const contratosItems = [
   { label: 'Contratos', path: '/contratos', icon: <DescriptionIcon sx={{ fontSize: 18 }} /> },
+]
+
+const proyectosItems = [
+  { label: 'Proyectos',            path: '/proyectos',        icon: <ConstructionIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Diagrama de Gantt',    path: '/proyectos/gantt',  icon: <TimelineIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Costos del proyecto',  path: '/proyectos/costos', icon: <PaidIcon sx={{ fontSize: 18 }} /> },
 ]
 
 function SectionHeader({ label, cls, open, onToggle }) {
@@ -163,6 +172,7 @@ export default function Sidebar() {
   const [comercialOpen, setComercialOpen] = useState(true)
   const [baseDatosOpen, setBaseDatosOpen] = useState(true)
   const [contratosOpen, setContratosOpen] = useState(true)
+  const [proyectosOpen, setProyectosOpen] = useState(true)
 
   function handleLogout() {
     logout()
@@ -392,6 +402,25 @@ export default function Sidebar() {
             <SectionHeader label="Gestión de contratos" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
             <Collapse in={contratosOpen}>
               {contratosItems.map(item => (
+                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
+              ))}
+            </Collapse>
+          </>
+        )}
+
+        {/* Divisor */}
+        <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
+
+        {/* Grupo: Gestión de proyectos */}
+        {collapsed ? (
+          proyectosItems.map(item => (
+            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
+          ))
+        ) : (
+          <>
+            <SectionHeader label="Gestión de proyectos" cls="gp" open={proyectosOpen} onToggle={() => setProyectosOpen(p => !p)} />
+            <Collapse in={proyectosOpen}>
+              {proyectosItems.map(item => (
                 <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
               ))}
             </Collapse>

@@ -33,6 +33,10 @@ import WhatsApp         from './pages/WhatsApp'
 import MpCallback       from './pages/MpCallback'
 import Configuracion          from './pages/Configuracion'
 import PropiedadesComunidad  from './pages/PropiedadesComunidad'
+import Proyectos        from './pages/Proyectos'
+import ProyectoDetalle  from './pages/ProyectoDetalle'
+import DiagramaGantt    from './pages/DiagramaGantt'
+import CostosProyecto   from './pages/CostosProyecto'
 
 export default function App() {
   return (
@@ -71,6 +75,10 @@ export default function App() {
           <Route path="/whatsapp"                           element={<WhatsApp />} />
           <Route path="/propiedades-comunidad"              element={<PropiedadesComunidad />} />
           <Route path="/configuracion"                      element={<Configuracion />} />
+          <Route path="/proyectos"                          element={<Proyectos />} />
+          <Route path="/proyectos/gantt"                    element={<DiagramaGantt />} />
+          <Route path="/proyectos/costos"                   element={<CostosProyecto />} />
+          <Route path="/proyectos/:id"                      element={<ProyectoDetalle />} />
         </Route>
       </Route>
 
