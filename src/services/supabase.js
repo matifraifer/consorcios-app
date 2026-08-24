@@ -5,6 +5,16 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
 
+// `numeracion` es texto libre (ej. "1", "10", "PB", "2A"), por lo que el
+// ORDER BY de Postgres lo ordena alfabéticamente (1, 10, 2, 20, 21...).
+// Se ordena en el cliente con orden "natural" (numérico cuando corresponde).
+function compareNumeracion(a, b) {
+  return (a.numeracion || '').localeCompare(b.numeracion || '', undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  })
+}
+
 // ---- AUTH ----
 
 export async function resolveEmailForUsername(username) {
@@ -119,9 +129,8 @@ export async function getDepartamentos(cliente_id) {
     .from('departamentos')
     .select('id, numeracion, inquilino, propietario_nombre, propietario_apellido, consorcios(nombre)')
     .in('id_consorcio', ids)
-    .order('numeracion', { ascending: true })
   if (error) throw error
-  return data
+  return data.sort(compareNumeracion)
 }
 
 export async function getDepartamentosByConsorcio(id_consorcio) {
@@ -129,9 +138,8 @@ export async function getDepartamentosByConsorcio(id_consorcio) {
     .from('departamentos')
     .select('*')
     .eq('id_consorcio', id_consorcio)
-    .order('numeracion', { ascending: true })
   if (error) throw error
-  return data
+  return data.sort(compareNumeracion)
 }
 
 export async function createDepartamento({ numeracion, inquilino, propietario_nombre, propietario_apellido, propietario_dni, id_consorcio, coeficiente, email, telefono }) {
@@ -510,9 +518,8 @@ export async function getDepartamentosConCoeficiente(consorcio_id) {
     .from('departamentos')
     .select('id, numeracion, coeficiente, propietario_nombre, propietario_apellido, activo')
     .eq('id_consorcio', consorcio_id)
-    .order('numeracion', { ascending: true })
   if (error) throw error
-  return data
+  return data.sort(compareNumeracion)
 }
 
 // "Eliminar" una unidad funcional no borra el registro (queda como dato
@@ -586,8 +593,7 @@ export async function getLiquidacionesConsorcio(consorcio_id) {
     supabase
       .from('departamentos')
       .select('id, numeracion, inquilino, token_consulta, propietario_nombre, propietario_apellido, activo')
-      .eq('id_consorcio', consorcio_id)
-      .order('numeracion', { ascending: true }),
+      .eq('id_consorcio', consorcio_id),
     supabase
       .from('periodos_expensas')
       .select('id, mes, anio, fecha_vencimiento')
@@ -598,6 +604,7 @@ export async function getLiquidacionesConsorcio(consorcio_id) {
   ])
   if (depErr) throw depErr
   if (perErr) throw perErr
+  departamentos.sort(compareNumeracion)
 
   const periodoIds = periodos.map(p => p.id)
   let expensas = []

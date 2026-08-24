@@ -109,6 +109,33 @@ function SaldoRow({ label, value, destacado }) {
   )
 }
 
+function GastosGrupo({ titulo, color, gastos }) {
+  if (gastos.length === 0) return null
+  const subtotal = gastos.reduce((acc, g) => acc + Number(g.monto ?? 0), 0)
+  return (
+    <Box sx={{ mb: 1, '&:last-child': { mb: 0 } }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" py={0.4}>
+        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color }}>
+          {titulo}
+        </Typography>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(subtotal)}
+        </Typography>
+      </Box>
+      {gastos.map((g, i) => (
+        <Box key={i} display="flex" justifyContent="space-between" gap={1} py={0.6}
+          sx={{ borderBottom: i < gastos.length - 1 ? '1px solid #F3F4F6' : 'none' }}
+        >
+          <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{g.nombre}</Typography>
+          <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {fmt(g.monto)}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 export default function ConsultaDeudaPublica() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
@@ -301,16 +328,10 @@ export default function ConsultaDeudaPublica() {
                             Sin gastos detallados para este período.
                           </Typography>
                         ) : (
-                          periodo.gastos.map((g, i) => (
-                            <Box key={i} display="flex" justifyContent="space-between" gap={1} py={0.6}
-                              sx={{ borderBottom: i < periodo.gastos.length - 1 ? '1px solid #F3F4F6' : 'none' }}
-                            >
-                              <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>{g.nombre}</Typography>
-                              <Typography sx={{ fontSize: '0.78rem', color: '#6B7280', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                                {fmt(g.monto)}
-                              </Typography>
-                            </Box>
-                          ))
+                          <>
+                            <GastosGrupo titulo="Ordinarios" color={ACCENT} gastos={periodo.gastos.filter(g => g.tipo === 'ordinario')} />
+                            <GastosGrupo titulo="Extraordinarios" color="#B45309" gastos={periodo.gastos.filter(g => g.tipo !== 'ordinario')} />
+                          </>
                         )}
                       </Box>
                     </Box>
