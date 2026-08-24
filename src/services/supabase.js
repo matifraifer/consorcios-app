@@ -551,7 +551,7 @@ export async function getDashboardDeuda(cliente_id) {
 
   const { data: expensas, error: expErr } = await supabase
     .from('expensas_departamento')
-    .select('id, periodo_id, departamento_id, monto_total, monto_pagado, pagado, departamentos(id, numeracion, inquilino, propietarios(nombre, apellido))')
+    .select('id, periodo_id, departamento_id, monto_total, monto_pagado, pagado, departamentos(id, numeracion, inquilino, activo, propietarios(nombre, apellido))')
     .in('periodo_id', periodoIds)
     .eq('pagado', false)
   if (expErr) throw expErr
@@ -567,6 +567,27 @@ export async function getDashboardDeuda(cliente_id) {
     .filter(e => e.saldo > 0)
 
   return { items, periodos }
+}
+
+// Total de unidades funcionales activas del cliente (todas las unidades de
+// todos sus consorcios, sin importar si tienen o no deuda) — usada junto a
+// getDashboardDeuda para armar el resumen "con deuda / sin deuda" del home.
+export async function getTotalDepartamentosActivos(cliente_id) {
+  const { data: consorcios, error: consError } = await supabase
+    .from('consorcios')
+    .select('id')
+    .eq('cliente_id', cliente_id)
+  if (consError) throw consError
+
+  const ids = consorcios.map((c) => c.id)
+  if (ids.length === 0) return 0
+
+  const { data, error } = await supabase
+    .from('departamentos')
+    .select('id, activo')
+    .in('id_consorcio', ids)
+  if (error) throw error
+  return data.filter(d => d.activo !== false).length
 }
 
 export async function getExpensasPendientes(cliente_id) {

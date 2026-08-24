@@ -27,11 +27,11 @@ const DRAWER_COLLAPSED = 64
 
 const BG          = '#ffffff'
 const BG_HOVER    = '#142B21'
-const BG_ACTIVE   = '#1A3D2C'
+const BG_ACTIVE   = '#ff9575'
 const TEXT_MUTED  = '#142B21'
 const TEXT_DEFAULT = '#1A3D2C'
 const TEXT_ACTIVE  = '#E2F0E8'
-const ACCENT       = '#10B981'
+const ACCENT       = '#fb3c00'
 const BORDER       = 'rgba(16,185,129,0.12)'
 
 const adminItems = [

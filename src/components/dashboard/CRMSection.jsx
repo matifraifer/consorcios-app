@@ -3,6 +3,7 @@ import { Box, Typography, Button, IconButton, Tooltip, Snackbar, FormControl, Se
 import { useTheme } from '@mui/material/styles'
 import { useNavigate } from 'react-router-dom'
 import LanguageIcon      from '@mui/icons-material/Language'
+import ReceiptLongIcon   from '@mui/icons-material/ReceiptLong'
 import OtherHousesIcon   from '@mui/icons-material/OtherHouses'
 import GroupIcon         from '@mui/icons-material/Group'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
@@ -12,6 +13,7 @@ import ArrowForwardIcon  from '@mui/icons-material/ArrowForward'
 import PersonOffIcon     from '@mui/icons-material/PersonOff'
 import { useAuth } from '../../contexts/AuthContext'
 import { getUsuarios } from '../../services/supabase'
+import GraficoDeudaPorPeriodo from './GraficoDeudaPorPeriodo'
 
 const ACCENT = '#065F46'
 const DARK   = '#071A0F'
@@ -43,6 +45,10 @@ function saludo() {
 
 function fmtFecha() {
   return new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+function fmtMoney(value) {
+  return `$${Number(value ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
 function fmtVisita(fecha, hora) {
@@ -82,7 +88,7 @@ function SectionHeader({ icon, title, right }) {
   )
 }
 
-export default function CRMSection({ prospectos, etapas, visitas, consultasPendientes = 0, propiedadesData = [], sinAsignar = 0 }) {
+export default function CRMSection({ prospectos, etapas, visitas, consultasPendientes = 0, propiedadesData = [], sinAsignar = 0, resumenDeuda = null, deudaPorPeriodo = [] }) {
   const { user, clienteId } = useAuth()
   const navigate = useNavigate()
   const theme = useTheme()
@@ -255,6 +261,63 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
         )}
         {isMobile && <ArrowForwardIcon sx={{ fontSize: 16, color: '#9CA3AF', flexShrink: 0 }} />}
       </Box>
+    </Box>
+  )
+
+  const expensasSection = isAdmin && resumenDeuda && (
+    <Box sx={{ mb: 4 }}>
+      <SectionHeader
+        icon={<ReceiptLongIcon sx={{ fontSize: 16, color: '#F97316' }} />}
+        title="Expensas por cobrar"
+      />
+
+      <Box display="flex" gap={isMobile ? 1.25 : 2} flexWrap={isMobile ? 'nowrap' : 'wrap'}>
+        <Box sx={{
+          flex: isMobile ? '1 1 0' : '1 1 220px', bgcolor: 'white', minWidth: 0,
+          border: '1px solid #E5E7EB', borderTop: '3px solid #F97316',
+          borderRadius: '12px', p: isMobile ? 1.75 : 3,
+        }}>
+          <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF', mb: 1.25 }}>
+            Monto pendiente de cobro
+          </Typography>
+          <Typography sx={{
+            fontSize: { xs: '1.7rem', sm: '2.1rem' }, fontWeight: 800, color: '#0F172A',
+            lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums',
+          }}>
+            {fmtMoney(resumenDeuda.montoTotal)}
+          </Typography>
+        </Box>
+
+        <Box sx={{
+          flex: isMobile ? '1 1 0' : '1 1 160px', bgcolor: '#FFFBEB',
+          border: '1px solid #FDE68A', borderRadius: '12px', p: isMobile ? 1.75 : 3,
+        }}>
+          <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#B45309', opacity: 0.8, mb: 1.25 }}>
+            Unidades con deuda
+          </Typography>
+          <Typography sx={{ fontSize: { xs: '1.7rem', sm: '2.1rem' }, fontWeight: 800, color: '#B45309', lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+            {resumenDeuda.deptosConDeuda}
+          </Typography>
+        </Box>
+
+        <Box sx={{
+          flex: isMobile ? '1 1 0' : '1 1 160px', bgcolor: '#ECFDF5',
+          border: '1px solid #A7F3D0', borderRadius: '12px', p: isMobile ? 1.75 : 3,
+        }}>
+          <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ACCENT, opacity: 0.8, mb: 1.25 }}>
+            Unidades al día
+          </Typography>
+          <Typography sx={{ fontSize: { xs: '1.7rem', sm: '2.1rem' }, fontWeight: 800, color: ACCENT, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+            {resumenDeuda.deptosSinDeuda}
+          </Typography>
+        </Box>
+      </Box>
+
+      {deudaPorPeriodo.length > 0 && (
+        <Box sx={{ mt: 1.5 }}>
+          <GraficoDeudaPorPeriodo data={deudaPorPeriodo} />
+        </Box>
+      )}
     </Box>
   )
 
@@ -501,12 +564,14 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
       {isMobile ? (
         <>
           {visitasSection}
+          {expensasSection}
           {consultasSection}
           {seguimientoSection}
           {propiedadesSection}
         </>
       ) : (
         <>
+          {expensasSection}
           {consultasSection}
           {propiedadesSection}
           {seguimientoSection}

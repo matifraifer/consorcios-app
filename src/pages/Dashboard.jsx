@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Alert, Box, CircularProgress, Divider, Typography } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
-import { getDashboardDeuda, getCRMDashboardData } from '../services/supabase'
+import { getDashboardDeuda, getCRMDashboardData, getTotalDepartamentosActivos } from '../services/supabase'
 import DashboardFiltros from '../components/dashboard/DashboardFiltros'
 import DashboardKPIs from '../components/dashboard/DashboardKPIs'
 import DeudaPorConsorcioTable from '../components/dashboard/DeudaPorConsorcioTable'
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const { clienteId } = useAuth()
 
   const [allItems, setAllItems] = useState([])
+  const [totalDeptosActivos, setTotalDeptosActivos] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -25,10 +26,12 @@ export default function Dashboard() {
     Promise.all([
       getDashboardDeuda(clienteId),
       getCRMDashboardData(clienteId),
+      getTotalDepartamentosActivos(clienteId),
     ])
-      .then(([{ items }, crm]) => {
+      .then(([{ items }, crm, totalDeptos]) => {
         setAllItems(items)
         setCrmData(crm)
+        setTotalDeptosActivos(totalDeptos)
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
@@ -80,6 +83,38 @@ export default function Dashboard() {
       return matchPeriodo && matchConsorcio && matchEstado
     })
   }, [allItems, filtroPeriodo, filtroConsorcio, filtroEstado, last3PeriodKeys])
+
+  // Resumen de deuda para el home — no depende de los filtros del dashboard
+  // de cobranzas (oculto), considera todos los períodos cerrados impagos.
+  const resumenDeuda = useMemo(() => {
+    const activeItems = allItems.filter(i => i.departamentos?.activo !== false)
+    const deudoresIds = new Set(activeItems.map(i => i.departamento_id))
+    const montoTotal = activeItems.reduce((s, i) => s + i.saldo, 0)
+    const deptosConDeuda = deudoresIds.size
+    return {
+      montoTotal,
+      deptosConDeuda,
+      deptosSinDeuda: Math.max(0, totalDeptosActivos - deptosConDeuda),
+      totalDeptos: totalDeptosActivos,
+    }
+  }, [allItems, totalDeptosActivos])
+
+  // Deuda total por período (últimos 6, orden cronológico) — para el
+  // gráfico de barras del home.
+  const deudaPorPeriodo = useMemo(() => {
+    const activeItems = allItems.filter(i => i.departamentos?.activo !== false)
+    const map = new Map()
+    activeItems.forEach(item => {
+      const { mes, anio } = item.periodo ?? {}
+      if (!mes || !anio) return
+      const key = `${anio}-${mes}`
+      if (!map.has(key)) map.set(key, { key, mes, anio, monto: 0 })
+      map.get(key).monto += item.saldo
+    })
+    return Array.from(map.values())
+      .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
+      .slice(-6)
+  }, [allItems])
 
   // KPIs calculados desde filteredItems
   const kpis = useMemo(() => {
@@ -185,6 +220,8 @@ export default function Dashboard() {
         consultasPendientes={crmData.consultasPendientes}
         propiedadesData={crmData.propiedadesData}
         sinAsignar={crmData.sinAsignar}
+        resumenDeuda={resumenDeuda}
+        deudaPorPeriodo={deudaPorPeriodo}
       />
     </Box>
   )
