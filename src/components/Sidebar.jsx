@@ -226,7 +226,7 @@ export default function Sidebar() {
               />
               <Typography
                 sx={{
-                  fontSize: '0.95rem',
+                  fontSize: '1.25rem',
                   fontWeight: 700,
                   color: 'black',
                   letterSpacing: '-0.01em',

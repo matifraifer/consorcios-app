@@ -16,7 +16,6 @@ import { getUsuarios } from '../../services/supabase'
 import GraficoDeudaPorPeriodo from './GraficoDeudaPorPeriodo'
 
 const ACCENT = '#065F46'
-const DARK   = '#071A0F'
 
 const selectSx = {
   fontSize: '0.75rem',
@@ -151,42 +150,35 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
 
   const heroSection = (
     <Box sx={{
-      position: 'relative', overflow: 'hidden',
-      borderRadius: '16px', bgcolor: DARK,
-      p: { xs: 3, md: '32px 40px' }, mb: 4,
-      '&::before': {
-        content: '""', position: 'absolute', inset: 0,
-        backgroundImage: `
-          linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
-        `,
-        backgroundSize: '40px 40px', pointerEvents: 'none',
-      },
-      '&::after': {
-        content: '""', position: 'absolute',
-        right: '-60px', top: '-60px', width: 240, height: 240,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 65%)',
-        pointerEvents: 'none',
-      },
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: 1.25, mb: 3,
     }}>
-      <Box sx={{ position: 'relative', zIndex: 1 }}>
+      <Box>
         <Typography sx={{
-          fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.2em',
-          textTransform: 'uppercase', color: '#10B981', mb: 0.875,
+          fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em',
+          textTransform: 'uppercase', color: ACCENT, mb: 0.5,
         }}>
-          Panel CRM · {fmtFecha()}
+          {fmtFecha()}
         </Typography>
         <Typography sx={{
-          fontSize: { xs: '1.4rem', md: '1.75rem' },
-          fontWeight: 800, color: 'white', lineHeight: 1.1, letterSpacing: '-0.025em',
+          fontSize: { xs: '1.25rem', md: '1.5rem' },
+          fontWeight: 800, color: '#0F172A', lineHeight: 1.2, letterSpacing: '-0.02em',
         }}>
           {saludo()}{nombre ? `, ${nombre}` : ''}
         </Typography>
-        <Typography sx={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', mt: 0.75 }}>
-          {active.length} seguimiento{active.length !== 1 ? 's' : ''} activo{active.length !== 1 ? 's' : ''} en pipeline
-        </Typography>
       </Box>
+
+      {active.length > 0 && (
+        <Box sx={{
+          display: 'inline-flex', alignItems: 'center', gap: 0.75,
+          px: 1.5, py: 0.6, bgcolor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '20px',
+        }}>
+          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: ACCENT, flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: ACCENT, whiteSpace: 'nowrap' }}>
+            {active.length} seguimiento{active.length !== 1 ? 's' : ''} activo{active.length !== 1 ? 's' : ''}
+          </Typography>
+        </Box>
+      )}
     </Box>
   )
 
