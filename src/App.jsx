@@ -15,8 +15,6 @@ import Departamentos           from './pages/Departamentos'
 import Propietarios      from './pages/Propietarios'
 import NuevoPropietario  from './pages/NuevoPropietario'
 import Reclamos         from './pages/Reclamos'
-import NuevoReclamo     from './pages/NuevoReclamo'
-import ReclamoDetalle   from './pages/ReclamoDetalle'
 import Propiedades      from './pages/Propiedades'
 import Prospectos       from './pages/Prospectos'
 import Expensas         from './pages/Expensas'
@@ -62,8 +60,6 @@ export default function App() {
           <Route path="/propietarios"                       element={<Propietarios />} />
           <Route path="/propietarios/nuevo"                 element={<NuevoPropietario />} />
           <Route path="/reclamos"                           element={<Reclamos />} />
-          <Route path="/reclamos/nuevo"                     element={<NuevoReclamo />} />
-          <Route path="/reclamos/:id"                       element={<ReclamoDetalle />} />
           <Route path="/propiedades"                        element={<Propiedades />} />
           <Route path="/prospectos"                         element={<Prospectos />} />
           <Route path="/expensas"                           element={<Expensas />} />
