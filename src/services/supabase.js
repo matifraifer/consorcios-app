@@ -516,7 +516,7 @@ export async function deleteGasto(id) {
 export async function getDepartamentosConCoeficiente(consorcio_id) {
   const { data, error } = await supabase
     .from('departamentos')
-    .select('id, numeracion, coeficiente, propietario_nombre, propietario_apellido, activo')
+    .select('id, numeracion, coeficiente, propietario_nombre, propietario_apellido, activo, email')
     .eq('id_consorcio', consorcio_id)
   if (error) throw error
   return data.sort(compareNumeracion)
@@ -908,6 +908,13 @@ export async function enviarLinkConsultaDeuda(departamento_id) {
 
 export async function enviarLiquidacionWhatsapp(consorcio_id) {
   const { data, error } = await supabase.functions.invoke('enviar-liquidacion-whatsapp', { body: { consorcio_id } })
+  if (error) throw error
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+  return data
+}
+
+export async function enviarLiquidacionEmail(periodo_id) {
+  const { data, error } = await supabase.functions.invoke('enviar-liquidacion-email', { body: { periodo_id } })
   if (error) throw error
   if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
   return data

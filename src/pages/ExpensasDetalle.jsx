@@ -37,6 +37,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import PaidIcon from '@mui/icons-material/Paid'
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -50,6 +51,7 @@ import {
   getExpensasDepartamento,
   registrarPago,
   closePeriodo,
+  enviarLiquidacionEmail,
 } from '../services/supabase'
 import { calcLiquidacion } from '../utils/calcLiquidacion'
 
@@ -94,9 +96,13 @@ export default function ExpensasDetalle() {
   const [montoPagadoInput, setMontoPagadoInput] = useState('')
   const [savingPago, setSavingPago] = useState(false)
 
-  // Cerrar periodo
+  // Cerrar periodo (paso 1: confirmar cierre / paso 2: enviar mail masivo)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [closeStep, setCloseStep] = useState(1)
   const [closingPeriodo, setClosingPeriodo] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailError, setEmailError] = useState(null)
+  const [emailResult, setEmailResult] = useState(null)
 
   useEffect(() => {
     Promise.all([getPeriodoById(id), getGastosByPeriodo(id), getExpensasDepartamento(id)])
@@ -130,6 +136,7 @@ export default function ExpensasDetalle() {
   // siguen participando en calcLiquidacion (arriba, con `departamentos` completo)
   // para no perder esa deuda.
   const departamentosActivos = departamentos.filter(d => d.activo !== false)
+  const vecinosConEmail = departamentosActivos.filter(d => d.email).length
 
   // --- Gasto modal ---
   function openNuevoGasto() {
@@ -270,11 +277,32 @@ export default function ExpensasDetalle() {
     try {
       await closePeriodo(id)
       setPeriodo(prev => ({ ...prev, estado: 'cerrado' }))
-      setConfirmClose(false)
+      setCloseStep(2)
     } catch (err) {
       setError(err.message)
     } finally {
       setClosingPeriodo(false)
+    }
+  }
+
+  function closeModalCierre() {
+    setConfirmClose(false)
+    setCloseStep(1)
+    setEmailError(null)
+    setEmailResult(null)
+  }
+
+  async function handleEnviarLiquidacionEmail() {
+    setSendingEmail(true)
+    setEmailError(null)
+    try {
+      const result = await enviarLiquidacionEmail(id)
+      setEmailResult(result)
+      closeModalCierre()
+    } catch (err) {
+      setEmailError(err.message)
+    } finally {
+      setSendingEmail(false)
     }
   }
 
@@ -548,11 +576,19 @@ export default function ExpensasDetalle() {
               Exportar PDF
             </Button>
             {abierto && (
-              <Button variant="outlined" color="error" onClick={() => setConfirmClose(true)}>
+              <Button variant="outlined" color="error" onClick={() => { setCloseStep(1); setConfirmClose(true) }}>
                 Cerrar Período
               </Button>
             )}
           </Box>
+
+          {emailResult && (
+            <Alert severity="success" sx={{ mt: 2 }} onClose={() => setEmailResult(null)}>
+              Correo de liquidación enviado a {emailResult.enviados} vecino{emailResult.enviados === 1 ? '' : 's'}.
+              {emailResult.sinEmail > 0 && ` ${emailResult.sinEmail} sin email cargado.`}
+              {emailResult.errores > 0 && ` ${emailResult.errores} con error de envío.`}
+            </Alert>
+          )}
         </Box>
       )}
 
@@ -740,27 +776,74 @@ export default function ExpensasDetalle() {
         </DialogActions>
       </Dialog>
 
-      {/* ── Confirmar cierre ── */}
-      <Dialog open={confirmClose} onClose={() => setConfirmClose(false)}>
-        <DialogTitle>Cerrar período</DialogTitle>
-        <DialogContent>
-          <Typography>
-            ¿Estás seguro de que querés cerrar el período{' '}
-            <strong>{MESES[periodo.mes - 1]} {periodo.anio}</strong>?
-            Una vez cerrado, no se podrán agregar ni modificar gastos.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmClose(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleClosePeriodo}
-            disabled={closingPeriodo}
-          >
-            {closingPeriodo ? 'Cerrando...' : 'Cerrar Período'}
-          </Button>
-        </DialogActions>
+      {/* ── Cierre de período (paso 1) + envío masivo de correo (paso 2) ── */}
+      <Dialog
+        open={confirmClose}
+        onClose={closeModalCierre}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '14px' } }}
+      >
+        {closeStep === 1 ? (
+          <>
+            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Cerrar período</DialogTitle>
+            <DialogContent>
+              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+                Vas a cerrar el período <strong>{MESES[periodo.mes - 1]} {periodo.anio}</strong>. <strong>¿Estás seguro que querés continuar?</strong>
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+                  Se va a guardar la liquidación con los gastos actuales y ya no se podrá agregar ni modificar gastos después.
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5 }}>
+              <Button onClick={closeModalCierre} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleClosePeriodo}
+                disabled={closingPeriodo}
+                startIcon={closingPeriodo ? <CircularProgress size={14} color="inherit" /> : null}
+                sx={{ bgcolor: '#9626dc', borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+              >
+                {closingPeriodo ? 'Cerrando...' : 'Cerrar el período'}
+              </Button>
+            </DialogActions>
+          </>
+        ) : (
+          <>
+            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Enviar liquidación por correo</DialogTitle>
+            <DialogContent>
+              {emailError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{emailError}</Alert>}
+              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+                Estás por enviar el correo con el detalle de liquidaciones a <strong>{vecinosConEmail}</strong> vecino{vecinosConEmail === 1 ? '' : 's'}.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+                  Esta acción envía un correo a los vecinos con el detalle de su deuda. ¿Deseás continuar?
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5 }}>
+              <Button onClick={closeModalCierre} disabled={sendingEmail} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
+                No enviar ahora
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleEnviarLiquidacionEmail}
+                disabled={sendingEmail}
+                startIcon={sendingEmail ? <CircularProgress size={14} color="inherit" /> : null}
+                sx={{ bgcolor: '#065F46', borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+              >
+                {sendingEmail ? 'Enviando...' : 'Aceptar y enviar'}
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
     </Box>
   )

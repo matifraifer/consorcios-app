@@ -55,6 +55,7 @@ import PaymentsIcon from '@mui/icons-material/Payments'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -75,6 +76,7 @@ import {
   getLiquidacionesConsorcio,
   enviarLinkConsultaDeuda,
   enviarLiquidacionWhatsapp,
+  enviarLiquidacionEmail,
 } from '../services/supabase'
 import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 import PagosDepartamentoDialog from '../components/expensas/PagosDepartamentoDialog'
@@ -160,9 +162,14 @@ export default function ConsorcioDetalle() {
   const [selectedPeriodo, setSelectedPeriodo] = useState(null)
 
   // Cerrar período (desde la grilla de períodos)
+  // Paso 1: confirmar cierre / Paso 2: envío masivo del mail de liquidación
   const [confirmClosePeriodoItem, setConfirmClosePeriodoItem] = useState(null)
+  const [closePeriodoStep, setClosePeriodoStep] = useState(1)
   const [closingPeriodo, setClosingPeriodo] = useState(false)
   const [closePeriodoError, setClosePeriodoError] = useState(null)
+  const [sendingLiquidacionEmail, setSendingLiquidacionEmail] = useState(false)
+  const [liquidacionEmailError, setLiquidacionEmailError] = useState(null)
+  const [liquidacionEmailResult, setLiquidacionEmailResult] = useState(null)
 
   // Descargar detalle de gastos (PDF por período)
   const [descargarGastosOpen, setDescargarGastosOpen] = useState(false)
@@ -376,12 +383,33 @@ export default function ConsorcioDetalle() {
 
       await closePeriodo(periodoId)
       syncPeriodoClosed(periodoId)
-      setConfirmClosePeriodoItem(null)
       handleLiquidacionChange()
+      setClosePeriodoStep(2)
     } catch (err) {
       setClosePeriodoError(err.message)
     } finally {
       setClosingPeriodo(false)
+    }
+  }
+
+  function closeConfirmClosePeriodo() {
+    setConfirmClosePeriodoItem(null)
+    setClosePeriodoStep(1)
+    setLiquidacionEmailError(null)
+  }
+
+  async function handleEnviarLiquidacionEmailCierre() {
+    if (!confirmClosePeriodoItem) return
+    setSendingLiquidacionEmail(true)
+    setLiquidacionEmailError(null)
+    try {
+      const result = await enviarLiquidacionEmail(confirmClosePeriodoItem.id)
+      setLiquidacionEmailResult(result)
+      closeConfirmClosePeriodo()
+    } catch (err) {
+      setLiquidacionEmailError(err.message)
+    } finally {
+      setSendingLiquidacionEmail(false)
     }
   }
 
@@ -1094,7 +1122,7 @@ export default function ConsorcioDetalle() {
                                 <Tooltip title="Cerrar período">
                                   <IconButton
                                     size="small"
-                                    onClick={(e) => { e.stopPropagation(); setClosePeriodoError(null); setConfirmClosePeriodoItem(p) }}
+                                    onClick={(e) => { e.stopPropagation(); setClosePeriodoError(null); setClosePeriodoStep(1); setConfirmClosePeriodoItem(p) }}
                                     sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}
                                   >
                                     <LockOutlinedIcon sx={{ fontSize: 16 }} />
@@ -1713,32 +1741,94 @@ export default function ConsorcioDetalle() {
         onLiquidacionChange={handleLiquidacionChange}
       />
 
-      {/* ── Confirmar cierre de período ── */}
-      <Dialog open={!!confirmClosePeriodoItem} onClose={() => setConfirmClosePeriodoItem(null)}>
-        <DialogTitle>Cerrar período</DialogTitle>
-        <DialogContent>
-          {closePeriodoError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{closePeriodoError}</Alert>}
-          <Typography sx={{ fontSize: '0.9rem' }}>
-            ¿Estás seguro de que querés cerrar el período{' '}
-            {confirmClosePeriodoItem && (
-              <strong>{MESES_LABEL[confirmClosePeriodoItem.mes - 1]} {confirmClosePeriodoItem.anio}</strong>
-            )}?
-            Se va a guardar la liquidación con los gastos actuales y no se van a poder agregar ni modificar gastos después.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmClosePeriodoItem(null)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleConfirmClosePeriodo}
-            disabled={closingPeriodo}
-            startIcon={closingPeriodo ? <CircularProgress size={16} color="inherit" /> : null}
-          >
-            {closingPeriodo ? 'Cerrando...' : 'Cerrar Período'}
-          </Button>
-        </DialogActions>
+      {/* ── Cierre de período (paso 1) + envío masivo de correo (paso 2) ── */}
+      <Dialog
+        open={!!confirmClosePeriodoItem}
+        onClose={closeConfirmClosePeriodo}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '14px' } }}
+      >
+        {closePeriodoStep === 1 ? (
+          <>
+            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Cerrar período</DialogTitle>
+            <DialogContent>
+              {closePeriodoError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{closePeriodoError}</Alert>}
+              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+                Vas a cerrar el período{' '}
+                {confirmClosePeriodoItem && (
+                  <strong>{MESES_LABEL[confirmClosePeriodoItem.mes - 1]} {confirmClosePeriodoItem.anio}</strong>
+                )}. <strong>¿Estás seguro que querés continuar?</strong>
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+                  Se va a guardar la liquidación con los gastos actuales y ya no se podrá agregar ni modificar gastos después.
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5 }}>
+              <Button onClick={closeConfirmClosePeriodo} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleConfirmClosePeriodo}
+                disabled={closingPeriodo}
+                startIcon={closingPeriodo ? <CircularProgress size={14} color="inherit" /> : null}
+                sx={{ bgcolor: '#DC2626', borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+              >
+                {closingPeriodo ? 'Cerrando...' : 'Cerrar el período'}
+              </Button>
+            </DialogActions>
+          </>
+        ) : (
+          <>
+            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Enviar liquidación por correo</DialogTitle>
+            <DialogContent>
+              {liquidacionEmailError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{liquidacionEmailError}</Alert>}
+              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+                Estás por enviar el correo con el detalle de liquidaciones a{' '}
+                <strong>{departamentos.filter(d => d.activo !== false && d.email).length}</strong> vecinos.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+                  Esta acción envía un correo a los vecinos con el detalle de su deuda. ¿Deseás continuar?
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5 }}>
+              <Button onClick={closeConfirmClosePeriodo} disabled={sendingLiquidacionEmail} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
+                No enviar ahora
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleEnviarLiquidacionEmailCierre}
+                disabled={sendingLiquidacionEmail}
+                startIcon={sendingLiquidacionEmail ? <CircularProgress size={14} color="inherit" /> : null}
+                sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+              >
+                {sendingLiquidacionEmail ? 'Enviando...' : 'Aceptar y enviar'}
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
+
+      {/* ── Resultado del envío masivo de correo al cerrar un período ── */}
+      <Snackbar
+        open={!!liquidacionEmailResult}
+        autoHideDuration={6000}
+        onClose={() => setLiquidacionEmailResult(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setLiquidacionEmailResult(null)} sx={{ borderRadius: '8px' }}>
+          Correo enviado a {liquidacionEmailResult?.enviados ?? 0} vecino{liquidacionEmailResult?.enviados === 1 ? '' : 's'}.
+          {liquidacionEmailResult?.sinEmail > 0 && ` ${liquidacionEmailResult.sinEmail} sin email cargado.`}
+          {liquidacionEmailResult?.errores > 0 && ` ${liquidacionEmailResult.errores} con error de envío.`}
+        </Alert>
+      </Snackbar>
 
       {/* ── Descargar detalle de gastos (elegir período) ── */}
       <Dialog open={descargarGastosOpen} onClose={closeDescargarGastos} maxWidth="xs" fullWidth>

@@ -23,6 +23,11 @@ import {
   Checkbox,
   ListItemText,
   Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tooltip,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -30,10 +35,13 @@ import EditIcon from '@mui/icons-material/Edit'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import AddIcon from '@mui/icons-material/Add'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import {
   getGastosByPeriodo, createGasto, updateGasto, deleteGasto,
   getDepartamentosConCoeficiente,
   getExpensasDepartamento, saveExpensasDepartamento,
+  enviarLiquidacionEmail,
 } from '../../services/supabase'
 import { calcLiquidacion } from '../../utils/calcLiquidacion'
 
@@ -96,6 +104,12 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
   const [gastosCambiados, setGastosCambiados] = useState(false)
   const [savingLiquidacion, setSavingLiquidacion] = useState(false)
 
+  // Envío masivo del mail de liquidación (período ya cerrado)
+  const [confirmEnviarEmail, setConfirmEnviarEmail] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailError, setEmailError] = useState(null)
+  const [emailResult, setEmailResult] = useState(null)
+
   const periodoAbierto = periodo?.estado === 'abierto'
 
   useEffect(() => {
@@ -106,6 +120,9 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
     setFormCollapsed(false)
     setGastoForm(GASTO_VACIO)
     setGastosCambiados(false)
+    setConfirmEnviarEmail(false)
+    setEmailError(null)
+    setEmailResult(null)
     setLoadingGastos(true)
     Promise.all([
       getGastosByPeriodo(periodo.id),
@@ -218,12 +235,29 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
     }
   }
 
+  // ── Enviar liquidación por correo (período ya cerrado) ──────────────────
+
+  async function handleEnviarLiquidacionEmail() {
+    setSendingEmail(true)
+    setEmailError(null)
+    try {
+      const result = await enviarLiquidacionEmail(periodo.id)
+      setEmailResult(result)
+      setConfirmEnviarEmail(false)
+    } catch (err) {
+      setEmailError(err.message)
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   const deptoNumMap = Object.fromEntries(departamentosPeriodo.map(d => [d.id, d.numeracion]))
   // Unidades inactivas: no se les asigna un gasto nuevo por defecto ni aparecen
   // como opción en el selector, pero si ya tenían un gasto asignado de antes
   // siguen participando en calcLiquidacion (abajo, con `departamentosPeriodo`
   // completo) para no perder esa deuda.
   const departamentosActivos = departamentosPeriodo.filter(d => d.activo !== false)
+  const vecinosConEmail = departamentosActivos.filter(d => d.email).length
   const totalOrdDrawer = gastosPeriodo.filter(g => g.tipo === 'ordinario').reduce((s, g) => s + Number(g.monto), 0)
   const totalExtDrawer = gastosPeriodo.filter(g => g.tipo === 'extraordinario').reduce((s, g) => s + Number(g.monto), 0)
   const totalGralDrawer = totalOrdDrawer + totalExtDrawer
@@ -232,11 +266,12 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
   const pagadoMap = Object.fromEntries(expensasDep.map(e => [e.departamento_id, e]))
 
   return (
+    <>
     <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: 620, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
+      slotProps={{ paper: { sx: { width: '90vw', maxWidth: 860, bgcolor: 'white', display: 'flex', flexDirection: 'column' } } }}
     >
       {periodo && (
         <>
@@ -474,8 +509,8 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                 </Box>
               )}
 
-              <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
-                <TableContainer>
+              <Paper variant="outlined" sx={{ borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <TableContainer sx={{ overflowX: 'auto', borderRadius: '12px' }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#F9FAFB' }}>
@@ -512,8 +547,10 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                                 '& td': { borderBottom: '1px solid #F3F4F6' },
                               }}
                             >
-                              <TableCell sx={{ py: 1.25 }}>
-                                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{g.nombre}</Typography>
+                              <TableCell sx={{ py: 1.25, maxWidth: 220 }}>
+                                <Tooltip title={g.nombre} disableInteractive>
+                                  <Typography noWrap sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{g.nombre}</Typography>
+                                </Tooltip>
                                 <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'capitalize' }}>{g.categoria}</Typography>
                               </TableCell>
                               <TableCell sx={{ py: 1.25 }}>
@@ -531,11 +568,16 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                                 {todosAsignados ? (
                                   <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Todos</Typography>
                                 ) : (
-                                  <Box display="flex" gap={0.5} flexWrap="wrap">
-                                    {g.departamentos_ids.map(depId => (
-                                      <Chip key={depId} label={deptoNumMap[depId] ?? depId} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
-                                    ))}
-                                  </Box>
+                                  <Tooltip
+                                    title={g.departamentos_ids.map(depId => deptoNumMap[depId] ?? depId).join(', ')}
+                                    disableInteractive
+                                  >
+                                    <Chip
+                                      label={`${g.departamentos_ids.length} unidad${g.departamentos_ids.length === 1 ? '' : 'es'}`}
+                                      size="small"
+                                      sx={{ height: 20, fontSize: '0.65rem' }}
+                                    />
+                                  </Tooltip>
                                 )}
                               </TableCell>
                               <TableCell sx={{ py: 1.25 }}>
@@ -561,9 +603,14 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
                   </Table>
                 </TableContainer>
               </Paper>
+            </>
+          )}
+          </Box>
 
+          {!loadingGastos && (gastosPeriodo.length > 0 || departamentosPeriodo.length > 0) && (
+            <Box sx={{ flexShrink: 0, borderTop: '1px solid #F3F4F6', px: 3, py: 2.5, bgcolor: 'white' }}>
               {gastosPeriodo.length > 0 && (
-                <Box display="flex" gap={3} justifyContent="flex-end" mt={2}>
+                <Box display="flex" gap={3} justifyContent="flex-end" mb={departamentosPeriodo.length > 0 ? 2 : 0}>
                   <Typography sx={{ fontSize: '0.78rem', color: '#6B7280' }}>
                     Ordinario: <strong>{fmt(totalOrdDrawer)}</strong>
                   </Typography>
@@ -579,38 +626,97 @@ export default function GastosPeriodoDrawer({ open, periodo, subtitle, onClose, 
               {departamentosPeriodo.length > 0 && (
                 <>
                   {depsExcluidos.length > 0 && (
-                    <Alert severity="warning" sx={{ mt: 2.5, borderRadius: '8px', fontSize: '0.78rem' }}>
+                    <Alert severity="warning" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.78rem' }}>
                       Sin coeficiente, excluidos de algunos gastos: {depsExcluidos.map(d => d.numeracion).join(', ')}
                     </Alert>
                   )}
                   {liquidacionGuardada && gastosCambiados && (
-                    <Alert severity="info" sx={{ mt: 2.5, borderRadius: '8px', fontSize: '0.78rem' }}>
+                    <Alert severity="info" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.78rem' }}>
                       Los gastos cambiaron — volvé a guardar los cambios para actualizar la liquidación.
                     </Alert>
                   )}
 
-                  <Divider sx={{ my: 2.5, borderColor: '#F3F4F6' }} />
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    onClick={handleGuardarCambios}
-                    disabled={savingLiquidacion || liquidacion.length === 0}
-                    startIcon={savingLiquidacion ? <CircularProgress size={14} color="inherit" /> : null}
-                    sx={{
-                      bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
-                      fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none',
-                      '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
-                    }}
-                  >
-                    {savingLiquidacion ? 'Guardando...' : 'Guardar cambios'}
-                  </Button>
+                  {emailResult && (
+                    <Alert severity="success" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.78rem' }} onClose={() => setEmailResult(null)}>
+                      Correo enviado a {emailResult.enviados} vecino{emailResult.enviados === 1 ? '' : 's'}.
+                      {emailResult.sinEmail > 0 && ` ${emailResult.sinEmail} sin email cargado.`}
+                      {emailResult.errores > 0 && ` ${emailResult.errores} con error de envío.`}
+                    </Alert>
+                  )}
+
+                  {periodoAbierto ? (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={handleGuardarCambios}
+                      disabled={savingLiquidacion || liquidacion.length === 0}
+                      startIcon={savingLiquidacion ? <CircularProgress size={14} color="inherit" /> : null}
+                      sx={{
+                        bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
+                        fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none',
+                        '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+                      }}
+                    >
+                      {savingLiquidacion ? 'Guardando...' : 'Guardar cambios'}
+                    </Button>
+                  ) : (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={() => setConfirmEnviarEmail(true)}
+                      startIcon={<ForwardToInboxIcon sx={{ fontSize: 16 }} />}
+                      sx={{
+                        bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',
+                        fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none',
+                        '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+                      }}
+                    >
+                      Enviar liquidación
+                    </Button>
+                  )}
                 </>
               )}
-            </>
+            </Box>
           )}
-          </Box>
         </>
       )}
     </Drawer>
+
+    <Dialog
+      open={confirmEnviarEmail}
+      onClose={() => setConfirmEnviarEmail(false)}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: '14px' } }}
+    >
+      <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Enviar liquidación por correo</DialogTitle>
+      <DialogContent>
+        {emailError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{emailError}</Alert>}
+        <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+          Estás por enviar el correo con el detalle de liquidaciones a <strong>{vecinosConEmail}</strong> vecino{vecinosConEmail === 1 ? '' : 's'}.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+          <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+          <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+            Esta acción envía un correo a los vecinos con el detalle de su deuda. ¿Deseás continuar?
+          </Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <Button onClick={() => setConfirmEnviarEmail(false)} disabled={sendingEmail} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
+          No enviar ahora
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleEnviarLiquidacionEmail}
+          disabled={sendingEmail}
+          startIcon={sendingEmail ? <CircularProgress size={14} color="inherit" /> : null}
+          sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+        >
+          {sendingEmail ? 'Enviando...' : 'Aceptar y enviar'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   )
 }
