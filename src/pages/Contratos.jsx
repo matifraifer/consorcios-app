@@ -148,7 +148,7 @@ export default function Contratos() {
       <Box display="flex" alignItems="flex-end" justifyContent="space-between" mb={4}>
         <Box>
           <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: ACCENT, mb: 0.5 }}>
-            Gestión de contratos
+            Gestión de alquileres
           </Typography>
           <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             Contratos

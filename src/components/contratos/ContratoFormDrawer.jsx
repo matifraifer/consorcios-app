@@ -239,7 +239,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         <Box sx={{ px: 3, py: 2.5, borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <Box>
             <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: ACCENT, mb: 0.3 }}>
-              Gestión de contratos
+              Gestión de alquileres
             </Typography>
             <Typography sx={{ fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>
               {isEdit ? 'Editar contrato' : 'Nuevo contrato'}

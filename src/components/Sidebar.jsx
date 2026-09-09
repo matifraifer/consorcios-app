@@ -166,6 +166,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const isConsorcio = user?.rol?.toLowerCase() === 'consorcio'
+  const isInmo = user?.rol?.toLowerCase() === 'inmo'
   const [collapsed, setCollapsed] = useState(false)
 
   const [adminOpen, setAdminOpen] = useState(true)
@@ -343,19 +344,21 @@ export default function Sidebar() {
         ))}
 
         {/* Grupo: Consorcios */}
-        {collapsed ? (
-          adminItems.map(item => (
-            <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
-          ))
-        ) : (
-          <>
-            <SectionHeader label="Gestión de consorcios" cls="ad" open={adminOpen} onToggle={() => setAdminOpen(p => !p)} />
-            <Collapse in={adminOpen}>
-              {adminItems.map(item => (
-                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
-              ))}
-            </Collapse>
-          </>
+        {!isInmo && (
+          collapsed ? (
+            adminItems.map(item => (
+              <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
+            ))
+          ) : (
+            <>
+              <SectionHeader label="Gestión de consorcios" cls="ad" open={adminOpen} onToggle={() => setAdminOpen(p => !p)} />
+              <Collapse in={adminOpen}>
+                {adminItems.map(item => (
+                  <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
+                ))}
+              </Collapse>
+            </>
+          )
         )}
 
         {!isConsorcio && (
@@ -401,14 +404,14 @@ export default function Sidebar() {
             {/* Divisor */}
             <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
 
-            {/* Grupo: Gestión de contratos */}
+            {/* Grupo: Gestión de alquileres */}
             {collapsed ? (
               contratosItems.map(item => (
                 <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
               ))
             ) : (
               <>
-                <SectionHeader label="Gestión de contratos" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
+                <SectionHeader label="Gestión de alquileres" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
                 <Collapse in={contratosOpen}>
                   {contratosItems.map(item => (
                     <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
@@ -417,22 +420,26 @@ export default function Sidebar() {
               </>
             )}
 
-            {/* Divisor */}
-            <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
-
-            {/* Grupo: Gestión de proyectos */}
-            {collapsed ? (
-              proyectosItems.map(item => (
-                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
-              ))
-            ) : (
+            {!isInmo && (
               <>
-                <SectionHeader label="Gestión de proyectos" cls="gp" open={proyectosOpen} onToggle={() => setProyectosOpen(p => !p)} />
-                <Collapse in={proyectosOpen}>
-                  {proyectosItems.map(item => (
-                    <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
-                  ))}
-                </Collapse>
+                {/* Divisor */}
+                <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
+
+                {/* Grupo: Gestión de proyectos */}
+                {collapsed ? (
+                  proyectosItems.map(item => (
+                    <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
+                  ))
+                ) : (
+                  <>
+                    <SectionHeader label="Gestión de proyectos" cls="gp" open={proyectosOpen} onToggle={() => setProyectosOpen(p => !p)} />
+                    <Collapse in={proyectosOpen}>
+                      {proyectosItems.map(item => (
+                        <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
+                      ))}
+                    </Collapse>
+                  </>
+                )}
               </>
             )}
           </>
