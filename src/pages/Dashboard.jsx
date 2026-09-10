@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Alert, Box, CircularProgress, Divider, Typography } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
-import { getDashboardDeuda, getCRMDashboardData, getTotalDepartamentosActivos } from '../services/supabase'
+import { getDashboardDeuda, getCRMDashboardData, getTotalDepartamentosActivos, getPagosContratoCliente, getIndicesActualizacion } from '../services/supabase'
+import { computeMontoActualizado } from '../utils/actualizacionContrato'
 import DashboardFiltros from '../components/dashboard/DashboardFiltros'
 import DashboardKPIs from '../components/dashboard/DashboardKPIs'
 import DeudaPorConsorcioTable from '../components/dashboard/DeudaPorConsorcioTable'
 import CRMSection from '../components/dashboard/CRMSection'
+import AlquileresKPIs from '../components/dashboard/AlquileresKPIs'
 
 export default function Dashboard() {
   const { clienteId } = useAuth()
@@ -16,6 +18,8 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
 
   const [crmData, setCrmData] = useState({ prospectos: [], etapas: [], visitas: [] })
+  const [pagosAlquileres, setPagosAlquileres] = useState([])
+  const [indices, setIndices] = useState([])
 
   // Filtros
   const [filtroConsorcio, setFiltroConsorcio] = useState('')
@@ -27,11 +31,15 @@ export default function Dashboard() {
       getDashboardDeuda(clienteId),
       getCRMDashboardData(clienteId),
       getTotalDepartamentosActivos(clienteId),
+      getPagosContratoCliente(clienteId),
+      getIndicesActualizacion(),
     ])
-      .then(([{ items }, crm, totalDeptos]) => {
+      .then(([{ items }, crm, totalDeptos, pagos, idx]) => {
         setAllItems(items)
         setCrmData(crm)
         setTotalDeptosActivos(totalDeptos)
+        setPagosAlquileres(pagos)
+        setIndices(idx)
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
@@ -115,6 +123,44 @@ export default function Dashboard() {
       .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
       .slice(-6)
   }, [allItems])
+
+  // KPIs de alquileres (pagos_contrato pendientes, con el monto ya actualizado por IPC/ICL)
+  const alquileresKpis = useMemo(() => {
+    const hoy = new Date()
+    const mesActual = hoy.getMonth() + 1
+    const anioActual = hoy.getFullYear()
+
+    const porContrato = new Map()
+    pagosAlquileres.forEach(p => {
+      if (!porContrato.has(p.contrato_id)) porContrato.set(p.contrato_id, [])
+      porContrato.get(p.contrato_id).push(p)
+    })
+
+    let vencidoTotal = 0
+    let corrienteTotal = 0
+    let corrienteCount = 0
+
+    porContrato.forEach(pagosContrato => {
+      const { tipo_actualizacion, plazo_actualizacion } = pagosContrato[0].contratos
+      pagosContrato.forEach(pago => {
+        if (pago.estado !== 'pendiente') return
+        const [anio, mes] = pago.periodo_inicio.split('-').map(Number)
+        const esAnterior = anio < anioActual || (anio === anioActual && mes < mesActual)
+        const esCorriente = anio === anioActual && mes === mesActual
+        if (!esAnterior && !esCorriente) return
+
+        const monto = computeMontoActualizado(pago, pagosContrato, indices, tipo_actualizacion, plazo_actualizacion)
+        if (esAnterior) {
+          vencidoTotal += monto
+        } else {
+          corrienteTotal += monto
+          corrienteCount += 1
+        }
+      })
+    })
+
+    return { vencidoTotal, corrienteTotal, corrienteCount }
+  }, [pagosAlquileres, indices])
 
   // KPIs calculados desde filteredItems
   const kpis = useMemo(() => {
@@ -212,6 +258,12 @@ export default function Dashboard() {
       <DeudaPorConsorcioTable rows={deudaPorConsorcio} />
 
       <Divider sx={{ my: 6, borderColor: '#F3F4F6' }} /> */}
+
+      <AlquileresKPIs
+        vencidoTotal={alquileresKpis.vencidoTotal}
+        corrienteTotal={alquileresKpis.corrienteTotal}
+        corrienteCount={alquileresKpis.corrienteCount}
+      />
 
       <CRMSection
         prospectos={crmData.prospectos}

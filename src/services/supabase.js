@@ -1644,6 +1644,19 @@ export async function getPagosContrato(contrato_id) {
   return data ?? []
 }
 
+// Todos los pagos de alquiler (de todos los contratos vigentes) de un cliente —
+// usado para los KPIs de alquileres por cobrar del home.
+export async function getPagosContratoCliente(clienteId) {
+  const { data, error } = await supabase
+    .from('pagos_contrato')
+    .select('*, contratos!inner(id, cliente_id, tipo_actualizacion, plazo_actualizacion, finalizado)')
+    .eq('contratos.cliente_id', clienteId)
+    .eq('contratos.finalizado', false)
+    .order('periodo_numero')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, file }) {
   let comprobante_path = null
   if (file) {
