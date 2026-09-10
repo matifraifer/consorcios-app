@@ -470,7 +470,7 @@ export default function Sidebar() {
       >
         {/* Acciones */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
-          {isAdmin && (
+          {(isAdmin || isInmo) && (
             <Tooltip title="Configuración" placement="top">
               <Box
                 onClick={() => navigate('/configuracion')}

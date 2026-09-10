@@ -4,7 +4,6 @@ import {
   Select, MenuItem, FormControl, InputLabel, IconButton, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
-import LanguageIcon from '@mui/icons-material/Language'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import PaymentIcon from '@mui/icons-material/Payment'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
@@ -466,23 +465,6 @@ export default function Configuracion() {
             onToggle={handleMpToggle}
           />
 
-          <IntegrationCard
-            logo={<LanguageIcon sx={{ fontSize: 22, color: '#9CA3AF' }} />}
-            name="MercadoLibre"
-            description="Próximamente disponible"
-            connected={false}
-            loading={false}
-            onToggle={() => {}}
-          />
-
-          <IntegrationCard
-            logo={<LanguageIcon sx={{ fontSize: 22, color: '#9CA3AF' }} />}
-            name="ZonaProp"
-            description="Próximamente disponible"
-            connected={false}
-            loading={false}
-            onToggle={() => {}}
-          />
         </Box>
       </Box>
 

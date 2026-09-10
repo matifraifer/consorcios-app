@@ -42,9 +42,10 @@ export default function MobileBottomNav() {
   const location  = useLocation()
   const { user, logout } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const isInmo = user?.rol?.toLowerCase() === 'inmo'
   const [moreOpen, setMoreOpen] = useState(false)
 
-  const morePaths = moreItems.map(i => i.path).concat(isAdmin ? ['/configuracion'] : [])
+  const morePaths = moreItems.map(i => i.path).concat((isAdmin || isInmo) ? ['/configuracion'] : [])
   const isMoreActive = morePaths.includes(location.pathname)
 
   const activeValue = isMoreActive
@@ -127,7 +128,7 @@ export default function MobileBottomNav() {
               </ListItemButton>
             ))}
 
-            {isAdmin && (
+            {(isAdmin || isInmo) && (
               <ListItemButton onClick={() => goTo('/configuracion')}
                 selected={location.pathname === '/configuracion'}
                 sx={{ '&.Mui-selected': { bgcolor: 'rgba(16,185,129,0.08)' } }}
