@@ -24,12 +24,13 @@ const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
 const TIPOS   = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina']
-const ESTADOS = ['Disponible', 'Reservada', 'Vendida', 'Baja']
+const ESTADOS = ['Disponible', 'Reservada', 'Vendida', 'Alquilada', 'Baja']
 
 const ESTADO_STYLES = {
   Disponible: { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
   Reservada:  { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
   Vendida:    { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  Alquilada:  { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
   Baja:       { bg: '#F1F5F9', color: '#94A3B8', border: '#E2E8F0' },
 }
 

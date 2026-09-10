@@ -7,7 +7,9 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
-import { createContrato, updateContrato, getPropiedades, getPropietarioCRM } from '../../services/supabase'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
+import { createContrato, updateContrato, getPropiedades, getPropietarioCRM, extraerDatosContrato } from '../../services/supabase'
+import { extraerTexto } from '../../utils/extraerTextoContrato'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
 import ContactoPicker from '../ContactoPicker'
 import DocumentacionRespaldatoriaSection from '../DocumentacionRespaldatoriaSection'
@@ -80,11 +82,15 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [propietarioLocked, setPropietarioLocked] = useState(false)
   const [pickerInquilinoOpen, setPickerInquilinoOpen] = useState(false)
   const [pickerPropietarioOpen, setPickerPropietarioOpen] = useState(false)
+  const [extrayendo, setExtrayendo] = useState(false)
+  const [extraccionMsg, setExtraccionMsg] = useState(null)
   const docsRef = useRef(null)
+  const contratoFileRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
     setError(null)
+    setExtraccionMsg(null)
     setPropietarioLocked(false)
     loadPropiedades()
 
@@ -114,7 +120,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     setLoadingProps(true)
     try {
       const data = await getPropiedades({ cliente_id: clienteId })
-      setPropiedades(data.filter(p => p.tipo_operacion === 'Alquiler'))
+      setPropiedades(data.filter(p => p.tipo_operacion === 'Alquiler' || p.id === contrato?.propiedad_id))
     } catch {
       // non-critical
     } finally {
@@ -124,6 +130,45 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleContratoFileSelected(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+
+    setExtrayendo(true)
+    setExtraccionMsg(null)
+    setError(null)
+    try {
+      const texto = await extraerTexto(file)
+      const datos = await extraerDatosContrato(texto)
+
+      const camposTexto = [
+        'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni',
+        'propietario_nombre', 'propietario_apellido', 'propietario_dni',
+        'fecha_inicio', 'fecha_fin', 'observaciones',
+      ]
+      const update = {}
+      for (const campo of camposTexto) {
+        if (datos[campo]) update[campo] = String(datos[campo])
+      }
+      if (datos.dia_vencimiento) update.dia_vencimiento = Number(datos.dia_vencimiento)
+      if (datos.monto_base) update.monto_base = String(datos.monto_base)
+      if (TIPOS_ACTUALIZACION.includes(datos.tipo_actualizacion)) update.tipo_actualizacion = datos.tipo_actualizacion
+      if (PLAZOS_ACTUALIZACION.includes(datos.plazo_actualizacion)) update.plazo_actualizacion = datos.plazo_actualizacion
+
+      setForm(prev => ({ ...prev, ...update }))
+      setPropietarioLocked(false)
+      setExtraccionMsg({
+        severity: 'info',
+        text: 'Datos completados automáticamente desde el archivo. Revisalos antes de guardar (la propiedad hay que seleccionarla a mano).',
+      })
+    } catch (err) {
+      setExtraccionMsg({ severity: 'warning', text: err.message ?? 'No se pudo leer el archivo automáticamente.' })
+    } finally {
+      setExtrayendo(false)
+    }
   }
 
   async function handlePropiedadChange(propiedadId) {
@@ -253,6 +298,57 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         {/* Body */}
         <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
           {error && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }} onClose={() => setError(null)}>{error}</Alert>}
+
+          {!isEdit && (
+            <Box mb={2}>
+              <input ref={contratoFileRef} type="file" hidden accept=".pdf,.docx" onChange={handleContratoFileSelected} />
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                disabled={extrayendo}
+                startIcon={extrayendo ? <CircularProgress size={14} color="inherit" /> : <UploadFileIcon sx={{ fontSize: 16 }} />}
+                onClick={() => contratoFileRef.current?.click()}
+                sx={{
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  py: 1,
+                  border: '1.5px solid transparent',
+                  color: ACCENT,
+                  backgroundImage: `linear-gradient(#fff, #fff), linear-gradient(90deg, ${ACCENT}, #10B981, #6366F1, #10B981, ${ACCENT})`,
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                  backgroundSize: '100% 100%, 300% 100%',
+                  backgroundPosition: '0 0, 0% 50%',
+                  animation: 'contratoIaBorde 3s linear infinite',
+                  transition: 'color 0.25s ease',
+                  '@keyframes contratoIaBorde': {
+                    '0%': { backgroundPosition: '0 0, 0% 50%' },
+                    '100%': { backgroundPosition: '0 0, 200% 50%' },
+                  },
+                  '@keyframes contratoIaGradient': {
+                    '0%': { backgroundPosition: '0% 50%' },
+                    '100%': { backgroundPosition: '200% 50%' },
+                  },
+                  '&:hover': {
+                    color: '#fff',
+                    backgroundImage: `linear-gradient(90deg, ${ACCENT}, #10B981, #6366F1, #10B981, ${ACCENT})`,
+                    backgroundSize: '300% 100%',
+                    animation: 'contratoIaGradient 1.5s linear infinite',
+                  },
+                }}
+              >
+                {extrayendo ? 'Leyendo contrato...' : 'Cargar contrato y autocompletar'}
+              </Button>
+              {extraccionMsg && (
+                <Alert severity={extraccionMsg.severity} sx={{ mt: 1.5, borderRadius: '8px', fontSize: '0.8rem' }} onClose={() => setExtraccionMsg(null)}>
+                  {extraccionMsg.text}
+                </Alert>
+              )}
+            </Box>
+          )}
 
           {/* Datos inquilino */}
           <SectionTitle>Datos del inquilino</SectionTitle>
@@ -470,6 +566,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         mode="new"
         clienteId={clienteId}
         onSaved={handlePropiedadSaved}
+        defaultTipoOperacion="Alquiler"
       />
 
       <ContactoPicker

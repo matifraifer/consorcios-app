@@ -906,6 +906,13 @@ export async function enviarLinkConsultaDeuda(departamento_id) {
   return data
 }
 
+export async function extraerDatosContrato(texto) {
+  const { data, error } = await supabase.functions.invoke('extraer-contrato-ia', { body: { texto } })
+  if (error) throw error
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+  return data.data
+}
+
 export async function enviarLiquidacionWhatsapp(consorcio_id) {
   const { data, error } = await supabase.functions.invoke('enviar-liquidacion-whatsapp', { body: { consorcio_id } })
   if (error) throw error
@@ -987,6 +994,7 @@ export async function getPropiedadesPublicas(cliente_id) {
     .eq('cliente_id', cliente_id)
     .neq('estado', 'Baja')
     .neq('estado', 'Vendida')
+    .neq('estado', 'Alquilada')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -1262,7 +1270,8 @@ export async function createContrato(payload, files, clienteId) {
   const { data: contrato, error } = await supabase
     .from('contratos')
     .insert([{ ...payload, cliente_id: clienteId }])
-    .select().single()
+    .select('*, propiedades(id, titulo, localidad)')
+    .single()
   if (error) throw error
 
   if (files?.length) {
@@ -1291,9 +1300,46 @@ export async function updateContrato(id, payload) {
     .from('contratos')
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select()
+    .select('*, propiedades(id, titulo, localidad)')
     .single()
   if (error) throw error
+
+  // Si se extendió la fecha_fin, generar los pagos mensuales que todavía no existen
+  const { data: ultimoPago, error: pagosError } = await supabase
+    .from('pagos_contrato')
+    .select('periodo_numero, periodo_fin')
+    .eq('contrato_id', id)
+    .order('periodo_numero', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (pagosError) throw pagosError
+
+  let nuevosPagos = []
+  if (ultimoPago) {
+    const ultimoFin = new Date(ultimoPago.periodo_fin + 'T12:00:00')
+    const nuevoFin = new Date(payload.fecha_fin + 'T12:00:00')
+    if (nuevoFin > ultimoFin) {
+      const siguienteInicio = new Date(ultimoFin)
+      siguienteInicio.setDate(siguienteInicio.getDate() + 1)
+      nuevosPagos = generarPagos(id, siguienteInicio.toISOString().slice(0, 10), payload.fecha_fin, payload.monto_base, payload.plazo_actualizacion)
+        .map((p, i) => ({ ...p, periodo_numero: ultimoPago.periodo_numero + 1 + i }))
+    }
+  } else {
+    // Contrato sin pagos generados (caso raro) → generarlos desde cero
+    nuevosPagos = generarPagos(id, payload.fecha_inicio, payload.fecha_fin, payload.monto_base, payload.plazo_actualizacion)
+  }
+
+  if (nuevosPagos.length) {
+    // es_periodo_actualizacion depende del período_numero global, recalcular con la numeración ya remapeada
+    const plazoMeses = PLAZO_MAP[payload.plazo_actualizacion] ?? 0
+    nuevosPagos = nuevosPagos.map(p => ({
+      ...p,
+      es_periodo_actualizacion: plazoMeses > 0 && p.periodo_numero > 1 && (p.periodo_numero - 1) % plazoMeses === 0,
+    }))
+    const { error: insertError } = await supabase.from('pagos_contrato').insert(nuevosPagos)
+    if (insertError) throw insertError
+  }
+
   return data
 }
 
@@ -1694,17 +1740,18 @@ export async function getDocumentoRespaldatorioUrl(storagePath) {
   return data.signedUrl
 }
 
-export async function getIndicesActualizacion(clienteId) {
+export async function getIndicesActualizacion() {
+  // Sin filtro de cliente_id: la RLS ya devuelve los propios + los marcados como externo=true de otros clientes.
   const { data, error } = await supabase
-    .from('indices_actualizacion').select('*').eq('cliente_id', clienteId).order('anio').order('mes')
+    .from('indices_actualizacion').select('*').order('anio').order('mes')
   if (error) throw error
   return data ?? []
 }
 
-export async function upsertIndice({ tipo, mes, anio, valor, clienteId }) {
+export async function upsertIndice({ tipo, mes, anio, valor, clienteId, externo }) {
   const { data, error } = await supabase
     .from('indices_actualizacion')
-    .upsert([{ tipo, mes, anio, valor: Number(valor), cliente_id: clienteId }], { onConflict: 'tipo,mes,anio,cliente_id' })
+    .upsert([{ tipo, mes, anio, valor: Number(valor), cliente_id: clienteId, externo: !!externo }], { onConflict: 'tipo,mes,anio,cliente_id' })
     .select().single()
   if (error) throw error
   return data

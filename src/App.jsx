@@ -24,6 +24,7 @@ import PropiedadPublica from './pages/PropiedadPublica'
 import InmobiliariaPublica from './pages/InmobiliariaPublica'
 import ConsultaDeudaPublica from './pages/ConsultaDeudaPublica'
 import Contratos        from './pages/Contratos'
+import Indices          from './pages/Indices'
 import Contactos        from './pages/Contactos'
 import ConsultasWeb     from './pages/ConsultasWeb'
 import WhatsApp         from './pages/WhatsApp'
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/expensas/nuevo"                     element={<NuevoPeriodo />} />
           <Route path="/expensas/:id"                       element={<ExpensasDetalle />} />
           <Route path="/contratos"                          element={<Contratos />} />
+          <Route path="/indices"                            element={<Indices />} />
           <Route path="/contactos"                          element={<Contactos />} />
           <Route path="/consultas-web"                      element={<ConsultasWeb />} />
           <Route path="/whatsapp"                           element={<WhatsApp />} />

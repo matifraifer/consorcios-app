@@ -11,6 +11,7 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import GroupIcon from '@mui/icons-material/Group'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import DescriptionIcon from '@mui/icons-material/Description'
+import ShowChartIcon from '@mui/icons-material/ShowChart'
 import SettingsIcon from '@mui/icons-material/Settings'
 import LogoutIcon from '@mui/icons-material/Logout'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
@@ -33,6 +34,7 @@ const moreItems = [
   { label: 'Seguimiento de contactos', path: '/prospectos',           icon: <GroupIcon /> },
   { label: 'Propiedades externas',     path: '/propiedades-comunidad', icon: <TravelExploreIcon /> },
   { label: 'Contratos',                path: '/contratos',            icon: <DescriptionIcon /> },
+  { label: 'Índices',                  path: '/indices',              icon: <ShowChartIcon /> },
 ]
 
 export default function MobileBottomNav() {

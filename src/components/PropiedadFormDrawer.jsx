@@ -33,7 +33,7 @@ const TIPO_META = {
 
 const TIPOS          = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina']
 const TIPOS_OPERACION = ['Venta', 'Alquiler']
-const ESTADOS        = ['Disponible', 'Reservada', 'Vendida']
+const ESTADOS        = ['Disponible', 'Reservada', 'Vendida', 'Alquilada']
 const MONEDAS        = ['USD', 'ARS']
 
 const PROVINCIAS = [
@@ -104,7 +104,7 @@ function SectionTitle({ children }) {
   )
 }
 
-export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, onSaved, clienteId }) {
+export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, onSaved, clienteId, defaultTipoOperacion }) {
   const [form, setForm]                         = useState(FORM_EMPTY)
   const [saving, setSaving]                     = useState(false)
   const [uploadProgress, setUploadProgress]     = useState(null)
@@ -196,7 +196,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         .catch(() => {})
         .finally(() => setLoadingContactos(false))
     } else {
-      setForm(FORM_EMPTY)
+      setForm(defaultTipoOperacion ? { ...FORM_EMPTY, tipo_operacion: defaultTipoOperacion } : FORM_EMPTY)
       setImages([])
       origExisting.current = []
       setContactosVinculados([])

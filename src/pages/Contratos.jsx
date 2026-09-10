@@ -88,8 +88,9 @@ export default function Contratos() {
 
   async function load() {
     try {
-      const [data, idx] = await Promise.all([getContratos(clienteId), getIndicesActualizacion(clienteId)])
+      const [data, idx] = await Promise.all([getContratos(clienteId), getIndicesActualizacion()])
       setContratos(data)
+      // Incluye los propios + los "externo" de otros clientes (necesarios para calcular actualizaciones)
       setIndices(idx)
     } catch (err) {
       setError(err.message)
@@ -337,8 +338,13 @@ export default function Contratos() {
       <IndicesDialog
         open={indicesOpen}
         onClose={() => setIndicesOpen(false)}
-        indices={indices}
-        onIndicesChange={setIndices}
+        indices={indices.filter(i => i.cliente_id === clienteId)}
+        onIndicesChange={updater => setIndices(prev => {
+          const propios = prev.filter(i => i.cliente_id === clienteId)
+          const ajenos = prev.filter(i => i.cliente_id !== clienteId)
+          const nuevosPropios = typeof updater === 'function' ? updater(propios) : updater
+          return [...ajenos, ...nuevosPropios]
+        })}
         clienteId={clienteId}
       />
 

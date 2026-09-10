@@ -13,6 +13,7 @@ import SettingsIcon from '@mui/icons-material/Settings'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import ConstructionIcon from '@mui/icons-material/Construction'
 import TimelineIcon from '@mui/icons-material/Timeline'
+import ShowChartIcon from '@mui/icons-material/ShowChart'
 import PaidIcon from '@mui/icons-material/Paid'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -58,6 +59,7 @@ const baseDatosItems = [
 
 const contratosItems = [
   { label: 'Contratos', path: '/contratos', icon: <DescriptionIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Índices',   path: '/indices',   icon: <ShowChartIcon sx={{ fontSize: 18 }} /> },
 ]
 
 const proyectosItems = [

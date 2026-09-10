@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, Dialog, DialogTitle, DialogContent, DialogActions,
   Button, IconButton, TextField, Select, MenuItem, FormControl,
-  CircularProgress, Alert, Divider, Tabs, Tab, Tooltip,
+  CircularProgress, Alert, Divider, Tabs, Tab, Tooltip, Checkbox, FormControlLabel,
 } from '@mui/material'
+import PublicIcon from '@mui/icons-material/Public'
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
@@ -45,13 +46,22 @@ function IndiceRow({ indice, onDelete, onUpdate }) {
     if (!val || isNaN(Number(val))) return
     setSaving(true)
     try {
-      const updated = await upsertIndice({ tipo: indice.tipo, mes: indice.mes, anio: indice.anio, valor: Number(val), clienteId: indice.cliente_id })
+      const updated = await upsertIndice({ tipo: indice.tipo, mes: indice.mes, anio: indice.anio, valor: Number(val), clienteId: indice.cliente_id, externo: indice.externo })
       onUpdate(updated)
       setEditing(false)
     } catch {
       // keep editing open
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleToggleExterno() {
+    try {
+      const updated = await upsertIndice({ tipo: indice.tipo, mes: indice.mes, anio: indice.anio, valor: Number(indice.valor), clienteId: indice.cliente_id, externo: !indice.externo })
+      onUpdate(updated)
+    } catch {
+      // ignore
     }
   }
 
@@ -87,7 +97,7 @@ function IndiceRow({ indice, onDelete, onUpdate }) {
           </Typography>
         )}
       </Box>
-      <Box display="flex">
+      <Box display="flex" alignItems="center">
         {editing && (
           <Tooltip title="Guardar">
             <IconButton size="small" onClick={handleSave} disabled={saving} sx={{ color: ACCENT }}>
@@ -95,6 +105,11 @@ function IndiceRow({ indice, onDelete, onUpdate }) {
             </IconButton>
           </Tooltip>
         )}
+        <Tooltip title={indice.externo ? 'Visible para todos los clientes (clic para hacerlo privado)' : 'Solo visible para vos (clic para compartirlo con todos)'}>
+          <IconButton size="small" onClick={handleToggleExterno} sx={{ color: indice.externo ? ACCENT : '#D1D5DB' }}>
+            <PublicIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Eliminar">
           <IconButton size="small" onClick={handleDelete} sx={{ color: '#9CA3AF', '&:hover': { color: '#EF4444' } }}>
             <DeleteOutlineIcon sx={{ fontSize: 15 }} />
@@ -110,6 +125,7 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
   const [newMes, setNewMes] = useState(new Date().getMonth() + 1)
   const [newAnio, setNewAnio] = useState(currentYear)
   const [newValor, setNewValor] = useState('')
+  const [newExterno, setNewExterno] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -132,7 +148,7 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
     setError(null)
     setSaving(true)
     try {
-      const nuevo = await upsertIndice({ tipo, mes: newMes, anio: newAnio, valor: Number(newValor), clienteId })
+      const nuevo = await upsertIndice({ tipo, mes: newMes, anio: newAnio, valor: Number(newValor), clienteId, externo: newExterno })
       onIndicesChange(prev => {
         const exists = prev.findIndex(i => i.tipo === tipo && i.mes === newMes && i.anio === newAnio)
         if (exists >= 0) {
@@ -217,6 +233,23 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
               Agregar
             </Button>
           </Box>
+
+          <FormControlLabel
+            sx={{ mb: 2, ml: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={newExterno}
+                onChange={e => setNewExterno(e.target.checked)}
+                sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT }, p: 0.5 }}
+              />
+            }
+            label={
+              <Typography sx={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                Compartir con todos los clientes (índice externo)
+              </Typography>
+            }
+          />
 
           {error && <Alert severity="error" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.78rem', py: 0.5 }}>{error}</Alert>}
 

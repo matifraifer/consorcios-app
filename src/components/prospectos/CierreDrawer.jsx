@@ -16,6 +16,7 @@ const ESTADOS_PROPIEDAD = [
   { value: 'Disponible',  label: 'Disponible',   desc: 'La propiedad vuelve al mercado.',        color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
   { value: 'Reservada',   label: 'Reservada',    desc: 'En proceso de firma o seña.',             color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
   { value: 'Vendida',     label: 'Vendida',       desc: 'Operación de compraventa finalizada.',   color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
+  { value: 'Alquilada',   label: 'Alquilada',     desc: 'Operación de alquiler finalizada.',      color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE' },
   { value: 'Baja',        label: 'Dada de baja',  desc: 'La propiedad se retira del sistema.',   color: '#94A3B8', bg: '#F1F5F9', border: '#E2E8F0' },
 ]
 
@@ -46,7 +47,9 @@ export default function CierreDrawer({ open, onClose, prospecto, onClosed }) {
 
   function getDefaultEstado(tipo) {
     if (tipo === 'exitoso') {
-      return prospecto?.tipo_operacion === 'venta' ? 'Vendida' : 'Disponible'
+      if (prospecto?.tipo_operacion === 'venta') return 'Vendida'
+      if (prospecto?.tipo_operacion === 'alquiler') return 'Alquilada'
+      return 'Disponible'
     }
     return 'Disponible'
   }

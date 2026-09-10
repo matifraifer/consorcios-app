@@ -119,7 +119,7 @@ whatsapp-service/                 # Proceso Node persistente (Baileys) — deplo
 - `pagos_contrato`: id, contrato_id, periodo_numero, periodo_inicio, periodo_fin, monto_base, es_periodo_actualizacion (bool), estado (default 'pendiente'), monto_pagado, fecha_pago, comprobante_path, created_at — un registro por período/mes de alquiler
 - `cargos_extra_contrato`: id, pago_id (FK pagos_contrato), descripcion, monto, created_at — cargos adicionales sobre un pago puntual (expensas, reparaciones, etc.)
 - `contratos_adjuntos`: id, contrato_id, nombre, storage_path, created_at
-- `indices_actualizacion`: id, tipo, mes, anio, valor, cliente_id — índices (IPC/ICL/etc.) usados para calcular actualizaciones de `monto_base` en `pagos_contrato`
+- `indices_actualizacion`: id, tipo, mes, anio, valor, cliente_id, externo (bool, default false) — índices (IPC/ICL/etc.) usados para calcular actualizaciones de `monto_base` en `pagos_contrato`. Se cargan/editan desde `IndicesDialog.jsx` (botón "Índices" en `Contratos.jsx`, admin) y se visualizan (gráfico + tablas) en `/indices` (`Indices.jsx`). `externo=true` marca un índice como compartido: lo ve/usa **cualquier cliente** (por ejemplo, para cargar una sola vez el IPC/ICL oficial); `externo=false`/null solo lo ve el cliente que lo cargó — filtrado por RLS (`0018_indices_externo.sql`, ver Migraciones pendientes), no en el frontend
 - `tipos_documentacion`: id, cliente_id, nombre, orden, created_at — tipos configurables de documentación (usados por `documentos_respaldatorios`)
 - `documentos_respaldatorios`: id, cliente_id, propiedad_id, contrato_id, titulo, tipo_documentacion_id (FK), tipo_personalizado, storage_path, nombre_archivo, mime_type, created_at
 
@@ -179,6 +179,13 @@ RLS por `cliente_id`/`auth.uid()` en todas las tablas (ver sección Autenticaci�
 - **MVP intencionalmente acotado**: sin auto-crear `contactos`/`prospectos` desde números entrantes, sin Realtime (polling, como el resto de la app), sin normalización de teléfono con código de país. Ver fase 2 en el plan original si hace falta retomarlo
 - Riesgo de ban del número por ser protocolo no oficial — `/send` tiene rate-limit (20 msj/min por cliente) en `whatsapp-service/src/routes.js`
 
+## Autocompletar contrato con IA (Claude Haiku 4.5)
+- En el drawer "Nuevo contrato" (`ContratoFormDrawer.jsx`, solo en modo alta) hay un botón "Cargar contrato (PDF/Word) y autocompletar": el usuario sube el PDF/Word ya firmado y el formulario se autocompleta solo — siempre queda para revisión/edición antes de guardar, nunca se guarda automático
+- Extracción de texto 100% client-side (el archivo no sale del navegador): `src/utils/extraerTextoContrato.js` usa `pdfjs-dist` para `.pdf` y `mammoth` para `.docx` (no soporta `.doc` viejo)
+- Ese texto se manda a la Edge Function `supabase/functions/extraer-contrato-ia/index.ts`, que llama a la API de Anthropic (modelo `claude-haiku-4-5`, elegido por costo bajo) con tool use forzado para garantizar un JSON estructurado — no hay parseo de texto libre. La `ANTHROPIC_API_KEY` es un secret de la función (**pendiente de cargar**, `supabase secrets set ANTHROPIC_API_KEY=...`), nunca toca el frontend. Deployada con `--no-verify-jwt` como el resto
+- Función en `supabase.js`: `extraerDatosContrato(texto)` (mismo patrón `supabase.functions.invoke` que `enviarLinkConsultaDeuda`/`crearPreferenciaPago`)
+- Campos que autocompleta: inquilino/propietario (nombre, apellido, DNI), fechas de inicio/fin, día de vencimiento, monto base, tipo/plazo de actualización (validados contra los enums del form, si la IA devuelve algo fuera de lista se ignora) y observaciones. La **propiedad no se autocompleta** (es una FK a un registro ya cargado, no se puede inferir del texto) — el usuario la sigue seleccionando a mano
+
 ## Autenticación (Supabase Auth)
 - Login por **nombre de usuario** (no email) — el frontend resuelve `nombre_usuario` → `email` con la RPC `email_for_username` (SECURITY DEFINER, callable por `anon`, ver `0005_username_login_rpc.sql`) y recién ahí llama a `supabase.auth.signInWithPassword`
 - La tabla `usuarios` guarda el perfil de negocio (rol, cliente_id, nombre_usuario) y se vincula a `auth.users` via `usuarios.auth_user_id`
@@ -229,3 +236,4 @@ ALTER TABLE gastos ADD COLUMN departamentos_ids INTEGER[];
 - `supabase/migrations/0015_recordatorios_whatsapp.sql`: **pendiente** — agrega `telefono` a `departamentos` y `dias_recordatorio_previo` a `consorcios`, crea `recordatorios_whatsapp_enviados`; el bloque de `pg_cron`/`pg_net` para automatizar el envío diario queda comentado dentro del archivo, correr aparte y a mano después de probar la Edge Function `enviar-recordatorios-whatsapp` (y de cargar los secrets `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_WHATSAPP_NUMBER`)
 - `supabase/migrations/0016_propietario_departamento_texto.sql`: **pendiente** — agrega `propietario_nombre`/`propietario_apellido`/`propietario_dni` a `departamentos` y hace backfill desde el propietario ya vinculado por `id_propietario` (que queda como FK legacy, sin escribirse más desde los formularios)
 - `supabase/migrations/0017_departamentos_activo.sql`: **pendiente** — agrega `departamentos.activo` (default true) para la baja lógica de unidades funcionales
+- `supabase/migrations/0018_indices_externo.sql`: **pendiente** — agrega `indices_actualizacion.externo` (default false) y reemplaza su policy de RLS por 4 separadas para que `externo=true` sea visible desde cualquier cliente en SELECT, manteniendo insert/update/delete restringido al cliente dueño
