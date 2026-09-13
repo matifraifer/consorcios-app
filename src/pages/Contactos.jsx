@@ -23,20 +23,21 @@ import ImportarContactosDrawer from '../components/contactos/ImportarContactosDr
 
 const ACCENT = '#065F46'
 
-const TIPOS_FILTRO   = ['Todos', 'Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
-const ORIGENES_FILTRO = ['Todos', 'APP', 'WEB', 'IMPORTADO']
+const TIPOS_FILTRO   = ['Todos', 'Comprador', 'Vendedor', 'Locatario', 'Locador']
+const ORIGENES_FILTRO = ['Todos', 'APP', 'WEB', 'IMPORTADO', 'IA']
 
 const TIPO_COLORS = {
-  Comprador:    { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
-  Vendedor:     { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
-  Arrendatario: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
-  Locatario:    { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
+  Comprador: { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+  Vendedor:  { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+  Locatario: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  Locador:   { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
 }
 
 const ORIGEN_STYLES = {
   WEB: { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
   APP: { bg: '#F3F4F6', color: '#374151', border: '#E5E7EB' },
   IMPORTADO: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+  IA: { bg: '#F5F3FF', color: '#7C3AED', border: '#DDD6FE' },
 }
 
 function TipoBadge({ tipo }) {
@@ -70,7 +71,7 @@ function TiposBadges({ tipos, tipo }) {
 function getContactTipos(c) {
   if (c.tipos?.length) return c.tipos
   if (!c.tipo) return []
-  const LEGACY = { Inquilino: 'Arrendatario', Propietario: 'Locatario', Vendedor: 'Vendedor', Comprador: 'Comprador' }
+  const LEGACY = { Inquilino: 'Locatario', Propietario: 'Locador', Vendedor: 'Vendedor', Comprador: 'Comprador' }
   return [LEGACY[c.tipo] ?? c.tipo]
 }
 
@@ -339,7 +340,13 @@ export default function Contactos() {
                   key={c.id}
                   hover={!isMobile}
                   onClick={isMobile ? undefined : () => handleRowClick(c)}
-                  sx={{ cursor: isMobile ? 'default' : 'pointer', '& td': { borderBottom: '1px solid #F3F4F6' }, '&:last-child td': { borderBottom: 0 }, '&:hover .row-actions': { opacity: 1 } }}
+                  sx={{
+                    cursor: isMobile ? 'default' : 'pointer',
+                    borderLeft: c.origen === 'IA' ? '3px solid #7C3AED' : '3px solid transparent',
+                    '& td': { borderBottom: '1px solid #F3F4F6' },
+                    '&:last-child td': { borderBottom: 0 },
+                    '&:hover .row-actions': { opacity: 1 },
+                  }}
                 >
                   {/* Nombre */}
                   <TableCell sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>

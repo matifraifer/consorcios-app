@@ -8,8 +8,9 @@ import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
-import { createContrato, updateContrato, getPropiedades, getPropietarioCRM, extraerDatosContrato } from '../../services/supabase'
+import { createContrato, updateContrato, getPropiedades, getPropietarioCRM, extraerDatosContrato, vincularContactoDesdeContrato } from '../../services/supabase'
 import { extraerTexto } from '../../utils/extraerTextoContrato'
+import { useAuth } from '../../contexts/AuthContext'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
 import ContactoPicker from '../ContactoPicker'
 import DocumentacionRespaldatoriaSection from '../DocumentacionRespaldatoriaSection'
@@ -72,6 +73,7 @@ function SectionTitle({ children }) {
 
 export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, mode = 'new', contrato = null }) {
   const isEdit = mode === 'edit'
+  const { user } = useAuth()
 
   const [form, setForm] = useState(FORM_EMPTY)
   const [propiedades, setPropiedades] = useState([])
@@ -84,6 +86,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [pickerPropietarioOpen, setPickerPropietarioOpen] = useState(false)
   const [extrayendo, setExtrayendo] = useState(false)
   const [extraccionMsg, setExtraccionMsg] = useState(null)
+  const [cargadoIA, setCargadoIA] = useState(false)
   const docsRef = useRef(null)
   const contratoFileRef = useRef(null)
 
@@ -92,6 +95,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     setError(null)
     setExtraccionMsg(null)
     setPropietarioLocked(false)
+    setCargadoIA(isEdit ? (contrato?.cargado_ia ?? false) : false)
     loadPropiedades()
 
     if (isEdit && contrato) {
@@ -151,7 +155,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       ]
       const update = {}
       for (const campo of camposTexto) {
-        if (datos[campo]) update[campo] = String(datos[campo])
+        if (datos[campo]) {
+          const valor = String(datos[campo])
+          update[campo] = campo.endsWith('_dni') ? valor.replace(/\D/g, '') : valor
+        }
       }
       if (datos.dia_vencimiento) update.dia_vencimiento = Number(datos.dia_vencimiento)
       if (datos.monto_base) update.monto_base = String(datos.monto_base)
@@ -160,6 +167,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
       setForm(prev => ({ ...prev, ...update }))
       setPropietarioLocked(false)
+      setCargadoIA(true)
       setExtraccionMsg({
         severity: 'info',
         text: 'Datos completados automáticamente desde el archivo. Revisalos antes de guardar (la propiedad hay que seleccionarla a mano).',
@@ -255,6 +263,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         tipo_actualizacion:   form.tipo_actualizacion,
         plazo_actualizacion:  form.plazo_actualizacion,
         observaciones:        form.observaciones.trim() || null,
+        cargado_ia:           cargadoIA,
       }
       let result
       if (isEdit) {
@@ -263,6 +272,31 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         result = await createContrato(payload, [], clienteId)
       }
       await docsRef.current?.persist(result.id)
+
+      try {
+        await vincularContactoDesdeContrato({
+          cliente_id: clienteId,
+          nombre: payload.inquilino_nombre,
+          apellido: payload.inquilino_apellido,
+          dni: payload.inquilino_dni,
+          tipo: 'Locatario',
+          creado_por: user?.nombre_usuario,
+          origen: cargadoIA ? 'IA' : 'APP',
+        })
+        await vincularContactoDesdeContrato({
+          cliente_id: clienteId,
+          nombre: payload.propietario_nombre,
+          apellido: payload.propietario_apellido,
+          dni: payload.propietario_dni,
+          tipo: 'Locador',
+          creado_por: user?.nombre_usuario,
+          origen: cargadoIA ? 'IA' : 'APP',
+        })
+      } catch (contactoErr) {
+        // no bloquea el guardado del contrato si falla la sincronización del contacto
+        console.error('No se pudo sincronizar el contacto del contrato:', contactoErr)
+      }
+
       onSaved(result)
       onClose()
     } catch (e) {

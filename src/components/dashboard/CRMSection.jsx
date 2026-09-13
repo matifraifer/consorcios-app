@@ -14,6 +14,7 @@ import PersonOffIcon     from '@mui/icons-material/PersonOff'
 import { useAuth } from '../../contexts/AuthContext'
 import { getUsuarios } from '../../services/supabase'
 import GraficoDeudaPorPeriodo from './GraficoDeudaPorPeriodo'
+import AlquileresKPIs from './AlquileresKPIs'
 
 const ACCENT = '#065F46'
 
@@ -87,7 +88,7 @@ function SectionHeader({ icon, title, right }) {
   )
 }
 
-export default function CRMSection({ prospectos, etapas, visitas, consultasPendientes = 0, propiedadesData = [], sinAsignar = 0, resumenDeuda = null, deudaPorPeriodo = [] }) {
+export default function CRMSection({ prospectos, etapas, visitas, consultasPendientes = 0, propiedadesData = [], sinAsignar = 0, resumenDeuda = null, deudaPorPeriodo = [], alquileresKpis = null }) {
   const { user, clienteId } = useAuth()
   const navigate = useNavigate()
   const theme = useTheme()
@@ -552,6 +553,14 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
   return (
     <Box sx={{ pb: 6 }}>
       {heroSection}
+
+      {alquileresKpis && (
+        <AlquileresKPIs
+          vencidoTotal={alquileresKpis.vencidoTotal}
+          corrienteTotal={alquileresKpis.corrienteTotal}
+          corrienteCount={alquileresKpis.corrienteCount}
+        />
+      )}
 
       {isMobile ? (
         <>

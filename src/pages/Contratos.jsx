@@ -256,12 +256,27 @@ export default function Contratos() {
                   <TableRow
                     key={c.id}
                     onClick={() => setDetalleTarget(c)}
-                    sx={{ cursor: 'pointer', '&:last-child td': { border: 0 }, '& td': { borderBottom: '1px solid #F3F4F6' }, '&:hover': { bgcolor: '#F9FAFB', '& .row-actions': { opacity: 1 } } }}
+                    sx={{
+                      cursor: 'pointer',
+                      borderLeft: c.cargado_ia ? '3px solid #7C3AED' : '3px solid transparent',
+                      '&:last-child td': { border: 0 },
+                      '& td': { borderBottom: '1px solid #F3F4F6' },
+                      '&:hover': { bgcolor: '#F9FAFB', '& .row-actions': { opacity: 1 } },
+                    }}
                   >
                     <TableCell sx={{ py: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
-                        {c.inquilino_apellido}, {c.inquilino_nombre}
-                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.6}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
+                          {c.inquilino_apellido}, {c.inquilino_nombre}
+                        </Typography>
+                        {c.cargado_ia && (
+                          <Tooltip title="Contrato cargado con autocompletado por IA">
+                            <Box component="span" sx={{ display: 'inline-block', px: 0.7, py: 0.1, borderRadius: '5px', bgcolor: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+                              IA
+                            </Box>
+                          </Tooltip>
+                        )}
+                      </Box>
                       {c.inquilino_dni && <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>DNI {c.inquilino_dni}</Typography>}
                     </TableCell>
                     <TableCell sx={{ py: 1.5 }}>

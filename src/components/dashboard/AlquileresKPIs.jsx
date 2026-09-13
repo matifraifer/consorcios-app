@@ -1,4 +1,5 @@
 import { Box, Grid, Typography } from '@mui/material'
+import HomeWorkIcon from '@mui/icons-material/HomeWork'
 
 function fmt(value) {
   return `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -29,9 +30,17 @@ function KPI({ label, value, accent }) {
 export default function AlquileresKPIs({ vencidoTotal, corrienteTotal, corrienteCount }) {
   return (
     <Box mb={4}>
-      <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#065F46', mb: 1.5 }}>
-        Alquileres
-      </Typography>
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        mb: 2, pb: 1.5, borderBottom: '2px solid #F3F4F6',
+      }}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <HomeWorkIcon sx={{ fontSize: 16, color: '#065F46' }} />
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
+            Alquileres por cobrar
+          </Typography>
+        </Box>
+      </Box>
       <Grid container spacing={2} alignItems="stretch">
         <Grid item xs={12} sm={4}>
           <KPI label="Alquileres vencidos pendientes de cobrar" value={fmt(vencidoTotal)} accent="#EF4444" />

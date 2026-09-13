@@ -26,7 +26,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 const ACCENT = '#065F46'
 
-const TIPOS_CONTACTO  = ['Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
+const TIPOS_CONTACTO  = ['Comprador', 'Vendedor', 'Locatario', 'Locador']
 const TIPOS_PROPIEDAD = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina', 'Otro']
 const TIPOS_OPERACION = ['Alquiler', 'Compraventa']
 const MONEDAS         = ['ARS', 'USD']
@@ -37,10 +37,10 @@ const ZONAS = [
 ]
 
 const TIPO_META = {
-  Comprador:    {  color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-  Vendedor:     {   color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
-  Arrendatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
-  Locatario:    {  color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
+  Comprador: { color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
+  Vendedor:  { color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
+  Locatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
+  Locador:   { color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
 }
 
 const fieldSx = {

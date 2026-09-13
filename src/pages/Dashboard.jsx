@@ -7,7 +7,6 @@ import DashboardFiltros from '../components/dashboard/DashboardFiltros'
 import DashboardKPIs from '../components/dashboard/DashboardKPIs'
 import DeudaPorConsorcioTable from '../components/dashboard/DeudaPorConsorcioTable'
 import CRMSection from '../components/dashboard/CRMSection'
-import AlquileresKPIs from '../components/dashboard/AlquileresKPIs'
 
 export default function Dashboard() {
   const { clienteId } = useAuth()
@@ -259,12 +258,6 @@ export default function Dashboard() {
 
       <Divider sx={{ my: 6, borderColor: '#F3F4F6' }} /> */}
 
-      <AlquileresKPIs
-        vencidoTotal={alquileresKpis.vencidoTotal}
-        corrienteTotal={alquileresKpis.corrienteTotal}
-        corrienteCount={alquileresKpis.corrienteCount}
-      />
-
       <CRMSection
         prospectos={crmData.prospectos}
         etapas={crmData.etapas}
@@ -274,6 +267,7 @@ export default function Dashboard() {
         sinAsignar={crmData.sinAsignar}
         resumenDeuda={resumenDeuda}
         deudaPorPeriodo={deudaPorPeriodo}
+        alquileresKpis={alquileresKpis}
       />
     </Box>
   )

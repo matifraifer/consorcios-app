@@ -1556,7 +1556,7 @@ export async function updateContacto(id, data) {
   return result
 }
 
-const TIPOS_CONTACTO_VALIDOS = ['Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
+const TIPOS_CONTACTO_VALIDOS = ['Comprador', 'Vendedor', 'Locatario', 'Locador']
 
 export async function importarContactos(filas, clienteId, creadoPor = null) {
   const { data: existentes, error: exErr } = await supabase
@@ -1606,6 +1606,42 @@ export async function importarContactos(filas, clienteId, creadoPor = null) {
     }
   }
   return resultados
+}
+
+export async function vincularContactoDesdeContrato({ cliente_id, nombre, apellido, dni, tipo, creado_por, origen }) {
+  if (!nombre || !apellido) return null
+
+  let existente = null
+  if (dni) {
+    const { data, error } = await supabase
+      .from('contactos')
+      .select('id, tipos, tipo')
+      .eq('cliente_id', cliente_id)
+      .eq('dni', dni)
+      .eq('activo', true)
+      .maybeSingle()
+    if (error) throw error
+    existente = data
+  }
+
+  if (existente) {
+    const tiposActuales = existente.tipos?.length ? existente.tipos : (existente.tipo ? [existente.tipo] : [])
+    if (tiposActuales.includes(tipo)) return existente
+    const { data, error } = await supabase
+      .from('contactos')
+      .update({ tipos: [...tiposActuales, tipo] })
+      .eq('id', existente.id)
+      .select().single()
+    if (error) throw error
+    return data
+  }
+
+  const { data, error } = await supabase
+    .from('contactos')
+    .insert([{ nombre, apellido, dni: dni || null, tipos: [tipo], tipo, cliente_id, activo: true, origen: origen || 'APP', creado_por: creado_por || null }])
+    .select().single()
+  if (error) throw error
+  return data
 }
 
 export async function buscarContactos(cliente_id, texto) {
