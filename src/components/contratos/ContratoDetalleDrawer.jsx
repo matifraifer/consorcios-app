@@ -12,12 +12,15 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import {
   getPagosContrato, getContratoAdjuntos, getContratoAdjuntoUrl,
   deleteContratoAdjunto, registrarPagoContrato, getComprobanteUrl, finalizarContrato,
   getCargosExtraByPagos, createCargoExtra, deleteCargoExtra,
+  getReciboByPago, getClienteConfig,
 } from '../../services/supabase'
 import { esActualizacion, computeMontoActualizado } from '../../utils/actualizacionContrato'
+import { generarReciboContrato } from '../../services/reciboContrato'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -171,10 +174,14 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [cargoMonto, setCargoMonto] = useState('')
   const [savingCargo, setSavingCargo] = useState(false)
 
+  const [clienteConfig, setClienteConfig] = useState(null)
+  const [descargandoRecibo, setDescargandoRecibo] = useState(null) // pago_id | null
+
   useEffect(() => {
     if (!open || !contrato) return
     setError(null)
     loadData()
+    getClienteConfig(contrato.cliente_id).then(setClienteConfig).catch(() => {})
   }, [open, contrato?.id])
 
   async function loadData() {
@@ -227,6 +234,26 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
       window.open(url, '_blank')
     } catch (e) {
       setError(e.message)
+    }
+  }
+
+  async function handleDescargarRecibo(pago) {
+    setDescargandoRecibo(pago.id)
+    setError(null)
+    try {
+      const recibo = await getReciboByPago(pago.id)
+      if (!recibo) throw new Error('No se encontró el recibo de este pago.')
+      await generarReciboContrato({
+        recibo,
+        contrato,
+        pago,
+        cargosExtra: cargos[pago.id] ?? [],
+        clienteConfig,
+      })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDescargandoRecibo(null)
     }
   }
 
@@ -468,7 +495,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                       </Box>
                       <Box display="flex" alignItems="center" gap={0.5}>
                         <EstadoPagoBadge estado={isVencido ? 'vencido' : p.estado} />
-                        {!contrato.finalizado && (
+                        {!contrato.finalizado && p.estado !== 'pagado' && (
                           <Tooltip title="Agregar cargo extra">
                             <IconButton size="small" onClick={() => openCargoDialog(p.id)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
                               <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
@@ -481,8 +508,24 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                             onClick={() => openPagoDialog(p, total)}
                             sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'none', borderRadius: '7px', borderColor: ACCENT, color: ACCENT, py: 0.3, px: 1.25, '&:hover': { bgcolor: ACCENT_LIGHT } }}
                           >
-                            Pagar
+                            Pagó
                           </Button>
+                        )}
+                        {p.estado === 'pagado' && (
+                          <Tooltip title="Descargar recibo">
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={descargandoRecibo === p.id}
+                                onClick={() => handleDescargarRecibo(p)}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
+                              >
+                                {descargandoRecibo === p.id
+                                  ? <CircularProgress size={13} sx={{ color: ACCENT }} />
+                                  : <ReceiptLongIcon sx={{ fontSize: 15 }} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                         )}
                         {p.estado === 'pagado' && p.comprobante_path && (
                           <Tooltip title="Ver comprobante">

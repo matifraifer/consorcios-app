@@ -1135,7 +1135,7 @@ export async function deletePortadaImage(url) {
 export async function getClienteConfig(cliente_id) {
   const { data, error } = await supabase
     .from('clientes_servicio')
-    .select('id, nombre, logo_url, portada_urls, titulo_pagina, extension, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas, redes_sociales')
+    .select('id, nombre, logo_url, portada_urls, titulo_pagina, extension, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, direccion, coordenadas, redes_sociales')
     .eq('id', cliente_id)
     .single()
   if (error) throw error
@@ -1259,7 +1259,7 @@ function generarPagos(contratoId, fechaInicio, fechaFin, montoBase, plazoActuali
 export async function getContratos(cliente_id) {
   const { data, error } = await supabase
     .from('contratos')
-    .select('*, propiedades(id, titulo, localidad)')
+    .select('*, propiedades(id, titulo, localidad, direccion)')
     .eq('cliente_id', cliente_id)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -1708,8 +1708,23 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
   const { data, error } = await supabase
     .from('pagos_contrato')
     .update({ estado: 'pagado', monto_pagado: Number(monto_pagado), fecha_pago, comprobante_path })
-    .eq('id', pagoId).select().single()
+    .eq('id', pagoId).select('*, contratos(cliente_id)').single()
   if (error) throw error
+
+  // Numera y crea el recibo del pago (no bloquea el registro del pago si falla)
+  try {
+    await crearReciboContrato({
+      cliente_id: data.contratos.cliente_id,
+      contrato_id: data.contrato_id,
+      pago_id: data.id,
+      fecha_pago: data.fecha_pago,
+      monto: data.monto_pagado,
+    })
+  } catch (reciboErr) {
+    console.error('No se pudo generar el recibo del pago:', reciboErr)
+  }
+
+  delete data.contratos
   return data
 }
 
@@ -1718,6 +1733,30 @@ export async function getComprobanteUrl(storagePath) {
     .from(CONTRATOS_BUCKET).createSignedUrl(storagePath, 3600)
   if (error) throw error
   return data.signedUrl
+}
+
+// ---- RECIBOS DE PAGO (alquileres) ----
+
+export async function crearReciboContrato({ cliente_id, contrato_id, pago_id, fecha_pago, monto }) {
+  const { data, error } = await supabase.rpc('crear_recibo_contrato', {
+    p_cliente_id: cliente_id,
+    p_contrato_id: contrato_id,
+    p_pago_id: pago_id,
+    p_fecha_pago: fecha_pago,
+    p_monto: monto,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function getReciboByPago(pagoId) {
+  const { data, error } = await supabase
+    .from('recibos_contrato')
+    .select('*')
+    .eq('pago_id', pagoId)
+    .maybeSingle()
+  if (error) throw error
+  return data
 }
 
 // ---- DOCUMENTACIÓN RESPALDATORIA (propiedades y contratos) ----

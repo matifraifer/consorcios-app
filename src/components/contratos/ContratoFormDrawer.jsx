@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, TextField, Button,
   Alert, CircularProgress, Select, MenuItem, FormControl,
-  Divider, Chip,
+  Divider, Chip, Checkbox, FormControlLabel,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
@@ -32,6 +32,7 @@ const FORM_EMPTY = {
   propietario_telefono: '',
   propiedad_id: '',
   nomenclatura_catastral: '',
+  es_compraventa: false,
   fecha_inicio: '',
   fecha_fin: '',
   dia_vencimiento: '',
@@ -116,6 +117,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         propietario_telefono: contrato.propietario_telefono ?? '',
         propiedad_id:         contrato.propiedad_id ?? '',
         nomenclatura_catastral: contrato.nomenclatura_catastral ?? '',
+        es_compraventa:       contrato.es_compraventa ?? false,
         fecha_inicio:         contrato.fecha_inicio ?? '',
         fecha_fin:            contrato.fecha_fin ?? '',
         dia_vencimiento:      contrato.dia_vencimiento ?? '',
@@ -271,6 +273,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         propietario_telefono: form.propietario_telefono.trim() || null,
         propiedad_id:         form.propiedad_id || null,
         nomenclatura_catastral: form.nomenclatura_catastral.trim() || null,
+        es_compraventa:       form.es_compraventa,
         fecha_inicio:         form.fecha_inicio,
         fecha_fin:            form.fecha_fin,
         dia_vencimiento:      form.dia_vencimiento || null,
@@ -525,6 +528,20 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           <Box mb={1.5}>
             <Label>Nomenclatura catastral (N.C.)</Label>
             <TextField fullWidth size="small" value={form.nomenclatura_catastral} onChange={e => set('nomenclatura_catastral', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          </Box>
+
+          <Box mb={1.5}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={form.es_compraventa}
+                  onChange={e => set('es_compraventa', e.target.checked)}
+                  sx={{ color: '#D1D5DB', '&.Mui-checked': { color: ACCENT } }}
+                />
+              }
+              label={<Typography sx={{ fontSize: '0.82rem', color: '#374151' }}>Es un contrato de compraventa</Typography>}
+            />
           </Box>
 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>

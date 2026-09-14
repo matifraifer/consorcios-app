@@ -320,6 +320,7 @@ export default function Configuracion() {
   const [email, setEmail]           = useState('')
   const [whatsapp, setWhatsapp]     = useState('')
   const [telefono, setTelefono]     = useState('')
+  const [direccion, setDireccion]   = useState('')
   const [coordenadas, setCoordenadas] = useState('')
   const [redes, setRedes]           = useState([])
   const [snackMsg, setSnackMsg]     = useState('')
@@ -340,6 +341,7 @@ export default function Configuracion() {
         setEmail(data.email_contacto ?? '')
         setWhatsapp(data.whatsapp ?? '')
         setTelefono(data.telefono ?? '')
+        setDireccion(data.direccion ?? '')
         setCoordenadas(data.coordenadas ?? '')
         setRedes(Array.isArray(data.redes_sociales) ? data.redes_sociales : [])
       })
@@ -414,6 +416,7 @@ export default function Configuracion() {
         email_contacto:      email.trim() || null,
         whatsapp:            whatsapp.trim() || null,
         telefono:            telefono.trim() || null,
+        direccion:           direccion.trim() || null,
         coordenadas:         coordenadas.trim() || null,
         redes_sociales:      redes.filter(r => r.tipo && r.valor.trim()),
       })
@@ -652,6 +655,10 @@ export default function Configuracion() {
                 <Box>
                   <Label>Teléfono fijo/celular</Label>
                   <TextField fullWidth size="small" value={telefono} onChange={e => setTelefono(e.target.value)} sx={fieldSx} />
+                </Box>
+                <Box>
+                  <Label>Dirección</Label>
+                  <TextField fullWidth size="small" value={direccion} onChange={e => setDireccion(e.target.value)} sx={fieldSx} />
                 </Box>
                 <Box>
                   <Label>Coordenadas</Label>
