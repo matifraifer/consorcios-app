@@ -20,9 +20,11 @@ const EXTRACT_TOOL = {
       inquilino_nombre: { type: ['string', 'null'] },
       inquilino_apellido: { type: ['string', 'null'] },
       inquilino_dni: { type: ['string', 'null'] },
+      inquilino_telefono: { type: ['string', 'null'], description: 'Número de celular del inquilino/locatario' },
       propietario_nombre: { type: ['string', 'null'] },
       propietario_apellido: { type: ['string', 'null'] },
       propietario_dni: { type: ['string', 'null'] },
+      propietario_telefono: { type: ['string', 'null'], description: 'Número de celular del propietario/locador' },
       fecha_inicio: { type: ['string', 'null'], description: 'Formato YYYY-MM-DD' },
       fecha_fin: { type: ['string', 'null'], description: 'Formato YYYY-MM-DD' },
       dia_vencimiento: { type: ['integer', 'null'], description: 'Día del mes (1-31) en que vence el pago' },
@@ -30,12 +32,17 @@ const EXTRACT_TOOL = {
       tipo_actualizacion: { type: ['string', 'null'], enum: [...TIPOS_ACTUALIZACION, null] },
       plazo_actualizacion: { type: ['string', 'null'], enum: [...PLAZOS_ACTUALIZACION, null] },
       observaciones: { type: ['string', 'null'] },
+      nomenclatura_catastral: { type: ['string', 'null'] },
+      servicio_agua: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de agua' },
+      servicio_gas: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de gas' },
+      servicio_energia: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de energía eléctrica' },
     },
     required: [
-      'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni',
-      'propietario_nombre', 'propietario_apellido', 'propietario_dni',
+      'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
+      'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
       'fecha_inicio', 'fecha_fin', 'dia_vencimiento', 'monto_base',
       'tipo_actualizacion', 'plazo_actualizacion', 'observaciones',
+      'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia',
     ],
     additionalProperties: false,
   },
@@ -50,7 +57,10 @@ Reglas:
 - monto_base es el monto de alquiler mensual base, como número (sin separadores de miles ni símbolo de moneda).
 - tipo_actualizacion solo puede ser uno de: ${TIPOS_ACTUALIZACION.join(', ')}, o null si no se menciona un índice de actualización reconocible.
 - plazo_actualizacion solo puede ser uno de: ${PLAZOS_ACTUALIZACION.join(', ')}, o null si no se menciona la periodicidad de actualización.
-- observaciones: un resumen breve (1-2 líneas) de cláusulas relevantes no cubiertas por los otros campos, o null.`
+- observaciones: un resumen breve (1-2 líneas) de cláusulas relevantes no cubiertas por los otros campos, o null.
+- nomenclatura_catastral: el código de nomenclatura catastral del inmueble si figura, o null.
+- servicio_agua, servicio_gas, servicio_energia: número de cuenta o de suministro de cada servicio si figuran en el contrato, o null.
+  Empresas prestadoras habituales para reconocer cada servicio (el número puede aparecer junto al nombre de la empresa o simplemente como "N° de cuenta/suministro"): OSSE es agua, Ecogas es gas, Naturgy es energía eléctrica.`
 
 function jsonError(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {

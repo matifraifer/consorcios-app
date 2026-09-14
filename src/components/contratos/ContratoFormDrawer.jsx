@@ -25,10 +25,13 @@ const FORM_EMPTY = {
   inquilino_nombre: '',
   inquilino_apellido: '',
   inquilino_dni: '',
+  inquilino_telefono: '',
   propietario_nombre: '',
   propietario_apellido: '',
   propietario_dni: '',
+  propietario_telefono: '',
   propiedad_id: '',
+  nomenclatura_catastral: '',
   fecha_inicio: '',
   fecha_fin: '',
   dia_vencimiento: '',
@@ -36,6 +39,9 @@ const FORM_EMPTY = {
   tipo_actualizacion: '',
   plazo_actualizacion: '',
   observaciones: '',
+  servicio_agua: '',
+  servicio_gas: '',
+  servicio_energia: '',
 }
 
 const fieldSx = {
@@ -65,7 +71,7 @@ function Label({ children, required }) {
 
 function SectionTitle({ children }) {
   return (
-    <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACCENT, mt: 3, mb: 1.5 }}>
+    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACCENT, mt: 3, mb: 1.5 }}>
       {children}
     </Typography>
   )
@@ -103,10 +109,13 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         inquilino_nombre:     contrato.inquilino_nombre ?? '',
         inquilino_apellido:   contrato.inquilino_apellido ?? '',
         inquilino_dni:        contrato.inquilino_dni ?? '',
+        inquilino_telefono:   contrato.inquilino_telefono ?? '',
         propietario_nombre:   contrato.propietario_nombre ?? '',
         propietario_apellido: contrato.propietario_apellido ?? '',
         propietario_dni:      contrato.propietario_dni ?? '',
+        propietario_telefono: contrato.propietario_telefono ?? '',
         propiedad_id:         contrato.propiedad_id ?? '',
+        nomenclatura_catastral: contrato.nomenclatura_catastral ?? '',
         fecha_inicio:         contrato.fecha_inicio ?? '',
         fecha_fin:            contrato.fecha_fin ?? '',
         dia_vencimiento:      contrato.dia_vencimiento ?? '',
@@ -114,6 +123,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         tipo_actualizacion:   contrato.tipo_actualizacion ?? '',
         plazo_actualizacion:  contrato.plazo_actualizacion ?? '',
         observaciones:        contrato.observaciones ?? '',
+        servicio_agua:        contrato.servicio_agua ?? '',
+        servicio_gas:         contrato.servicio_gas ?? '',
+        servicio_energia:     contrato.servicio_energia ?? '',
       })
     } else {
       setForm(FORM_EMPTY)
@@ -149,9 +161,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       const datos = await extraerDatosContrato(texto)
 
       const camposTexto = [
-        'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni',
-        'propietario_nombre', 'propietario_apellido', 'propietario_dni',
+        'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
+        'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
         'fecha_inicio', 'fecha_fin', 'observaciones',
+        'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia',
       ]
       const update = {}
       for (const campo of camposTexto) {
@@ -227,7 +240,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       ['propietario_apellido', 'Apellido del propietario'],
       ['fecha_inicio', 'Fecha de inicio'],
       ['fecha_fin', 'Fecha de fin'],
-      ['propiedad_id', 'Propiedad'],
       ['monto_base', 'Monto base'],
       ['tipo_actualizacion', 'Tipo de actualización'],
       ['plazo_actualizacion', 'Plazo de actualización'],
@@ -252,10 +264,13 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         inquilino_nombre:     form.inquilino_nombre.trim(),
         inquilino_apellido:   form.inquilino_apellido.trim(),
         inquilino_dni:        form.inquilino_dni.trim() || null,
+        inquilino_telefono:   form.inquilino_telefono.trim() || null,
         propietario_nombre:   form.propietario_nombre.trim(),
         propietario_apellido: form.propietario_apellido.trim(),
         propietario_dni:      form.propietario_dni.trim() || null,
-        propiedad_id:         form.propiedad_id,
+        propietario_telefono: form.propietario_telefono.trim() || null,
+        propiedad_id:         form.propiedad_id || null,
+        nomenclatura_catastral: form.nomenclatura_catastral.trim() || null,
         fecha_inicio:         form.fecha_inicio,
         fecha_fin:            form.fecha_fin,
         dia_vencimiento:      form.dia_vencimiento || null,
@@ -264,6 +279,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         plazo_actualizacion:  form.plazo_actualizacion,
         observaciones:        form.observaciones.trim() || null,
         cargado_ia:           cargadoIA,
+        servicio_agua:        form.servicio_agua.trim() || null,
+        servicio_gas:         form.servicio_gas.trim() || null,
+        servicio_energia:     form.servicio_energia.trim() || null,
       }
       let result
       if (isEdit) {
@@ -279,6 +297,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           nombre: payload.inquilino_nombre,
           apellido: payload.inquilino_apellido,
           dni: payload.inquilino_dni,
+          telefono: payload.inquilino_telefono,
           tipo: 'Locatario',
           creado_por: user?.nombre_usuario,
           origen: cargadoIA ? 'IA' : 'APP',
@@ -288,6 +307,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           nombre: payload.propietario_nombre,
           apellido: payload.propietario_apellido,
           dni: payload.propietario_dni,
+          telefono: payload.propietario_telefono,
           tipo: 'Locador',
           creado_por: user?.nombre_usuario,
           origen: cargadoIA ? 'IA' : 'APP',
@@ -407,14 +427,20 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               <TextField fullWidth size="small" value={form.inquilino_apellido} onChange={e => set('inquilino_apellido', e.target.value)} sx={fieldSx} />
             </Box>
           </Box>
-          <Box>
-            <Label>DNI</Label>
-            <TextField fullWidth size="small" value={form.inquilino_dni} onChange={e => set('inquilino_dni', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+            <Box>
+              <Label>DNI</Label>
+              <TextField fullWidth size="small" value={form.inquilino_dni} onChange={e => set('inquilino_dni', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Box>
+            <Box>
+              <Label>Celular</Label>
+              <TextField fullWidth size="small" value={form.inquilino_telefono} onChange={e => set('inquilino_telefono', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Box>
           </Box>
 
           {/* Datos propietario */}
           <Box display="flex" alignItems="center" justifyContent="space-between" mt={3} mb={1.5}>
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACCENT }}>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACCENT }}>
               Datos del propietario
             </Typography>
             {propietarioLocked && (
@@ -446,15 +472,21 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               <TextField fullWidth size="small" value={form.propietario_apellido} onChange={e => set('propietario_apellido', e.target.value)} disabled={propietarioLocked} sx={fieldSx} />
             </Box>
           </Box>
-          <Box>
-            <Label>DNI</Label>
-            <TextField fullWidth size="small" value={form.propietario_dni} onChange={e => set('propietario_dni', e.target.value)} placeholder="Opcional" disabled={propietarioLocked} sx={fieldSx} />
+          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+            <Box>
+              <Label>DNI</Label>
+              <TextField fullWidth size="small" value={form.propietario_dni} onChange={e => set('propietario_dni', e.target.value)} placeholder="Opcional" disabled={propietarioLocked} sx={fieldSx} />
+            </Box>
+            <Box>
+              <Label>Celular</Label>
+              <TextField fullWidth size="small" value={form.propietario_telefono} onChange={e => set('propietario_telefono', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Box>
           </Box>
 
           {/* Datos contrato */}
           <SectionTitle>Datos del contrato</SectionTitle>
           <Box mb={1.5}>
-            <Label required>Propiedad</Label>
+            <Label>Propiedad</Label>
             <Box display="flex" gap={1} alignItems="center">
               <FormControl fullWidth size="small">
                 <Select
@@ -464,11 +496,12 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
                   sx={selectSx}
                   disabled={loadingProps}
                   renderValue={v => {
-                    if (!v) return <Typography sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar propiedad</Typography>
+                    if (!v) return <Typography sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar propiedad (opcional)</Typography>
                     const p = propiedades.find(x => x.id === v)
                     return p ? `${p.titulo} — ${p.localidad ?? ''}` : v
                   }}
                 >
+                  <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Sin vincular</MenuItem>
                   {propiedades.map(p => (
                     <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.875rem' }}>
                       {p.titulo} <Box component="span" sx={{ ml: 1, fontSize: '0.75rem', color: '#9CA3AF' }}>{p.localidad}</Box>
@@ -487,6 +520,11 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
                 <AddIcon fontSize="small" />
               </IconButton>
             </Box>
+          </Box>
+
+          <Box mb={1.5}>
+            <Label>Nomenclatura catastral (N.C.)</Label>
+            <TextField fullWidth size="small" value={form.nomenclatura_catastral} onChange={e => set('nomenclatura_catastral', e.target.value)} placeholder="Opcional" sx={fieldSx} />
           </Box>
 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
@@ -554,6 +592,21 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             </Box>
           </Box>
 
+          {/* Datos de servicios */}
+          <SectionTitle>Datos de servicios</SectionTitle>
+          <Box mb={1.5}>
+            <Label>Número de cuenta o suministro de Agua</Label>
+            <TextField fullWidth size="small" value={form.servicio_agua} onChange={e => set('servicio_agua', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          </Box>
+          <Box mb={1.5}>
+            <Label>Número de cuenta o suministro de Gas</Label>
+            <TextField fullWidth size="small" value={form.servicio_gas} onChange={e => set('servicio_gas', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          </Box>
+          <Box mb={1.5}>
+            <Label>Número de cuenta o suministro de Energía</Label>
+            <TextField fullWidth size="small" value={form.servicio_energia} onChange={e => set('servicio_energia', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          </Box>
+
           {/* Documentación respaldatoria */}
           <DocumentacionRespaldatoriaSection
             ref={docsRef}
@@ -611,6 +664,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           inquilino_nombre:   contacto.nombre,
           inquilino_apellido: contacto.apellido,
           inquilino_dni:      contacto.dni || prev.inquilino_dni,
+          inquilino_telefono: contacto.telefono || prev.inquilino_telefono,
         }))}
         clienteId={clienteId}
         tipoSugerido="Arrendatario"
@@ -624,6 +678,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           propietario_nombre:   contacto.nombre,
           propietario_apellido: contacto.apellido,
           propietario_dni:      contacto.dni || prev.propietario_dni,
+          propietario_telefono: contacto.telefono || prev.propietario_telefono,
         }))}
         clienteId={clienteId}
         tipoSugerido="Locatario"
