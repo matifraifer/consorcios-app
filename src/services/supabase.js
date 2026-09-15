@@ -1015,6 +1015,33 @@ export async function getClientePublico(slugOrId) {
   return porId
 }
 
+// Log de errores del portal público (sin login, sin forma de saber si algo
+// rompe salvo que quede registrado). Nunca tira — si falla el insert, no
+// queremos que eso rompa la UI encima del error original.
+export async function logPortalError(ruta, contexto, error, detalle = {}) {
+  try {
+    await supabase.from('portal_error_logs').insert({
+      ruta,
+      contexto,
+      mensaje: error?.message ?? String(error),
+      detalle,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    })
+  } catch {
+    // noop
+  }
+}
+
+// Buscador del selector /portal: solo nombre + slug, nunca la ficha completa,
+// y solo trae resultados a partir de que el visitante tipea (no lista todo).
+// Usa una RPC (en vez de ilike directo) para ignorar acentos/ñ en la búsqueda.
+export async function buscarClientesPortal(query) {
+  const { data, error } = await supabase
+    .rpc('portal_buscar_clientes', { p_query: query })
+  if (error) throw error
+  return data
+}
+
 export async function getPropiedadesPublicas(cliente_id) {
   const { data, error } = await supabase
     .from('propiedades')

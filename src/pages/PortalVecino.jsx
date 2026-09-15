@@ -12,11 +12,12 @@ import QuestionMarkIcon from '@mui/icons-material/QuestionMark'
 import CloseIcon from '@mui/icons-material/Close'
 import {
   getPortalDniExiste, getPortalExpensasToken, getPortalExpensasDni,
-  getPortalAlquilerToken, getPortalAlquilerDni, getClientePublico, crearPreferenciaPago,
+  getPortalAlquilerToken, getPortalAlquilerDni, getClientePublico, crearPreferenciaPago, logPortalError,
 } from '../services/supabase'
 import { calcularSaldosMora } from '../utils/calcularSaldosMora'
 import { computeMontoActualizado } from '../utils/actualizacionContrato'
 import { generarReciboContrato } from '../services/reciboContrato'
+import PortalErrorBoundary from '../components/PortalErrorBoundary'
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24
 
@@ -366,6 +367,7 @@ function UnidadCard({ unidad, dni, onPagar }) {
     try {
       await onPagar(unidad.token, dni || dniConfirmacion, periodosAPagar.map(p => p.id))
     } catch (err) {
+      logPortalError('portal_vecino', 'crear_preferencia_pago', err, { departamentoId: unidad.departamentoId, periodos: periodosAPagar.map(p => p.id) })
       setPayError(err.message ?? 'No se pudo iniciar el pago. Intentá de nuevo.')
       setPagando(false)
     }
@@ -568,7 +570,8 @@ function PagoRealizadoItem({ pago, contrato, clienteConfig, onError, last }) {
         cargosExtra: pago.cargos_extra ?? [],
         clienteConfig,
       })
-    } catch {
+    } catch (err) {
+      logPortalError('portal_vecino', 'descargar_recibo', err, { pagoId: pago.id, contratoId: contrato.contrato_id })
       onError('No se pudo generar el recibo. Intentá de nuevo.')
     } finally {
       setDescargando(false)
@@ -723,6 +726,14 @@ function NavTabsMobile({ activeTab, onChange, visibleKeys }) {
 const TAB_EMPTY = { expensas: null, alquiler: null }
 
 export default function PortalVecino() {
+  return (
+    <PortalErrorBoundary ruta="portal_vecino">
+      <PortalVecinoInner />
+    </PortalErrorBoundary>
+  )
+}
+
+function PortalVecinoInner() {
   const { token, clienteId } = useParams()
   const [searchParams] = useSearchParams()
   const pagoBanner = PAGO_BANNER[searchParams.get('pago')] ?? null
@@ -755,15 +766,19 @@ export default function PortalVecino() {
   useEffect(() => {
     if (!clienteId) return
     setClienteLoading(true)
-    getClientePublico(clienteId)
+    getClientePublico(clienteId.trim())
       .then(data => {
         if (!data) {
+          logPortalError('portal_vecino', 'cliente_no_encontrado', new Error('getClientePublico devolvió null'), { clienteId })
           setClienteError('No encontramos esta inmobiliaria.')
           return
         }
         setCliente(data)
       })
-      .catch(() => setClienteError('Ocurrió un error al cargar la página. Intentá de nuevo.'))
+      .catch(err => {
+        logPortalError('portal_vecino', 'get_cliente_publico', err, { clienteId })
+        setClienteError('Ocurrió un error al cargar la página. Intentá de nuevo.')
+      })
       .finally(() => setClienteLoading(false))
   }, [clienteId])
 
@@ -784,7 +799,10 @@ export default function PortalVecino() {
         setActiveTab('expensas')
         setAuthenticated(true)
       })
-      .catch(() => setLoginError('Ocurrió un error al consultar. Intentá de nuevo.'))
+      .catch(err => {
+        logPortalError('portal_vecino', 'login_token', err, { token })
+        setLoginError('Ocurrió un error al consultar. Intentá de nuevo.')
+      })
       .finally(() => setLoginLoading(false))
   }, [token])
 
@@ -802,7 +820,8 @@ export default function PortalVecino() {
         const data = token ? await getPortalAlquilerToken(token) : await getPortalAlquilerDni(cliente.id, dniConsulta)
         setTabData(prev => ({ ...prev, alquiler: { contratos: data?.contratos ?? [], indices: data?.indices ?? [], clienteConfig: data?.cliente_config ?? null } }))
       }
-    } catch {
+    } catch (err) {
+      logPortalError('portal_vecino', `fetch_tab_${tabKey}`, err, { token: !!token, clienteId: cliente?.id })
       setTabError(prev => ({ ...prev, [tabKey]: 'Ocurrió un error al consultar. Intentá de nuevo.' }))
     } finally {
       setTabLoading(prev => ({ ...prev, [tabKey]: false }))
@@ -830,7 +849,8 @@ export default function PortalVecino() {
       setTabsDisponibles({ expensas: tieneUnidades, alquiler: tieneContratos })
       setActiveTab(tieneUnidades ? 'expensas' : 'alquiler')
       setAuthenticated(true)
-    } catch {
+    } catch (err) {
+      logPortalError('portal_vecino', 'login_dni', err, { clienteId: cliente?.id })
       setLoginError('Ocurrió un error al consultar. Intentá de nuevo.')
     } finally {
       setLoginLoading(false)
