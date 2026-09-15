@@ -142,20 +142,20 @@ export async function getDepartamentosByConsorcio(id_consorcio) {
   return data.sort(compareNumeracion)
 }
 
-export async function createDepartamento({ numeracion, inquilino, propietario_nombre, propietario_apellido, propietario_dni, id_consorcio, coeficiente, email, telefono }) {
+export async function createDepartamento({ numeracion, inquilino, inquilino_dni, propietario_nombre, propietario_apellido, propietario_dni, id_consorcio, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .insert([{ numeracion, inquilino, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, id_consorcio, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null }])
+    .insert([{ numeracion, inquilino, inquilino_dni: inquilino_dni || null, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, id_consorcio, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null }])
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateDepartamento(id, { numeracion, inquilino, propietario_nombre, propietario_apellido, propietario_dni, coeficiente, email, telefono }) {
+export async function updateDepartamento(id, { numeracion, inquilino, inquilino_dni, propietario_nombre, propietario_apellido, propietario_dni, coeficiente, email, telefono }) {
   const { data, error } = await supabase
     .from('departamentos')
-    .update({ numeracion, inquilino: inquilino || null, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null })
+    .update({ numeracion, inquilino: inquilino || null, inquilino_dni: inquilino_dni || null, propietario_nombre: propietario_nombre || null, propietario_apellido: propietario_apellido || null, propietario_dni: propietario_dni || null, coeficiente: coeficiente || null, email: email || null, telefono: telefono || null })
     .eq('id', id)
     .select()
     .single()
@@ -892,9 +892,37 @@ export async function getCRMDashboardData(cliente_id) {
 
 // Valida email + unidad del lado del servidor (RPC security definer) y
 // devuelve los datos para calcular el saldo, o null si no coincide.
-export async function getConsultaDeuda(token, email, numeracion) {
+export async function getPortalDniExiste(clienteId, dni) {
   const { data, error } = await supabase
-    .rpc('consultar_deuda_departamento', { p_token: token, p_email: email, p_numeracion: numeracion })
+    .rpc('portal_dni_existe', { p_cliente_id: clienteId, p_dni: dni })
+  if (error) throw error
+  return data
+}
+
+export async function getPortalExpensasToken(token) {
+  const { data, error } = await supabase
+    .rpc('portal_expensas_token', { p_token: token })
+  if (error) throw error
+  return data
+}
+
+export async function getPortalExpensasDni(clienteId, dni) {
+  const { data, error } = await supabase
+    .rpc('portal_expensas_dni', { p_cliente_id: clienteId, p_dni: dni })
+  if (error) throw error
+  return data
+}
+
+export async function getPortalAlquilerToken(token) {
+  const { data, error } = await supabase
+    .rpc('portal_alquiler_token', { p_token: token })
+  if (error) throw error
+  return data
+}
+
+export async function getPortalAlquilerDni(clienteId, dni) {
+  const { data, error } = await supabase
+    .rpc('portal_alquiler_dni', { p_cliente_id: clienteId, p_dni: dni })
   if (error) throw error
   return data
 }
@@ -1993,9 +2021,9 @@ export async function disconnectMercadoPago(cliente_id) {
   if (error) throw error
 }
 
-export async function crearPreferenciaPago({ token, email, numeracion, periodos_ids }) {
+export async function crearPreferenciaPago({ token, dni, periodos_ids }) {
   const { data, error } = await supabase.functions.invoke('mp-crear-preferencia', {
-    body: { token, email, numeracion, periodos_ids },
+    body: { token, dni, periodos_ids },
   })
   if (error) throw error
   if (data?.error) throw new Error(data.error)

@@ -56,6 +56,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
+import MailOutlineIcon from '@mui/icons-material/MailOutline'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -95,7 +96,7 @@ const fieldSx = {
   },
 }
 
-const DEPTO_FORM_INICIAL = { numeracion: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', email: '', telefono: '', coeficiente: '' }
+const DEPTO_FORM_INICIAL = { numeracion: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', inquilino_dni: '', email: '', telefono: '', coeficiente: '' }
 
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -162,14 +163,14 @@ export default function ConsorcioDetalle() {
   const [selectedPeriodo, setSelectedPeriodo] = useState(null)
 
   // Cerrar período (desde la grilla de períodos)
-  // Paso 1: confirmar cierre / Paso 2: envío masivo del mail de liquidación
+  // Paso 1: confirmar cierre / Paso 2: elegir cómo avisar a los vecinos (mail / WhatsApp / ambas / ninguna)
   const [confirmClosePeriodoItem, setConfirmClosePeriodoItem] = useState(null)
   const [closePeriodoStep, setClosePeriodoStep] = useState(1)
   const [closingPeriodo, setClosingPeriodo] = useState(false)
   const [closePeriodoError, setClosePeriodoError] = useState(null)
-  const [sendingLiquidacionEmail, setSendingLiquidacionEmail] = useState(false)
-  const [liquidacionEmailError, setLiquidacionEmailError] = useState(null)
-  const [liquidacionEmailResult, setLiquidacionEmailResult] = useState(null)
+  const [sendingLiquidacionNotif, setSendingLiquidacionNotif] = useState(false)
+  const [liquidacionNotifError, setLiquidacionNotifError] = useState(null)
+  const [liquidacionNotifResult, setLiquidacionNotifResult] = useState(null)
 
   // Descargar detalle de gastos (PDF por período)
   const [descargarGastosOpen, setDescargarGastosOpen] = useState(false)
@@ -239,6 +240,7 @@ export default function ConsorcioDetalle() {
       propietario_apellido: depto.propietario_apellido ?? '',
       propietario_dni: depto.propietario_dni ?? '',
       inquilino: depto.inquilino ?? '',
+      inquilino_dni: depto.inquilino_dni ?? '',
       email: depto.email ?? '',
       telefono: depto.telefono ?? '',
       coeficiente: depto.coeficiente ?? '',
@@ -395,21 +397,24 @@ export default function ConsorcioDetalle() {
   function closeConfirmClosePeriodo() {
     setConfirmClosePeriodoItem(null)
     setClosePeriodoStep(1)
-    setLiquidacionEmailError(null)
+    setLiquidacionNotifError(null)
   }
 
-  async function handleEnviarLiquidacionEmailCierre() {
+  async function handleEnviarNotificacionCierre(canal) {
     if (!confirmClosePeriodoItem) return
-    setSendingLiquidacionEmail(true)
-    setLiquidacionEmailError(null)
+    setSendingLiquidacionNotif(true)
+    setLiquidacionNotifError(null)
     try {
-      const result = await enviarLiquidacionEmail(confirmClosePeriodoItem.id)
-      setLiquidacionEmailResult(result)
+      const [email, whatsapp] = await Promise.all([
+        canal === 'email' || canal === 'ambas' ? enviarLiquidacionEmail(confirmClosePeriodoItem.id) : null,
+        canal === 'whatsapp' || canal === 'ambas' ? enviarLiquidacionWhatsapp(id) : null,
+      ])
+      setLiquidacionNotifResult({ email, whatsapp })
       closeConfirmClosePeriodo()
     } catch (err) {
-      setLiquidacionEmailError(err.message)
+      setLiquidacionNotifError(err.message)
     } finally {
-      setSendingLiquidacionEmail(false)
+      setSendingLiquidacionNotif(false)
     }
   }
 
@@ -739,6 +744,20 @@ export default function ConsorcioDetalle() {
     // las que sí deben algo de antes de inactivarse se mantienen visibles.
     ).filter(l => l.activo !== false || l.saldoTotal > 0),
     [liquidacionesData, consorcio?.tasa_mora]
+  )
+
+  // Cuántos vecinos recibirían el aviso de liquidación por cada canal (paso 2 del cierre de período)
+  const saldoPorDepartamento = useMemo(
+    () => Object.fromEntries(liquidaciones.map(l => [l.departamento_id, l.saldoTotal])),
+    [liquidaciones]
+  )
+  const liquidacionEmailCount = useMemo(
+    () => departamentos.filter(d => d.activo !== false && d.email).length,
+    [departamentos]
+  )
+  const liquidacionWaCount = useMemo(
+    () => departamentos.filter(d => d.activo !== false && d.telefono && (saldoPorDepartamento[d.id] ?? 0) > 0).length,
+    [departamentos, saldoPorDepartamento]
   )
 
   const tokenPorDepartamento = useMemo(
@@ -1570,6 +1589,19 @@ export default function ConsorcioDetalle() {
           </Box>
 
           <Box mb={2}>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>DNI del inquilino (opcional)</Typography>
+            <TextField
+              fullWidth
+              name="inquilino_dni"
+              value={deptoForm.inquilino_dni}
+              onChange={handleChangeDepto}
+              placeholder="Ej: 30123456"
+              size="small"
+              sx={fieldSx}
+            />
+          </Box>
+
+          <Box mb={2}>
             <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }}>Mail</Typography>
             <TextField
               fullWidth
@@ -1741,92 +1773,170 @@ export default function ConsorcioDetalle() {
         onLiquidacionChange={handleLiquidacionChange}
       />
 
-      {/* ── Cierre de período (paso 1) + envío masivo de correo (paso 2) ── */}
-      <Dialog
+      {/* ── Cierre de período (paso 1) + aviso a los vecinos (paso 2) ── */}
+      <Drawer
+        anchor="right"
         open={!!confirmClosePeriodoItem}
         onClose={closeConfirmClosePeriodo}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: '14px' } }}
+        slotProps={{ paper: { sx: { width: 420, p: 3, bgcolor: 'white' } } }}
       >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+              {closePeriodoStep === 1 ? 'Cerrar período' : 'Avisar a los vecinos'}
+            </Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
+              Paso {closePeriodoStep} de 2 · {confirmClosePeriodoItem && (
+                <>{MESES_LABEL[confirmClosePeriodoItem.mes - 1]} {confirmClosePeriodoItem.anio}</>
+              )}
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={closeConfirmClosePeriodo}><CloseIcon fontSize="small" /></IconButton>
+        </Box>
+
+        <Divider sx={{ mb: 3, borderColor: '#F3F4F6' }} />
+
         {closePeriodoStep === 1 ? (
           <>
-            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Cerrar período</DialogTitle>
-            <DialogContent>
-              {closePeriodoError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{closePeriodoError}</Alert>}
-              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
-                Vas a cerrar el período{' '}
-                {confirmClosePeriodoItem && (
-                  <strong>{MESES_LABEL[confirmClosePeriodoItem.mes - 1]} {confirmClosePeriodoItem.anio}</strong>
-                )}. <strong>¿Estás seguro que querés continuar?</strong>
+            {closePeriodoError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{closePeriodoError}</Alert>}
+            <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
+              Vas a cerrar el período{' '}
+              {confirmClosePeriodoItem && (
+                <strong>{MESES_LABEL[confirmClosePeriodoItem.mes - 1]} {confirmClosePeriodoItem.anio}</strong>
+              )}. <strong>¿Estás seguro que querés continuar?</strong>
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
+              <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
+              <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
+                Se va a guardar la liquidación con los gastos actuales y ya no se podrá agregar ni modificar gastos después.
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
-                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
-                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
-                  Se va a guardar la liquidación con los gastos actuales y ya no se podrá agregar ni modificar gastos después.
-                </Typography>
-              </Box>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5 }}>
-              <Button onClick={closeConfirmClosePeriodo} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
-                Cancelar
-              </Button>
+            </Box>
+
+            <Box display="flex" gap={1.5} mt={4}>
               <Button
                 variant="contained"
                 onClick={handleConfirmClosePeriodo}
                 disabled={closingPeriodo}
                 startIcon={closingPeriodo ? <CircularProgress size={14} color="inherit" /> : null}
-                sx={{ bgcolor: '#DC2626', borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+                sx={{ bgcolor: '#DC2626', borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
               >
                 {closingPeriodo ? 'Cerrando...' : 'Cerrar el período'}
               </Button>
-            </DialogActions>
+              <Button
+                variant="outlined"
+                onClick={closeConfirmClosePeriodo}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 500, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280', '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' } }}
+              >
+                Cancelar
+              </Button>
+            </Box>
           </>
         ) : (
           <>
-            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Enviar liquidación por correo</DialogTitle>
-            <DialogContent>
-              {liquidacionEmailError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{liquidacionEmailError}</Alert>}
-              <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6 }}>
-                Estás por enviar el correo con el detalle de liquidaciones a{' '}
-                <strong>{departamentos.filter(d => d.activo !== false && d.email).length}</strong> vecinos.
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 2, p: 1.5, bgcolor: '#FFF1EB', border: '1px solid #FFD0B5', borderRadius: '8px' }}>
-                <ErrorOutlineIcon sx={{ fontSize: 18, color: '#fb3c00', mt: '1px' }} />
-                <Typography sx={{ fontSize: '0.78rem', color: '#fb3c00', lineHeight: 1.6 }}>
-                  Esta acción envía un correo a los vecinos con el detalle de su deuda. ¿Deseás continuar?
+            {liquidacionNotifError && <Alert severity="error" sx={{ mb: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{liquidacionNotifError}</Alert>}
+            <Typography sx={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6, mb: 3 }}>
+              El período se cerró correctamente. Elegí cómo querés avisarle a los vecinos el detalle de su liquidación.
+            </Typography>
+
+            <Box display="flex" justifyContent="center" gap={3}>
+              <Box display="flex" flexDirection="column" alignItems="center" gap={0.75}>
+                <Tooltip title="Solo enviar por mail">
+                  <span>
+                    <IconButton
+                      onClick={() => handleEnviarNotificacionCierre('email')}
+                      disabled={sendingLiquidacionNotif}
+                      sx={{
+                        width: 64, height: 64, borderRadius: '50%', border: '1px solid #E5E7EB',
+                        bgcolor: '#F9FAFB', color: ACCENT,
+                        '&:hover': { bgcolor: ACCENT_LIGHT, borderColor: ACCENT },
+                      }}
+                    >
+                      <MailOutlineIcon sx={{ fontSize: 26 }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', textAlign: 'center' }}>
+                  Mail<br />({liquidacionEmailCount})
                 </Typography>
               </Box>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5 }}>
-              <Button onClick={closeConfirmClosePeriodo} disabled={sendingLiquidacionEmail} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>
-                No enviar ahora
-              </Button>
+
+              <Box display="flex" flexDirection="column" alignItems="center" gap={0.75}>
+                <Tooltip title="Solo enviar por WhatsApp">
+                  <span>
+                    <IconButton
+                      onClick={() => handleEnviarNotificacionCierre('whatsapp')}
+                      disabled={sendingLiquidacionNotif}
+                      sx={{
+                        width: 64, height: 64, borderRadius: '50%', border: '1px solid #E5E7EB',
+                        bgcolor: '#F9FAFB', color: '#25D366',
+                        '&:hover': { bgcolor: '#E7FBEF', borderColor: '#25D366' },
+                      }}
+                    >
+                      <WhatsAppIcon sx={{ fontSize: 26 }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', textAlign: 'center' }}>
+                  WhatsApp<br />({liquidacionWaCount})
+                </Typography>
+              </Box>
+
+              <Box display="flex" flexDirection="column" alignItems="center" gap={0.75}>
+                <Tooltip title="Enviar por WhatsApp y por correo">
+                  <span>
+                    <IconButton
+                      onClick={() => handleEnviarNotificacionCierre('ambas')}
+                      disabled={sendingLiquidacionNotif}
+                      sx={{
+                        width: 64, height: 64, borderRadius: '50%', border: '1px solid #E5E7EB',
+                        bgcolor: '#F9FAFB', color: ACCENT, position: 'relative',
+                        '&:hover': { bgcolor: ACCENT_LIGHT, borderColor: ACCENT },
+                      }}
+                    >
+                      <MailOutlineIcon sx={{ fontSize: 22 }} />
+                      <WhatsAppIcon sx={{ fontSize: 16, color: '#25D366', position: 'absolute', bottom: 10, right: 10, bgcolor: 'white', borderRadius: '50%' }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', textAlign: 'center' }}>
+                  Ambas
+                </Typography>
+              </Box>
+            </Box>
+
+            {sendingLiquidacionNotif && (
+              <Box display="flex" justifyContent="center" mt={2}>
+                <CircularProgress size={18} sx={{ color: ACCENT }} />
+              </Box>
+            )}
+
+            <Box display="flex" justifyContent="center" mt={4}>
               <Button
-                variant="contained"
-                onClick={handleEnviarLiquidacionEmailCierre}
-                disabled={sendingLiquidacionEmail}
-                startIcon={sendingLiquidacionEmail ? <CircularProgress size={14} color="inherit" /> : null}
-                sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+                onClick={closeConfirmClosePeriodo}
+                disabled={sendingLiquidacionNotif}
+                sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 500, color: '#6B7280' }}
               >
-                {sendingLiquidacionEmail ? 'Enviando...' : 'Aceptar y enviar'}
+                No quiero informar a los vecinos
               </Button>
-            </DialogActions>
+            </Box>
           </>
         )}
-      </Dialog>
+      </Drawer>
 
-      {/* ── Resultado del envío masivo de correo al cerrar un período ── */}
+      {/* ── Resultado del aviso a los vecinos al cerrar un período ── */}
       <Snackbar
-        open={!!liquidacionEmailResult}
+        open={!!liquidacionNotifResult}
         autoHideDuration={6000}
-        onClose={() => setLiquidacionEmailResult(null)}
+        onClose={() => setLiquidacionNotifResult(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="success" onClose={() => setLiquidacionEmailResult(null)} sx={{ borderRadius: '8px' }}>
-          Correo enviado a {liquidacionEmailResult?.enviados ?? 0} vecino{liquidacionEmailResult?.enviados === 1 ? '' : 's'}.
-          {liquidacionEmailResult?.sinEmail > 0 && ` ${liquidacionEmailResult.sinEmail} sin email cargado.`}
-          {liquidacionEmailResult?.errores > 0 && ` ${liquidacionEmailResult.errores} con error de envío.`}
+        <Alert severity="success" onClose={() => setLiquidacionNotifResult(null)} sx={{ borderRadius: '8px' }}>
+          {liquidacionNotifResult?.email && (
+            <>Correo enviado a {liquidacionNotifResult.email.enviados ?? 0} vecino{liquidacionNotifResult.email.enviados === 1 ? '' : 's'}.{liquidacionNotifResult.email.sinEmail > 0 && ` ${liquidacionNotifResult.email.sinEmail} sin email cargado.`}{liquidacionNotifResult.email.errores > 0 && ` ${liquidacionNotifResult.email.errores} con error de envío.`} </>
+          )}
+          {liquidacionNotifResult?.whatsapp && (
+            <>WhatsApp enviado a {liquidacionNotifResult.whatsapp.enviados ?? 0} vecino{liquidacionNotifResult.whatsapp.enviados === 1 ? '' : 's'}.{liquidacionNotifResult.whatsapp.sinTelefono > 0 && ` ${liquidacionNotifResult.whatsapp.sinTelefono} sin teléfono cargado.`}{liquidacionNotifResult.whatsapp.errores > 0 && ` ${liquidacionNotifResult.whatsapp.errores} con error de envío.`}</>
+          )}
         </Alert>
       </Snackbar>
 

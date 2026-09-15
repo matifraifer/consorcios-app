@@ -35,30 +35,29 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
-    const { token, email, numeracion, periodos_ids } = await req.json()
+    const { token, dni, periodos_ids } = await req.json()
 
-    if (!token || !email || !numeracion || !Array.isArray(periodos_ids) || periodos_ids.length === 0) {
+    if (!token || !dni || !Array.isArray(periodos_ids) || periodos_ids.length === 0) {
       return jsonError('Faltan parámetros requeridos.')
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Misma validación de identidad que la RPC consultar_deuda_departamento:
-    // el token no es adivinable, pero igual pedimos email + numeración para
-    // no confiar solo en el link.
+    // Misma validación de identidad que la RPC portal_por_token/portal_buscar:
+    // el token no es adivinable, pero igual pedimos el DNI del propietario o
+    // inquilino de la unidad para no confiar solo en el link.
     const { data: depto, error: deptoError } = await supabase
       .from('departamentos')
-      .select('id, numeracion, email, id_consorcio, consorcios(cliente_id, nombre, tasa_mora, comision_plataforma_fee, permite_pagos_parciales)')
+      .select('id, numeracion, propietario_dni, inquilino_dni, id_consorcio, consorcios(cliente_id, nombre, tasa_mora, comision_plataforma_fee, permite_pagos_parciales)')
       .eq('token_consulta', token)
       .maybeSingle()
 
     if (deptoError) throw deptoError
-    if (
-      !depto ||
-      !depto.email ||
-      depto.email.trim().toLowerCase() !== String(email).trim().toLowerCase() ||
-      depto.numeracion.trim().toLowerCase() !== String(numeracion).trim().toLowerCase()
-    ) {
+    const dniNormalizado = String(dni).trim().toLowerCase()
+    const coincideDni =
+      (depto?.propietario_dni && depto.propietario_dni.trim().toLowerCase() === dniNormalizado) ||
+      (depto?.inquilino_dni && depto.inquilino_dni.trim().toLowerCase() === dniNormalizado)
+    if (!depto || !coincideDni) {
       return jsonError('Los datos ingresados no coinciden.', 403)
     }
 

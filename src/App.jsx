@@ -22,7 +22,7 @@ import NuevoPeriodo     from './pages/NuevoPeriodo'
 import ExpensasDetalle  from './pages/ExpensasDetalle'
 import PropiedadPublica from './pages/PropiedadPublica'
 import InmobiliariaPublica from './pages/InmobiliariaPublica'
-import ConsultaDeudaPublica from './pages/ConsultaDeudaPublica'
+import PortalVecino from './pages/PortalVecino'
 import Contratos        from './pages/Contratos'
 import Indices          from './pages/Indices'
 import Contactos        from './pages/Contactos'
@@ -45,7 +45,8 @@ export default function App() {
       <Route path="/cambiar-password" element={<CambiarPassword />} />
       <Route path="/p/:id" element={<PropiedadPublica />} />
       <Route path="/inmobiliaria/:clienteId" element={<InmobiliariaPublica />} />
-      <Route path="/consulta/:token" element={<ConsultaDeudaPublica />} />
+      <Route path="/consulta/:token" element={<PortalVecino />} />
+      <Route path="/portal/:clienteId" element={<PortalVecino />} />
       {/* <Route path="/ml-callback" element={<MlCallback />} /> */}{/* MercadoLibre — deshabilitado temporalmente */}
       <Route path="/mp-callback" element={<MpCallback />} />
 

@@ -619,6 +619,24 @@ export default function Configuracion() {
                 <ContentCopyIcon sx={{ fontSize: 14, color: '#9CA3AF' }} />
               </IconButton>
             </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2.5 }}>
+              <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+                Portal del vecino: <span style={{ color: '#374151', fontWeight: 600 }}>
+                  app.granito.com.ar/portal/{extension.trim() || '<extension>'}
+                </span>
+              </Typography>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://app.granito.com.ar/portal/${extension.trim()}`)
+                  setSnackMsg('URL copiada al portapapeles')
+                }}
+                disabled={!extension.trim()}
+                sx={{ p: 0.4 }}
+              >
+                <ContentCopyIcon sx={{ fontSize: 14, color: '#9CA3AF' }} />
+              </IconButton>
+            </Box>
 
             {/* Colores */}
             <Label>Colores</Label>

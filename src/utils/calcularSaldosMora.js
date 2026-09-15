@@ -2,7 +2,7 @@ const MS_POR_DIA = 1000 * 60 * 60 * 24
 
 // Saldo último período / saldo en mora / interés de mora por departamento.
 // periodos viene ordenado desc (más reciente primero); solo incluye períodos cerrados.
-// Compartido entre ConsorcioDetalle.jsx (pestaña Liquidaciones) y ConsultaDeudaPublica.jsx
+// Compartido entre ConsorcioDetalle.jsx (pestaña Liquidaciones) y PortalVecino.jsx
 // para que ambos calculen el saldo exactamente igual.
 export function calcularSaldosMora(departamentos, periodos, expensas, tasaMora) {
   const ultimoPeriodo = periodos[0] ?? null

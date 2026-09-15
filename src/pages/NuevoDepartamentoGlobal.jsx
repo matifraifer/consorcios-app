@@ -23,7 +23,7 @@ export default function NuevoDepartamentoGlobal() {
   const { clienteId } = useAuth()
 
   const [consorcios, setConsorcios] = useState([])
-  const [form, setForm] = useState({ numeracion: '', id_consorcio: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', coeficiente: '' })
+  const [form, setForm] = useState({ numeracion: '', id_consorcio: '', propietario_nombre: '', propietario_apellido: '', propietario_dni: '', inquilino: '', inquilino_dni: '', coeficiente: '' })
   const [loading, setLoading] = useState(false)
   const [loadingConsorcios, setLoadingConsorcios] = useState(true)
   const [error, setError] = useState(null)
@@ -50,6 +50,7 @@ export default function NuevoDepartamentoGlobal() {
       await createDepartamento({
         numeracion: form.numeracion,
         inquilino: form.inquilino,
+        inquilino_dni: form.inquilino_dni,
         propietario_nombre: form.propietario_nombre,
         propietario_apellido: form.propietario_apellido,
         propietario_dni: form.propietario_dni,
@@ -146,6 +147,16 @@ export default function NuevoDepartamentoGlobal() {
             value={form.inquilino}
             onChange={handleChange}
             placeholder="Nombre y apellido del inquilino (opcional)"
+          />
+
+          <TextField
+            label="DNI del inquilino (opcional)"
+            name="inquilino_dni"
+            fullWidth
+            margin="normal"
+            value={form.inquilino_dni}
+            onChange={handleChange}
+            placeholder="Ej: 30123456"
           />
 
           <TextField
