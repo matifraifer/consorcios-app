@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import {
   Box, Typography, TextField, Button, Alert, CircularProgress, Divider, Checkbox,
-  Accordion, AccordionSummary, AccordionDetails, useMediaQuery, IconButton, Dialog, DialogContent,
+  useMediaQuery, IconButton, Dialog, DialogContent, Collapse,
 } from '@mui/material'
 import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined'
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined'
@@ -67,7 +67,6 @@ const WARNING_TEXT = '#92400e'
 const WARNING_BG = 'rgba(146,64,14,0.06)'
 const WARNING_BORDER = 'rgba(146,64,14,0.22)'
 const RING_ACCENT = '0 0 0 3px rgba(251,60,0,0.10)'
-const SHADOW_SM = '0 1px 3px rgba(20,43,33,0.07), 0 1px 2px rgba(20,43,33,0.04)'
 const SHADOW_MD = '0 4px 16px rgba(20,43,33,0.09), 0 2px 4px rgba(20,43,33,0.05)'
 const SHADOW_ACCENT = '0 2px 10px rgba(251,60,0,0.28)'
 const SHADOW_ACCENT_HOVER = '0 4px 18px rgba(251,60,0,0.36)'
@@ -374,7 +373,7 @@ function UnidadCard({ unidad, dni, onPagar }) {
 
   if (unidad.periodosAdeudados.length === 0) {
     return (
-      <Box sx={{ bgcolor: 'white', border: `1px solid ${BORDER}`, borderRadius: '16px', boxShadow: SHADOW_SM, p: 2.25, mb: 2 }}>
+      <Box>
         <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: ORANGE, mb: 0.5 }}>
           {unidad.consorcioNombre}
         </Typography>
@@ -389,7 +388,7 @@ function UnidadCard({ unidad, dni, onPagar }) {
   }
 
   return (
-    <Box sx={{ bgcolor: 'white', border: `1px solid ${BORDER}`, borderRadius: '16px', boxShadow: SHADOW_SM, p: 2.25, mb: 2 }}>
+    <Box>
       <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: ORANGE, mb: 0.5 }}>
         {unidad.consorcioNombre}
       </Typography>
@@ -397,7 +396,7 @@ function UnidadCard({ unidad, dni, onPagar }) {
         Unidad {unidad.numeracion}
       </Typography>
 
-      <Box sx={{ bgcolor: SURFACE_SUNKEN, borderRadius: '12px', p: 2, mb: 1 }}>
+      <Box sx={{ bgcolor: SURFACE_SUNKEN, borderRadius: '12px', p: 2, mb: 2 }}>
         <SaldoRow label="Saldo último período" value={unidad.saldoUltimo} />
         <SaldoRow label="Saldo en mora" value={unidad.saldoMora} />
         <SaldoRow label="Interés mora" value={unidad.interesMora} />
@@ -405,40 +404,14 @@ function UnidadCard({ unidad, dni, onPagar }) {
         <SaldoRow label="Saldo total" value={unidad.saldoTotal} destacado />
       </Box>
 
-      <Box sx={{ mt: 2 }}>
-        {unidad.periodosAdeudados.map(periodo => (
-          <Box key={periodo.id} sx={{ border: `1px solid ${BORDER}`, borderRadius: '12px', mb: 1.5, overflow: 'hidden' }}>
-            <Box sx={{ bgcolor: SURFACE_SUNKEN, px: 1.25, py: 0.6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box display="flex" alignItems="center" gap={0.5}>
-                {unidad.permitePagosParciales && (
-                  <Checkbox
-                    size="small"
-                    checked={seleccionados.has(periodo.id)}
-                    onChange={() => togglePeriodo(periodo.id)}
-                    sx={{ color: BORDER_STRONG, '&.Mui-checked': { color: ORANGE }, p: 0.5 }}
-                  />
-                )}
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: GREEN_900, pl: unidad.permitePagosParciales ? 0 : 1 }}>
-                  {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
-                </Typography>
-              </Box>
-              <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: ORANGE, fontVariantNumeric: 'tabular-nums' }}>
-                {fmt(periodo.montoConMora)}
-              </Typography>
-            </Box>
-            <Box sx={{ px: 2, py: 1 }}>
-              {periodo.gastos.length === 0 ? (
-                <Typography sx={{ fontSize: '0.75rem', color: TEXT_MUTED, py: 1 }}>
-                  Sin gastos detallados para este período.
-                </Typography>
-              ) : (
-                <>
-                  <GastosGrupo titulo="Ordinarios" gastos={periodo.gastos.filter(g => g.tipo === 'ordinario')} />
-                  <GastosGrupo titulo="Extraordinarios" gastos={periodo.gastos.filter(g => g.tipo !== 'ordinario')} />
-                </>
-              )}
-            </Box>
-          </Box>
+      <Box sx={{ mb: 1 }}>
+        {unidad.periodosAdeudados.map((periodo, i) => (
+          <PeriodoAdeudadoRow
+            key={periodo.id} periodo={periodo}
+            checked={seleccionados.has(periodo.id)} onToggle={() => togglePeriodo(periodo.id)}
+            mostrarCheckbox={unidad.permitePagosParciales}
+            last={i === unidad.periodosAdeudados.length - 1}
+          />
         ))}
 
         {payError && <Alert severity="error" sx={{ mt: 1, mb: 1, borderRadius: '12px', fontSize: '0.82rem' }}>{payError}</Alert>}
@@ -475,9 +448,54 @@ function UnidadCard({ unidad, dni, onPagar }) {
   )
 }
 
+function PeriodoAdeudadoRow({ periodo, checked, onToggle, mostrarCheckbox, last }) {
+  const [expanded, setExpanded] = useState(false)
+  const hayGastos = periodo.gastos.length > 0
+
+  return (
+    <Box sx={{ borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.1 }}>
+        <Box display="flex" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}>
+          {mostrarCheckbox && (
+            <Checkbox
+              size="small"
+              checked={checked}
+              onChange={onToggle}
+              sx={{ color: BORDER_STRONG, '&.Mui-checked': { color: ORANGE }, p: 0.5, flexShrink: 0 }}
+            />
+          )}
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: GREEN_900, pl: mostrarCheckbox ? 0 : 0.5 }}>
+            {MESES_LABEL[periodo.mes - 1]} {periodo.anio}
+          </Typography>
+        </Box>
+        <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: ORANGE, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(periodo.montoConMora)}
+          </Typography>
+          {hayGastos && (
+            <IconButton size="small" onClick={() => setExpanded(e => !e)} sx={{ p: 0.4 }}>
+              <ExpandMoreIcon sx={{ fontSize: 18, color: TEXT_MUTED, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
+            </IconButton>
+          )}
+        </Box>
+      </Box>
+      {hayGastos && (
+        <Collapse in={expanded} timeout={200}>
+          <Box sx={{ pb: 1.5 }}>
+            <GastosGrupo titulo="Ordinarios" gastos={periodo.gastos.filter(g => g.tipo === 'ordinario')} />
+            <GastosGrupo titulo="Extraordinarios" gastos={periodo.gastos.filter(g => g.tipo !== 'ordinario')} />
+          </Box>
+        </Collapse>
+      )}
+    </Box>
+  )
+}
+
 function ExpensasSection({ unidades, dni, onPagar }) {
-  return unidades.map(unidad => (
-    <UnidadCard key={unidad.departamentoId} unidad={unidad} dni={dni} onPagar={onPagar} />
+  return unidades.map((unidad, i) => (
+    <Box key={unidad.departamentoId} sx={{ mb: i === unidades.length - 1 ? 0 : 3, pb: i === unidades.length - 1 ? 0 : 3, borderBottom: i === unidades.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+      <UnidadCard unidad={unidad} dni={dni} onPagar={onPagar} />
+    </Box>
   ))
 }
 
@@ -506,15 +524,12 @@ function ProximoPagoItem({ pago, indices, contrato }) {
   const vencimiento = fechaVencimientoCuota(pago.periodo_inicio, contrato.dia_vencimiento)
 
   return (
-    <Box sx={{ border: `1px solid ${BORDER}`, borderRadius: '12px', mb: 1.25, overflow: 'hidden', '&:last-child': { mb: 0 } }}>
+    <Box sx={{ borderBottom: `1px solid ${BORDER}` }}>
       <Box
         onClick={() => setExpanded(e => !e)}
-        sx={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          px: 2, py: 1.25, cursor: 'pointer', bgcolor: expanded ? SURFACE_SUNKEN : 'white',
-        }}
+        sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.1, cursor: 'pointer' }}
       >
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: GREEN_900 }}>
             {MESES_LABEL[Number(pago.periodo_inicio.split('-')[1]) - 1]} {pago.periodo_inicio.split('-')[0]}
           </Typography>
@@ -523,23 +538,23 @@ function ProximoPagoItem({ pago, indices, contrato }) {
             {pago.es_periodo_actualizacion && ' · con actualización'}
           </Typography>
         </Box>
-        <Box display="flex" alignItems="center" gap={0.75}>
+        <Box display="flex" alignItems="center" gap={0.25} flexShrink={0}>
           <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: ORANGE, fontVariantNumeric: 'tabular-nums' }}>
             {fmt(total)}
           </Typography>
-          <ExpandMoreIcon sx={{ fontSize: 20, color: TEXT_MUTED, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
+          <ExpandMoreIcon sx={{ fontSize: 18, color: TEXT_MUTED, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
         </Box>
       </Box>
-      {expanded && (
-        <Box sx={{ px: 2, pb: 2 }}>
+      <Collapse in={expanded} timeout={200}>
+        <Box sx={{ pb: 1.5 }}>
           <DetalleCuota pago={pago} montoActualizado={montoActualizado} />
         </Box>
-      )}
+      </Collapse>
     </Box>
   )
 }
 
-function PagoRealizadoItem({ pago, contrato, clienteConfig, onError }) {
+function PagoRealizadoItem({ pago, contrato, clienteConfig, onError, last }) {
   const [descargando, setDescargando] = useState(false)
 
   async function handleDescargar() {
@@ -562,11 +577,10 @@ function PagoRealizadoItem({ pago, contrato, clienteConfig, onError }) {
 
   return (
     <Box sx={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      border: `1px solid ${BORDER}`, borderRadius: '12px', px: 2, py: 1.25, mb: 1.25,
-      '&:last-child': { mb: 0 },
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1,
+      py: 1.1, borderBottom: last ? 'none' : `1px solid ${BORDER}`,
     }}>
-      <Box>
+      <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: GREEN_900 }}>
           {MESES_LABEL[Number(pago.periodo_inicio.split('-')[1]) - 1]} {pago.periodo_inicio.split('-')[0]}
         </Typography>
@@ -574,17 +588,17 @@ function PagoRealizadoItem({ pago, contrato, clienteConfig, onError }) {
           Pagado el {fmtFecha(pago.fecha_pago)}
         </Typography>
       </Box>
-      <Box display="flex" alignItems="center" gap={1.5}>
+      <Box display="flex" flexDirection="column" alignItems="flex-end" gap={0.5} flexShrink={0}>
         <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: GREEN_900, fontVariantNumeric: 'tabular-nums' }}>
           {fmt(pago.monto_pagado)}
         </Typography>
         {pago.recibo && (
           <Button
             size="small" onClick={handleDescargar} disabled={descargando}
-            startIcon={descargando ? <CircularProgress size={13} color="inherit" /> : <DownloadOutlinedIcon sx={{ fontSize: 15 }} />}
+            startIcon={descargando ? <CircularProgress size={12} color="inherit" /> : <DownloadOutlinedIcon sx={{ fontSize: 14 }} />}
             sx={{
-              textTransform: 'none', fontSize: '0.72rem', fontWeight: 600, borderRadius: '8px',
-              color: GREEN_900, border: `1.5px solid ${BORDER_STRONG}`, px: 1.25, py: 0.4, minWidth: 0,
+              textTransform: 'none', fontSize: '0.68rem', fontWeight: 600, borderRadius: '8px',
+              color: GREEN_900, border: `1.5px solid ${BORDER_STRONG}`, px: 1, py: 0.25, minWidth: 0,
               '&:hover': { borderColor: GREEN_900, bgcolor: SURFACE_SUNKEN },
             }}
           >
@@ -597,11 +611,12 @@ function PagoRealizadoItem({ pago, contrato, clienteConfig, onError }) {
 }
 
 function ContratoCard({ contrato, indices, clienteConfig, onError }) {
+  const [verPagados, setVerPagados] = useState(false)
   const pendientes = contrato.pagos.filter(p => p.estado === 'pendiente').sort((a, b) => a.periodo_numero - b.periodo_numero)
   const pagados = contrato.pagos.filter(p => p.estado === 'pagado').sort((a, b) => b.periodo_numero - a.periodo_numero)
 
   return (
-    <Box sx={{ bgcolor: 'white', border: `1px solid ${BORDER}`, borderRadius: '16px', boxShadow: SHADOW_SM, p: 2.25, mb: 2 }}>
+    <Box>
       <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: ORANGE, mb: 0.5 }}>
         {contrato.es_compraventa ? 'Compraventa' : 'Alquiler'}
       </Typography>
@@ -609,48 +624,48 @@ function ContratoCard({ contrato, indices, clienteConfig, onError }) {
         {contrato.propiedad?.direccion || contrato.propiedad?.titulo || 'Contrato'}
       </Typography>
 
-      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: TEXT_MUTED, mb: 1 }}>
+      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: TEXT_MUTED, mb: 0.5 }}>
         Próximos pagos
       </Typography>
       {pendientes.length === 0 ? (
         <Typography sx={{ fontSize: '0.82rem', color: TEXT_MUTED, mb: 2 }}>No tenés cuotas pendientes en este contrato.</Typography>
       ) : (
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ mb: 2.5 }}>
           {pendientes.map(pago => (
             <ProximoPagoItem key={pago.id} pago={pago} indices={indices} contrato={contrato} />
           ))}
         </Box>
       )}
 
-      <Accordion
-        disableGutters elevation={0} defaultExpanded={false}
-        sx={{
-          bgcolor: 'transparent', border: `1px solid ${BORDER}`, borderRadius: '12px !important',
-          '&:before': { display: 'none' }, overflow: 'hidden',
-        }}
+      <Box
+        onClick={() => setVerPagados(v => !v)}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', py: 0.5 }}
       >
-        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: TEXT_MUTED }} />} sx={{ px: 2, bgcolor: SURFACE_SUNKEN }}>
-          <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: GREEN_900 }}>
-            Pagos realizados {pagados.length > 0 && `(${pagados.length})`}
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails sx={{ px: 2, py: 2 }}>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: TEXT_MUTED }}>
+          Pagos realizados {pagados.length > 0 && `(${pagados.length})`}
+        </Typography>
+        <ExpandMoreIcon sx={{ fontSize: 18, color: TEXT_MUTED, transform: verPagados ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
+      </Box>
+      <Collapse in={verPagados} timeout={200}>
+        <Box sx={{ mt: 0.5 }}>
           {pagados.length === 0 ? (
-            <Typography sx={{ fontSize: '0.82rem', color: TEXT_MUTED }}>Todavía no registramos pagos de este contrato.</Typography>
+            <Typography sx={{ fontSize: '0.82rem', color: TEXT_MUTED, py: 1 }}>Todavía no registramos pagos de este contrato.</Typography>
           ) : (
-            pagados.map(pago => (
-              <PagoRealizadoItem key={pago.id} pago={pago} contrato={contrato} clienteConfig={clienteConfig} onError={onError} />
+            pagados.map((pago, i) => (
+              <PagoRealizadoItem key={pago.id} pago={pago} contrato={contrato} clienteConfig={clienteConfig} onError={onError} last={i === pagados.length - 1} />
             ))
           )}
-        </AccordionDetails>
-      </Accordion>
+        </Box>
+      </Collapse>
     </Box>
   )
 }
 
 function AlquilerSection({ contratos, indices, clienteConfig, onError }) {
-  return contratos.map(contrato => (
-    <ContratoCard key={contrato.contrato_id} contrato={contrato} indices={indices} clienteConfig={clienteConfig} onError={onError} />
+  return contratos.map((contrato, i) => (
+    <Box key={contrato.contrato_id} sx={{ mb: i === contratos.length - 1 ? 0 : 3, pb: i === contratos.length - 1 ? 0 : 3, borderBottom: i === contratos.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+      <ContratoCard contrato={contrato} indices={indices} clienteConfig={clienteConfig} onError={onError} />
+    </Box>
   ))
 }
 
@@ -858,6 +873,7 @@ export default function PortalVecino() {
 
   const hayResultado = authenticated
   const visibleKeys = NAV_ITEMS.filter(item => tabsDisponibles[item.key]).map(item => item.key)
+  const mostrarSaludo = !(clienteLoading || (loginLoading && !hayResultado)) && !clienteError
 
   return (
     <Box minHeight="100vh" bgcolor={GREEN_BG}>
@@ -865,17 +881,14 @@ export default function PortalVecino() {
 
       <Box display="flex" justifyContent="center" px={2} py={{ xs: 4, md: 8 }}>
         <Box sx={{ width: '100%', maxWidth: hayResultado && isDesktop ? 760 : 480 }}>
-          {hayResultado && (
+          {mostrarSaludo && (
             <Box textAlign="center" mb={3}>
               <Typography sx={{
                 fontSize: '1.4rem', fontWeight: 800, lineHeight: 1.25,
                 background: `linear-gradient(90deg, ${ORANGE} 0%, ${ORANGE} 35%, #ffffff 100%)`,
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
               }}>
-                ¡Bienvenido!
-              </Typography>
-              <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, color: GREEN_900, lineHeight: 1.3 }}>
-                al portal del vecino{nombreCliente ? ` de ${nombreCliente}` : ''}
+                ¡Bienvenido<br />al portal del vecino!
               </Typography>
             </Box>
           )}
@@ -883,7 +896,10 @@ export default function PortalVecino() {
           {hayResultado && isDesktop && (
             <Box display="flex" gap={3}>
               {visibleKeys.length > 1 && <NavSidebar activeTab={activeTab} onChange={setActiveTab} visibleKeys={visibleKeys} />}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{
+                flex: 1, minWidth: 0, bgcolor: 'white', borderRadius: '16px',
+                border: `1px solid ${BORDER}`, boxShadow: SHADOW_MD, p: 3,
+              }}>
                 {pagoBanner && <Alert severity={pagoBanner.severity} sx={{ mb: 2, borderRadius: '12px', fontSize: '0.82rem' }}>{pagoBanner.text}</Alert>}
                 {renderTab()}
                 {!token && (
@@ -891,10 +907,10 @@ export default function PortalVecino() {
                     fullWidth onClick={handleVolver}
                     sx={{
                       mt: 1, textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderRadius: '12px',
-                      color: TEXT_MUTED, '&:hover': { color: GREEN_900, bgcolor: SURFACE_SUNKEN },
+                      color: TEXT_MUTED, '&:hover': { color: '#dc2626', bgcolor: 'rgba(220,38,38,0.06)' },
                     }}
                   >
-                    Consultar otro DNI
+                    Salir
                   </Button>
                 )}
               </Box>
@@ -916,11 +932,11 @@ export default function PortalVecino() {
                 <Alert severity="error" sx={{ borderRadius: '12px', fontSize: '0.82rem' }}>{clienteError}</Alert>
               ) : !hayResultado ? (
                 <>
-                  <Typography sx={{ fontSize: '1.15rem', fontWeight: 700, color: GREEN_900, mb: 0.5 }}>
-                    Portal del vecino{cliente?.nombre ? ` · ${cliente.nombre}` : ''}
+                  <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, color: GREEN_900, mb: 0.25 }}>
+                    Estás ingresando al portal de {nombreCliente}.
                   </Typography>
-                  <Typography sx={{ fontSize: '0.82rem', color: TEXT_MUTED, mb: 3 }}>
-                    Ingresá tu DNI para ver tus expensas y cuotas de alquiler.
+                  <Typography sx={{ fontSize: '0.85rem', color: TEXT_MUTED, mb: 3 }}>
+                    Ingresá tu DNI para continuar.
                   </Typography>
 
                   <Box component="form" onSubmit={handleSubmit}>
@@ -959,10 +975,10 @@ export default function PortalVecino() {
                       fullWidth onClick={handleVolver}
                       sx={{
                         mt: 1, textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderRadius: '12px',
-                        color: TEXT_MUTED, '&:hover': { color: GREEN_900, bgcolor: SURFACE_SUNKEN },
+                        color: TEXT_MUTED, '&:hover': { color: '#dc2626', bgcolor: 'rgba(220,38,38,0.06)' },
                       }}
                     >
-                      Consultar otro DNI
+                      Salir
                     </Button>
                   )}
                 </Box>
@@ -970,6 +986,13 @@ export default function PortalVecino() {
             </Box>
           )}
         </Box>
+      </Box>
+
+      <Box display="flex" flexDirection="column" alignItems="center" pb={4}>
+        <Box component="img" src="/logo.svg" alt="Granito" sx={{ height: 26, width: 26, objectFit: 'contain', mb: 0.5 }} />
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: GREEN_900, letterSpacing: '-0.01em' }}>
+          granito
+        </Typography>
       </Box>
     </Box>
   )
