@@ -18,9 +18,9 @@ function compareNumeracion(a, b) {
 // ---- AUTH ----
 
 export async function resolveEmailForUsername(username) {
-  const { data, error } = await supabase.rpc('email_for_username', { p_username: username })
+  const { data, error } = await supabase.functions.invoke('resolve-username', { body: { username } })
   if (error) throw error
-  return data
+  return data.email
 }
 
 export async function signInWithEmail(email, password) {
@@ -102,10 +102,10 @@ export async function createConsorcio({ nombre, cliente_id }) {
   return data
 }
 
-export async function updateConsorcio(id, { tasa_mora, dias_recordatorio_previo }) {
+export async function updateConsorcio(id, { tasa_mora }) {
   const { data, error } = await supabase
     .from('consorcios')
-    .update({ tasa_mora, dias_recordatorio_previo })
+    .update({ tasa_mora })
     .eq('id', id)
     .select()
     .single()
@@ -899,9 +899,9 @@ export async function getPortalDniExiste(clienteId, dni) {
   return data
 }
 
-export async function getPortalExpensasToken(token) {
+export async function getPortalExpensasToken(token, dni) {
   const { data, error } = await supabase
-    .rpc('portal_expensas_token', { p_token: token })
+    .rpc('portal_expensas_token', { p_token: token, p_dni: dni })
   if (error) throw error
   return data
 }
@@ -913,9 +913,9 @@ export async function getPortalExpensasDni(clienteId, dni) {
   return data
 }
 
-export async function getPortalAlquilerToken(token) {
+export async function getPortalAlquilerToken(token, dni) {
   const { data, error } = await supabase
-    .rpc('portal_alquiler_token', { p_token: token })
+    .rpc('portal_alquiler_token', { p_token: token, p_dni: dni })
   if (error) throw error
   return data
 }

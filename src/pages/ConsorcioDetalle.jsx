@@ -183,9 +183,6 @@ export default function ConsorcioDetalle() {
   const [tasaMora, setTasaMora] = useState('')
   const [savingTasaMora, setSavingTasaMora] = useState(false)
   const [tasaMoraError, setTasaMoraError] = useState(null)
-  const [diasRecordatorio, setDiasRecordatorio] = useState('')
-  const [savingDiasRecordatorio, setSavingDiasRecordatorio] = useState(false)
-  const [diasRecordatorioError, setDiasRecordatorioError] = useState(null)
   const [confirmLiquidacionWaOpen, setConfirmLiquidacionWaOpen] = useState(false)
   const [enviandoLiquidacionWa, setEnviandoLiquidacionWa] = useState(false)
 
@@ -213,7 +210,6 @@ export default function ConsorcioDetalle() {
       setPeriodos(per)
       setLiquidacionesData(liq)
       setTasaMora(cons.tasa_mora != null ? String(cons.tasa_mora) : '')
-      setDiasRecordatorio(cons.dias_recordatorio_previo != null ? String(cons.dias_recordatorio_previo) : '')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -466,21 +462,6 @@ export default function ConsorcioDetalle() {
       setTasaMoraError(err.message)
     } finally {
       setSavingTasaMora(false)
-    }
-  }
-
-  async function handleGuardarDiasRecordatorio() {
-    setSavingDiasRecordatorio(true)
-    setDiasRecordatorioError(null)
-    try {
-      const cons = await updateConsorcio(id, {
-        dias_recordatorio_previo: diasRecordatorio === '' ? null : Number(diasRecordatorio),
-      })
-      setConsorcio(prev => ({ ...prev, dias_recordatorio_previo: cons.dias_recordatorio_previo }))
-    } catch (err) {
-      setDiasRecordatorioError(err.message)
-    } finally {
-      setSavingDiasRecordatorio(false)
     }
   }
 
@@ -1198,44 +1179,6 @@ export default function ConsorcioDetalle() {
             </Button>
             {tasaMoraError && (
               <Typography sx={{ fontSize: '0.78rem', color: '#DC2626' }}>{tasaMoraError}</Typography>
-            )}
-          </Box>
-
-          {/* Recordatorio automático de vencimiento por WhatsApp (requiere Twilio configurado en Configuración) */}
-          <Box
-            display="flex"
-            alignItems="center"
-            gap={1.5}
-            mb={3}
-            sx={{ bgcolor: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', p: 2 }}
-          >
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>
-              Días de aviso antes del vencimiento
-            </Typography>
-            <TextField
-              size="small"
-              type="number"
-              value={diasRecordatorio}
-              onChange={e => setDiasRecordatorio(e.target.value)}
-              inputProps={{ min: 0, step: '1' }}
-              placeholder="Desactivado"
-              sx={{ width: 120, ...fieldSx }}
-            />
-            <Button
-              variant="outlined"
-              onClick={handleGuardarDiasRecordatorio}
-              disabled={savingDiasRecordatorio}
-              startIcon={savingDiasRecordatorio ? <CircularProgress size={14} /> : null}
-              sx={{
-                borderRadius: '8px', textTransform: 'none', fontWeight: 600,
-                fontSize: '0.8rem', borderColor: '#E5E7EB', color: '#374151',
-                '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT },
-              }}
-            >
-              {savingDiasRecordatorio ? 'Guardando...' : 'Guardar'}
-            </Button>
-            {diasRecordatorioError && (
-              <Typography sx={{ fontSize: '0.78rem', color: '#DC2626' }}>{diasRecordatorioError}</Typography>
             )}
           </Box>
 

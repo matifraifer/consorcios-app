@@ -339,12 +339,6 @@ function UnidadCard({ unidad, dni, onPagar }) {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [pagando, setPagando] = useState(false)
   const [payError, setPayError] = useState(null)
-  const [dniConfirmacion, setDniConfirmacion] = useState('')
-
-  // En el flujo por link de WhatsApp no se pidió DNI para ver la unidad
-  // (el token ya la identifica), pero para pagar igual pedimos confirmarlo
-  // una vez, así no confiamos solo en el link para mover dinero.
-  const requiereConfirmarDni = !dni
 
   function togglePeriodo(id) {
     setSeleccionados(prev => {
@@ -365,7 +359,7 @@ function UnidadCard({ unidad, dni, onPagar }) {
     setPagando(true)
     setPayError(null)
     try {
-      await onPagar(unidad.token, dni || dniConfirmacion, periodosAPagar.map(p => p.id))
+      await onPagar(unidad.token, dni, periodosAPagar.map(p => p.id))
     } catch (err) {
       logPortalError('portal_vecino', 'crear_preferencia_pago', err, { departamentoId: unidad.departamentoId, periodos: periodosAPagar.map(p => p.id) })
       setPayError(err.message ?? 'No se pudo iniciar el pago. Intentá de nuevo.')
@@ -422,17 +416,9 @@ function UnidadCard({ unidad, dni, onPagar }) {
           <DesgloseTarifa montoDeuda={montoDeuda} tarifaServicio={tarifaServicio} montoTotal={montoTotal} />
         )}
 
-        {requiereConfirmarDni && periodosAPagar.length > 0 && (
-          <TextField
-            fullWidth size="small" label="Confirmá tu DNI para pagar" autoComplete="off"
-            value={dniConfirmacion} onChange={e => setDniConfirmacion(e.target.value)}
-            sx={{ ...fieldSx, mb: 1.5 }}
-          />
-        )}
-
         <Button
           fullWidth variant="contained"
-          disabled={periodosAPagar.length === 0 || pagando || (requiereConfirmarDni && !dniConfirmacion.trim())}
+          disabled={periodosAPagar.length === 0 || pagando}
           startIcon={pagando ? <CircularProgress size={16} color="inherit" /> : null}
           onClick={handlePagar}
           sx={{ ...primaryButtonSx, mt: 1 }}
@@ -747,11 +733,12 @@ function PortalVecinoInner() {
   const [clienteNombreToken, setClienteNombreToken] = useState(null)
   const nombreCliente = cliente?.nombre ?? clienteNombreToken
 
-  // "login": para el flujo por token, valida el link y de paso trae la
-  // pestaña Expensas (igual la necesitamos para confirmar que el link es
-  // válido). Para el flujo por DNI, solo confirma si hay algo asociado —
-  // los datos de cada pestaña se piden recién cuando se abre esa pestaña.
-  const [loginLoading, setLoginLoading] = useState(!!token)
+  // "login": ambos flujos (token o DNI directo) piden el DNI antes de
+  // mostrar nada — con token, la RPC además valida que el DNI corresponda a
+  // esa unidad y de paso trae la pestaña Expensas. Para el flujo por DNI
+  // directo, solo confirma si hay algo asociado — los datos de cada pestaña
+  // se piden recién cuando se abre esa pestaña.
+  const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [tabsDisponibles, setTabsDisponibles] = useState({ expensas: false, alquiler: false })
@@ -782,30 +769,6 @@ function PortalVecinoInner() {
       .finally(() => setClienteLoading(false))
   }, [clienteId])
 
-  useEffect(() => {
-    if (!token) return
-    setLoginLoading(true)
-    getPortalExpensasToken(token)
-      .then(data => {
-        if (!data) {
-          setLoginError('El link no es válido.')
-          return
-        }
-        setTabData(prev => ({ ...prev, expensas: { unidades: (data.unidades ?? []).map(armarUnidad) } }))
-        setClienteNombreToken(data.cliente_config?.nombre ?? null)
-        // La unidad del link siempre está presente (garantizado por la RPC),
-        // así que Expensas siempre se muestra en el flujo por token.
-        setTabsDisponibles({ expensas: true, alquiler: !!data.tiene_contratos })
-        setActiveTab('expensas')
-        setAuthenticated(true)
-      })
-      .catch(err => {
-        logPortalError('portal_vecino', 'login_token', err, { token })
-        setLoginError('Ocurrió un error al consultar. Intentá de nuevo.')
-      })
-      .finally(() => setLoginLoading(false))
-  }, [token])
-
   // Carga por demanda: pide los datos de una pestaña recién la primera vez
   // que se abre (token o DNI ya validados), y los cachea en tabData.
   async function fetchTab(tabKey) {
@@ -814,10 +777,10 @@ function PortalVecinoInner() {
     setTabError(prev => ({ ...prev, [tabKey]: null }))
     try {
       if (tabKey === 'expensas') {
-        const data = token ? await getPortalExpensasToken(token) : await getPortalExpensasDni(cliente.id, dniConsulta)
+        const data = token ? await getPortalExpensasToken(token, dniConsulta) : await getPortalExpensasDni(cliente.id, dniConsulta)
         setTabData(prev => ({ ...prev, expensas: { unidades: (data?.unidades ?? []).map(armarUnidad) } }))
       } else {
-        const data = token ? await getPortalAlquilerToken(token) : await getPortalAlquilerDni(cliente.id, dniConsulta)
+        const data = token ? await getPortalAlquilerToken(token, dniConsulta) : await getPortalAlquilerDni(cliente.id, dniConsulta)
         setTabData(prev => ({ ...prev, alquiler: { contratos: data?.contratos ?? [], indices: data?.indices ?? [], clienteConfig: data?.cliente_config ?? null } }))
       }
     } catch (err) {
@@ -836,21 +799,38 @@ function PortalVecinoInner() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!dni.trim() || !cliente) return
+    if (!dni.trim()) return
+    if (!token && !cliente) return
     setLoginLoading(true)
     setLoginError(null)
     try {
-      const { tiene_unidades: tieneUnidades, tiene_contratos: tieneContratos } = await getPortalDniExiste(cliente.id, dni.trim())
-      if (!tieneUnidades && !tieneContratos) {
-        setLoginError('No encontramos unidades ni contratos asociados a ese DNI para esta inmobiliaria.')
-        return
+      if (token) {
+        const data = await getPortalExpensasToken(token, dni.trim())
+        if (!data) {
+          setLoginError('No pudimos verificarte con ese DNI. Revisalo e intentá de nuevo.')
+          return
+        }
+        setDniConsulta(dni.trim())
+        setTabData(prev => ({ ...prev, expensas: { unidades: (data.unidades ?? []).map(armarUnidad) } }))
+        setClienteNombreToken(data.cliente_config?.nombre ?? null)
+        // La unidad del link siempre está presente (garantizado por la RPC),
+        // así que Expensas siempre se muestra en el flujo por token.
+        setTabsDisponibles({ expensas: true, alquiler: !!data.tiene_contratos })
+        setActiveTab('expensas')
+        setAuthenticated(true)
+      } else {
+        const { tiene_unidades: tieneUnidades, tiene_contratos: tieneContratos } = await getPortalDniExiste(cliente.id, dni.trim())
+        if (!tieneUnidades && !tieneContratos) {
+          setLoginError('No encontramos unidades ni contratos asociados a ese DNI para esta inmobiliaria.')
+          return
+        }
+        setDniConsulta(dni.trim())
+        setTabsDisponibles({ expensas: tieneUnidades, alquiler: tieneContratos })
+        setActiveTab(tieneUnidades ? 'expensas' : 'alquiler')
+        setAuthenticated(true)
       }
-      setDniConsulta(dni.trim())
-      setTabsDisponibles({ expensas: tieneUnidades, alquiler: tieneContratos })
-      setActiveTab(tieneUnidades ? 'expensas' : 'alquiler')
-      setAuthenticated(true)
     } catch (err) {
-      logPortalError('portal_vecino', 'login_dni', err, { clienteId: cliente?.id })
+      logPortalError('portal_vecino', token ? 'login_token' : 'login_dni', err, { token: !!token, clienteId: cliente?.id })
       setLoginError('Ocurrió un error al consultar. Intentá de nuevo.')
     } finally {
       setLoginLoading(false)
@@ -952,9 +932,11 @@ function PortalVecinoInner() {
                 <Alert severity="error" sx={{ borderRadius: '12px', fontSize: '0.82rem' }}>{clienteError}</Alert>
               ) : !hayResultado ? (
                 <>
-                  <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, color: GREEN_900, mb: 0.25 }}>
-                    Estás ingresando al portal de {nombreCliente}.
-                  </Typography>
+                  {nombreCliente && (
+                    <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, color: GREEN_900, mb: 0.25 }}>
+                      Estás ingresando al portal de {nombreCliente}.
+                    </Typography>
+                  )}
                   <Typography sx={{ fontSize: '0.85rem', color: TEXT_MUTED, mb: 3 }}>
                     Ingresá tu DNI para continuar.
                   </Typography>
