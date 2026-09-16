@@ -4,6 +4,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+// Clave secreta de la aplicación de Mercado Pago (panel Developers → tu app →
+// Webhooks → "Firma secreta"), no confundir con MP_CLIENT_SECRET. Es una sola
+// para toda la plataforma, no por cliente/consorcio.
+const MP_WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET')!
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -25,6 +30,37 @@ async function extraerPaymentId(req: Request): Promise<string | null> {
   }
 }
 
+// Valida la firma que Mercado Pago manda en el header `x-signature`
+// (formato "ts=<timestamp>,v1=<hash>"), calculada como HMAC-SHA256 sobre
+// "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" con la firma secreta de
+// la app. Docs: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks#editor_5
+async function validarFirma(req: Request, paymentId: string): Promise<boolean> {
+  const xSignature = req.headers.get('x-signature')
+  const xRequestId = req.headers.get('x-request-id')
+  if (!xSignature || !xRequestId) return false
+
+  const partes = Object.fromEntries(
+    xSignature.split(',').map(p => p.trim().split('=').map(s => s.trim()))
+  )
+  const ts = partes.ts
+  const hashRecibido = partes.v1
+  if (!ts || !hashRecibido) return false
+
+  const template = `id:${paymentId.toLowerCase()};request-id:${xRequestId};ts:${ts};`
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(MP_WEBHOOK_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const firma = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(template))
+  const hashCalculado = Array.from(new Uint8Array(firma)).map(b => b.toString(16).padStart(2, '0')).join('')
+
+  return hashCalculado === hashRecibido
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -38,6 +74,14 @@ serve(async (req) => {
     if (!pagoId || !paymentId) {
       return new Response(JSON.stringify({ ok: true, skipped: 'faltan identificadores' }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Corta acá, antes de tocar la base o la API de MP, si la firma no matchea.
+    // 401 no genera reintentos de Mercado Pago (a diferencia de un 5xx).
+    if (!(await validarFirma(req, paymentId))) {
+      return new Response(JSON.stringify({ error: 'Firma inválida.' }), {
+        status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
