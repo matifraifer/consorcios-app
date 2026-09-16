@@ -6,9 +6,21 @@ const MODEL = 'claude-haiku-4-5'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Solo se llama desde el panel admin logueado (nunca desde una página
+// pública), así que el origin se restringe a los dominios de la app en vez
+// de '*' (ver ANALISIS_SEGURIDAD.md, punto 6).
+const ALLOWED_ORIGINS = [
+  'https://app.granito.com.ar',
+  'https://consorcios-app.vercel.app',
+]
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? ''
+  const allowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:')
+  return {
+    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
 }
 
 // Exige un usuario logueado real (no valida cliente_id porque esta función no
@@ -79,23 +91,24 @@ Reglas:
 - servicio_agua, servicio_gas, servicio_energia: número de cuenta o de suministro de cada servicio si figuran en el contrato, o null.
   Empresas prestadoras habituales para reconocer cada servicio (el número puede aparecer junto al nombre de la empresa o simplemente como "N° de cuenta/suministro"): OSSE es agua, Ecogas es gas, Naturgy es energía eléctrica.`
 
-function jsonError(message: string, status = 400) {
+function jsonError(cors: Record<string, string>, message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
-    status, headers: { ...CORS, 'Content-Type': 'application/json' },
+    status, headers: { ...cors, 'Content-Type': 'application/json' },
   })
 }
 
 serve(async (req) => {
+  const CORS = corsHeaders(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
     const acceso = await validarAcceso(req)
-    if (!acceso.ok) return jsonError(acceso.error, acceso.status)
+    if (!acceso.ok) return jsonError(CORS, acceso.error, acceso.status)
 
     const { texto } = await req.json()
 
     if (!texto || typeof texto !== 'string' || !texto.trim()) {
-      return jsonError('Falta el texto del contrato.')
+      return jsonError(CORS, 'Falta el texto del contrato.')
     }
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,18 +133,18 @@ serve(async (req) => {
     const data = await res.json()
 
     if (!res.ok) {
-      return jsonError(data?.error?.message ?? 'Error al llamar a la IA.', 502)
+      return jsonError(CORS, data?.error?.message ?? 'Error al llamar a la IA.', 502)
     }
 
     const toolUse = (data.content ?? []).find((b: any) => b.type === 'tool_use')
     if (!toolUse) {
-      return jsonError('La IA no devolvió datos estructurados.', 502)
+      return jsonError(CORS, 'La IA no devolvió datos estructurados.', 502)
     }
 
     return new Response(JSON.stringify({ data: toolUse.input }), {
       headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return jsonError(err.message ?? 'Error interno.', 500)
+    return jsonError(CORS, err.message ?? 'Error interno.', 500)
   }
 })

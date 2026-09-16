@@ -4,12 +4,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Solo se llama desde el panel admin logueado (nunca desde una página
+// pública), así que el origin se restringe a los dominios de la app en vez
+// de '*' (ver ANALISIS_SEGURIDAD.md, punto 6).
+const ALLOWED_ORIGINS = [
+  'https://app.granito.com.ar',
+  'https://consorcios-app.vercel.app',
+]
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? ''
+  const allowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:')
+  return {
+    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
 }
 
 serve(async (req) => {
+  const CORS = corsHeaders(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
