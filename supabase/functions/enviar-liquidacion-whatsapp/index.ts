@@ -21,6 +21,34 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Valida que quien llama es un usuario logueado y que su cliente_id es dueño
+// del consorcio pedido — la anon key sola no alcanza (ver ANALISIS_SEGURIDAD.md, punto 1).
+async function validarAcceso(supabase: any, req: Request, consorcioId: string) {
+  const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!token) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+  if (userError || !user) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: perfil } = await supabase
+    .from('usuarios')
+    .select('cliente_id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+  if (!perfil) return { ok: false, status: 403, error: 'No autorizado.' }
+
+  const { data: consorcio } = await supabase
+    .from('consorcios')
+    .select('cliente_id')
+    .eq('id', consorcioId)
+    .maybeSingle()
+  if (!consorcio || consorcio.cliente_id !== perfil.cliente_id) {
+    return { ok: false, status: 403, error: 'No autorizado para este consorcio.' }
+  }
+
+  return { ok: true }
+}
+
 function fmt(value: number) {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -34,7 +62,7 @@ const MS_POR_DIA = 1000 * 60 * 60 * 24
 
 // Mismo cálculo que src/utils/calcularSaldosMora.js, para un solo departamento
 // (duplicado acá porque las Edge Functions no comparten bundle con el frontend,
-// igual que en enviar-link-consulta / enviar-recordatorios-whatsapp).
+// igual que en enviar-link-consulta).
 function calcularSaldoTotal(periodos: any[], expensas: any[], departamentoId: number, tasaMora: number) {
   const hoy = new Date()
   let saldoTotal = 0
@@ -97,6 +125,13 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+    const acceso = await validarAcceso(supabase, req, consorcio_id)
+    if (!acceso.ok) {
+      return new Response(JSON.stringify({ error: acceso.error }), {
+        status: acceso.status, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
 
     const { data: consorcio, error: consorcioError } = await supabase
       .from('consorcios')

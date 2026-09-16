@@ -15,6 +15,27 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Valida que quien llama es un usuario logueado cuyo cliente_id es dueño del
+// consorcio al que pertenece el departamento (ver ANALISIS_SEGURIDAD.md, punto 1).
+async function validarAcceso(supabase: any, req: Request, clienteIdConsorcio: string) {
+  const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!token) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+  if (userError || !user) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: perfil } = await supabase
+    .from('usuarios')
+    .select('cliente_id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+  if (!perfil || perfil.cliente_id !== clienteIdConsorcio) {
+    return { ok: false, status: 403, error: 'No autorizado para este departamento.' }
+  }
+
+  return { ok: true }
+}
+
 function fmt(value: number) {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -63,11 +84,19 @@ serve(async (req) => {
 
     const { data: depto, error: deptoError } = await supabase
       .from('departamentos')
-      .select('id, numeracion, email, token_consulta, id_consorcio, consorcios(nombre, tasa_mora)')
+      .select('id, numeracion, email, token_consulta, id_consorcio, consorcios(nombre, tasa_mora, cliente_id)')
       .eq('id', departamento_id)
       .single()
 
     if (deptoError) throw deptoError
+
+    const acceso = await validarAcceso(supabase, req, depto?.consorcios?.cliente_id)
+    if (!acceso.ok) {
+      return new Response(JSON.stringify({ error: acceso.error }), {
+        status: acceso.status, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (!depto?.email) {
       return new Response(JSON.stringify({ error: 'El departamento no tiene email cargado.' }), {
         status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },

@@ -20,6 +20,28 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Valida que quien llama es un usuario logueado y que el cliente_id recibido
+// es el suyo — sin esto, cualquiera puede pisar el token de MP de otro
+// cliente (ver ANALISIS_SEGURIDAD.md, punto 1).
+async function validarAcceso(supabase: any, req: Request, clienteId: string) {
+  const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!token) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+  if (userError || !user) return { ok: false, status: 401, error: 'No autenticado.' }
+
+  const { data: perfil } = await supabase
+    .from('usuarios')
+    .select('cliente_id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+  if (!perfil || perfil.cliente_id !== clienteId) {
+    return { ok: false, status: 403, error: 'No autorizado para este cliente.' }
+  }
+
+  return { ok: true }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -29,6 +51,14 @@ serve(async (req) => {
     if (!code || !redirect_uri || !cliente_id) {
       return new Response(JSON.stringify({ error: 'Faltan parámetros requeridos.' }), {
         status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    const acceso = await validarAcceso(supabase, req, cliente_id)
+    if (!acceso.ok) {
+      return new Response(JSON.stringify({ error: acceso.error }), {
+        status: acceso.status, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
@@ -59,8 +89,6 @@ serve(async (req) => {
     const expiresAt = tokens.expires_in
       ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
       : null
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
     const { error: dbError } = await supabase
       .from('mp_tokens')

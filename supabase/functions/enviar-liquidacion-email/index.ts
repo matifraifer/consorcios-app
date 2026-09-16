@@ -25,7 +25,7 @@ const MS_POR_DIA = 1000 * 60 * 60 * 24
 
 // Mismo cálculo que src/utils/calcularSaldosMora.js, para un solo departamento
 // (duplicado acá porque las Edge Functions no comparten bundle con el frontend,
-// igual que en enviar-link-consulta / enviar-recordatorios-whatsapp / enviar-liquidacion-whatsapp).
+// igual que en enviar-link-consulta / enviar-liquidacion-whatsapp).
 function calcularSaldoTotal(periodos: any[], expensas: any[], departamentoId: number, tasaMora: number) {
   const hoy = new Date()
   let saldoTotal = 0
