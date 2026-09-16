@@ -959,7 +959,7 @@ export async function enviarLiquidacionEmail(periodo_id) {
 
 export async function getPropiedadPublica(id) {
   const { data, error } = await supabase
-    .from('propiedades')
+    .from('propiedades_publicas')
     .select('*')
     .eq('id', id)
     .neq('estado', 'Baja')
@@ -1044,7 +1044,7 @@ export async function buscarClientesPortal(query) {
 
 export async function getPropiedadesPublicas(cliente_id) {
   const { data, error } = await supabase
-    .from('propiedades')
+    .from('propiedades_publicas')
     .select('id, titulo, tipo_propiedad, tipo_operacion, precio_publicacion, moneda, direccion, localidad, provincia, ambientes, dormitorios, banios, metros_cubiertos, metros_totales, created_at')
     .eq('cliente_id', cliente_id)
     .neq('estado', 'Baja')
