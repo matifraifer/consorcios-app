@@ -13,12 +13,7 @@ import EditIcon             from '@mui/icons-material/Edit'
 import DeleteOutlineIcon    from '@mui/icons-material/DeleteOutline'
 import CheckIcon            from '@mui/icons-material/Check'
 import CloseIcon            from '@mui/icons-material/Close'
-import {
-  getTiposDocumentacion, getDocumentosRespaldatorios,
-  uploadDocumentoRespaldatorio, updateDocumentoRespaldatorio,
-  deleteDocumentoRespaldatorio, getDocumentoRespaldatorioUrl,
-} from '../services/supabase'
-
+import { deleteDocumentoRespaldatorio, getDocumentoRespaldatorioUrl, getDocumentosRespaldatorios, getTiposDocumentacion, updateDocumentoRespaldatorio, uploadDocumentoRespaldatorio } from '../features/contratos/services/contratos'
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 const OTROS        = 'otros'

@@ -4,8 +4,7 @@ import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../services/supabase'
-
+import { supabase } from '../shared/services/supabaseClient'
 const REDIRECT_URI = 'https://app.granito.com.ar/mp-callback'
 
 export default function MpCallback() {

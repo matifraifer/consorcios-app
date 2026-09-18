@@ -6,7 +6,7 @@ import {
 import CloseIcon  from '@mui/icons-material/Close'
 import GroupIcon  from '@mui/icons-material/Group'
 import AddIcon    from '@mui/icons-material/Add'
-import { createProspecto, getContactos, getContactoPropiedades } from '../../services/supabase'
+import { createProspecto, getContactoPropiedades, getContactos } from '../../features/crm/services/crm'
 import ContactoFormDrawer from '../contactos/ContactoFormDrawer'
 
 const ACCENT = '#065F46'

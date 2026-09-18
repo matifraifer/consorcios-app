@@ -13,12 +13,8 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import {
-  getPagosContrato, getContratoAdjuntos, getContratoAdjuntoUrl,
-  deleteContratoAdjunto, registrarPagoContrato, getComprobanteUrl, finalizarContrato,
-  getCargosExtraByPagos, createCargoExtra, deleteCargoExtra,
-  getReciboByPago, getClienteConfig,
-} from '../../services/supabase'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getPagosContrato, getReciboByPago, registrarPagoContrato } from '../../features/contratos/services/contratos'
+import { getClienteConfig } from '../../features/propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado } from '../../utils/actualizacionContrato'
 import { generarReciboContrato } from '../../services/reciboContrato'
 

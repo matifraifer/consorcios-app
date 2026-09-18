@@ -11,10 +11,7 @@ import LanguageIcon           from '@mui/icons-material/Language'
 import ArrowUpwardIcon        from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon      from '@mui/icons-material/ArrowDownward'
 import PersonIcon             from '@mui/icons-material/Person'
-import {
-  getConsultasWeb, inactivarConsultaWeb,
-  marcarConsultaConvertida, getContactos, linkContactoPropiedad,
-} from '../services/supabase'
+import { getConsultasWeb, getContactos, inactivarConsultaWeb, linkContactoPropiedad, marcarConsultaConvertida } from '../features/crm/services/crm'
 import { useAuth } from '../contexts/AuthContext'
 import ContactoFormDrawer    from '../components/contactos/ContactoFormDrawer'
 import ConsultaDetalleDrawer from '../components/consultas/ConsultaDetalleDrawer'

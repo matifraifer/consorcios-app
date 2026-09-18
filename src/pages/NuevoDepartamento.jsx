@@ -15,8 +15,7 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material'
-import { createDepartamento, getPropietariosByConsorcio } from '../services/supabase'
-
+import { createDepartamento, getPropietariosByConsorcio } from '../features/consorcios/services/consorcios'
 export default function NuevoDepartamento() {
   const { id } = useParams()
   const navigate = useNavigate()

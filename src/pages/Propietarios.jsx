@@ -31,7 +31,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
-import { getPropietarios, createPropietario, getConsorcios, importarPropietarios } from '../services/supabase'
+import { createPropietario, getConsorcios, getPropietarios, importarPropietarios } from '../features/consorcios/services/consorcios'
 import { useAuth } from '../contexts/AuthContext'
 
 const DRAWER_WIDTH = 420

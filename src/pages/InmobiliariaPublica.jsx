@@ -13,8 +13,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import InstagramIcon   from '@mui/icons-material/Instagram'
 import LanguageIcon    from '@mui/icons-material/Language'
 import LinkIcon        from '@mui/icons-material/Link'
-import { getClientePublico, getPropiedadesPublicas, getImagenesPrincipales } from '../services/supabase'
-
+import { getClientePublico, getImagenesPrincipales, getPropiedadesPublicas } from '../features/propiedades/services/propiedades'
 const FALLBACK_PRIMARY   = '#065F46'
 const FALLBACK_SECONDARY = '#047857'
 const TIPOS = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina']

@@ -11,8 +11,7 @@ import {
   IconButton,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import { createEtapa, updateEtapa } from '../../services/supabase'
-
+import { createEtapa, updateEtapa } from '../../features/proyectos/services/proyectos'
 const ACCENT = '#065F46'
 
 const labelSx = { fontSize: '0.75rem', fontWeight: 600, color: '#374151', mb: 0.75 }

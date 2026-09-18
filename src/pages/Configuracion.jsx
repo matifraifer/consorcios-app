@@ -11,13 +11,10 @@ import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import { useAuth } from '../contexts/AuthContext'
-import {
-  // getMlToken, deleteMlToken, supabase, // MercadoLibre — deshabilitado temporalmente
-  getClienteConfig, updateClienteConfig, uploadClienteLogo,
-  uploadPortadaImage, deletePortadaImage,
-  getWhatsappSesion, connectWhatsapp, disconnectWhatsapp,
-  getMpToken, testMercadoPago, disconnectMercadoPago,
-} from '../services/supabase'
+import { disconnectMercadoPago, getMpToken, testMercadoPago } from '../features/integraciones/services/mercadopago'
+import { connectWhatsapp, disconnectWhatsapp, getWhatsappSesion } from '../features/integraciones/services/whatsapp'
+import { deletePortadaImage, getClienteConfig, updateClienteConfig, uploadClienteLogo, uploadPortadaImage } from '../features/propiedades/services/propiedades'
+import { supabase } from '../shared/services/supabaseClient'
 
 const ACCENT = '#065F46'
 // MercadoLibre — deshabilitado temporalmente

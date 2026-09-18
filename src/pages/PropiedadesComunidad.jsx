@@ -12,8 +12,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import { useAuth } from '../contexts/AuthContext'
-import { getPropiedadesExt, vincularContactosExt, getContactos } from '../services/supabase'
-
+import { getContactos, getPropiedadesExt, vincularContactosExt } from '../features/crm/services/crm'
 const ACCENT = '#065F46'
 const PAGE_SIZE = 50
 

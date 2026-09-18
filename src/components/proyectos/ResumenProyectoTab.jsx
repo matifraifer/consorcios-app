@@ -4,7 +4,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { getEtapasByProyecto } from '../../services/supabase'
+import { getEtapasByProyecto } from '../../features/proyectos/services/proyectos'
 import { calcEtapaStats } from '../../utils/calcEtapaStats'
 import { ESTADOS_TAREA } from '../../utils/estadosTarea'
 

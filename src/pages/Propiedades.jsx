@@ -17,7 +17,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import PropiedadFormDrawer from '../components/PropiedadFormDrawer'
 import PropiedadDetalleDrawer from '../components/PropiedadDetalleDrawer'
-import { getPropiedades, darDeBajaPropiedad, reactivarPropiedad } from '../services/supabase'
+import { darDeBajaPropiedad, getPropiedades, reactivarPropiedad } from '../features/propiedades/services/propiedades'
 import { useAuth } from '../contexts/AuthContext'
 
 const ACCENT       = '#065F46'

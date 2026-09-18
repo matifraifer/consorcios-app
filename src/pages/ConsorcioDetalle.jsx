@@ -59,26 +59,9 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import MailOutlineIcon from '@mui/icons-material/MailOutline'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import {
-  getConsorcioById,
-  updateConsorcio,
-  importarDepartamentosExcel,
-  getDepartamentosByConsorcio,
-  createDepartamento,
-  updateDepartamento,
-  setDepartamentoActivo,
-  getPeriodosByConsorcio,
-  createPeriodo,
-  closePeriodo,
-  getDepartamentosConCoeficiente,
-  getGastosByPeriodo,
-  getExpensasDepartamento,
-  saveExpensasDepartamento,
-  getLiquidacionesConsorcio,
-  enviarLinkConsultaDeuda,
-  enviarLiquidacionWhatsapp,
-  enviarLiquidacionEmail,
-} from '../services/supabase'
+import { createDepartamento, getConsorcioById, getDepartamentosByConsorcio, importarDepartamentosExcel, updateConsorcio, updateDepartamento } from '../features/consorcios/services/consorcios'
+import { closePeriodo, createPeriodo, getDepartamentosConCoeficiente, getExpensasDepartamento, getGastosByPeriodo, getLiquidacionesConsorcio, getPeriodosByConsorcio, saveExpensasDepartamento, setDepartamentoActivo } from '../features/expensas/services/expensas'
+import { enviarLinkConsultaDeuda, enviarLiquidacionEmail, enviarLiquidacionWhatsapp } from '../features/portal/services/portal'
 import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 import PagosDepartamentoDialog from '../components/expensas/PagosDepartamentoDialog'
 import { calcLiquidacion } from '../utils/calcLiquidacion'

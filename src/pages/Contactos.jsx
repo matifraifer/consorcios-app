@@ -17,7 +17,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { useAuth } from '../contexts/AuthContext'
-import { getContactos, deleteContacto } from '../services/supabase'
+import { deleteContacto, getContactos } from '../features/crm/services/crm'
 import ContactoFormDrawer from '../components/contactos/ContactoFormDrawer'
 import ImportarContactosDrawer from '../components/contactos/ImportarContactosDrawer'
 

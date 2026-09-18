@@ -37,12 +37,8 @@ import AddIcon from '@mui/icons-material/Add'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import {
-  getGastosByPeriodo, createGasto, updateGasto, deleteGasto,
-  getDepartamentosConCoeficiente,
-  getExpensasDepartamento, saveExpensasDepartamento,
-  enviarLiquidacionEmail,
-} from '../../services/supabase'
+import { createGasto, deleteGasto, getDepartamentosConCoeficiente, getExpensasDepartamento, getGastosByPeriodo, saveExpensasDepartamento, updateGasto } from '../../features/expensas/services/expensas'
+import { enviarLiquidacionEmail } from '../../features/portal/services/portal'
 import { calcLiquidacion } from '../../utils/calcLiquidacion'
 
 const MESES_LABEL = [

@@ -25,7 +25,7 @@ import AddIcon from '@mui/icons-material/Add'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import SearchIcon from '@mui/icons-material/Search'
-import { getConsorcios, createConsorcio } from '../services/supabase'
+import { createConsorcio, getConsorcios } from '../features/consorcios/services/consorcios'
 import { useAuth } from '../contexts/AuthContext'
 
 const ACCENT = '#065F46'

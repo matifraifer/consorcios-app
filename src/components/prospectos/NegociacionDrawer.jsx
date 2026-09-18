@@ -11,14 +11,7 @@ import SaveIcon from '@mui/icons-material/Save'
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import CheckIcon from '@mui/icons-material/Check'
-import {
-  getPropiedadesInteresByProspecto,
-  addPropiedadInteres,
-  updatePropiedadInteres,
-  deletePropiedadInteres,
-  getContactoPropiedades,
-} from '../../services/supabase'
-
+import { addPropiedadInteres, deletePropiedadInteres, getContactoPropiedades, getPropiedadesInteresByProspecto, updatePropiedadInteres } from '../../features/crm/services/crm'
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 

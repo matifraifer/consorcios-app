@@ -11,8 +11,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import CloseIcon from '@mui/icons-material/Close'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ApartmentIcon from '@mui/icons-material/Apartment'
-import { getPropiedadPublica, getPropiedadImagenes, getPublicImageUrl, submitConsultaWeb, registrarVisitaPropiedad } from '../services/supabase'
-
+import { submitConsultaWeb } from '../features/crm/services/crm'
+import { getPropiedadImagenes, getPropiedadPublica, getPublicImageUrl, registrarVisitaPropiedad } from '../features/propiedades/services/propiedades'
 const ACCENT = '#065F46'
 
 const ZONAS = [

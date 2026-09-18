@@ -12,7 +12,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import PaidIcon from '@mui/icons-material/Paid'
 import GroupsIcon from '@mui/icons-material/Groups'
-import { getProyectoById } from '../services/supabase'
+import { getProyectoById } from '../features/proyectos/services/proyectos'
 import ResumenProyectoTab from '../components/proyectos/ResumenProyectoTab'
 import EtapasProyectoTab from '../components/proyectos/EtapasProyectoTab'
 import GanttProyectoTab from '../components/proyectos/GanttProyectoTab'

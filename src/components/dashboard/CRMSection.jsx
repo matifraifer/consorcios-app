@@ -12,7 +12,7 @@ import CheckIcon         from '@mui/icons-material/Check'
 import ArrowForwardIcon  from '@mui/icons-material/ArrowForward'
 import PersonOffIcon     from '@mui/icons-material/PersonOff'
 import { useAuth } from '../../contexts/AuthContext'
-import { getUsuarios } from '../../services/supabase'
+import { getUsuarios } from '../../features/auth/services/auth'
 import GraficoDeudaPorPeriodo from './GraficoDeudaPorPeriodo'
 import AlquileresKPIs from './AlquileresKPIs'
 

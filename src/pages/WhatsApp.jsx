@@ -12,11 +12,8 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import { useAuth } from '../contexts/AuthContext'
-import {
-  getWhatsappMensajes, sendWhatsappMensaje, getContactos, getContactoPropiedades,
-  marcarMensajesWhatsappLeidos,
-} from '../services/supabase'
-
+import { getContactoPropiedades, getContactos } from '../features/crm/services/crm'
+import { getWhatsappMensajes, marcarMensajesWhatsappLeidos, sendWhatsappMensaje } from '../features/integraciones/services/whatsapp'
 const ACCENT   = '#065F46'
 const POLL_MS  = 5000
 const LIST_W   = 300

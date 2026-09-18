@@ -13,13 +13,8 @@ import CloseRoundedIcon     from '@mui/icons-material/CloseRounded'
 import ContactoFormDrawer from './contactos/ContactoFormDrawer'
 import DocumentacionRespaldatoriaSection from './DocumentacionRespaldatoriaSection'
 import imageCompression from 'browser-image-compression'
-import {
-  createPropiedad, updatePropiedad,
-  uploadPropiedadImagen, insertPropiedadImagenes,
-  getPropiedadImagenes, deletePropiedadImagen, getPublicImageUrl,
-  buscarContactos, getPropiedadContactos, setPropiedadContactos,
-} from '../services/supabase'
-
+import { buscarContactos, getPropiedadContactos, setPropiedadContactos } from '../features/crm/services/crm'
+import { createPropiedad, deletePropiedadImagen, getPropiedadImagenes, getPublicImageUrl, insertPropiedadImagenes, updatePropiedad, uploadPropiedadImagen } from '../features/propiedades/services/propiedades'
 const MAX_SIZE_MB = 15
 const COMPRESS_OPTIONS = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }
 const ACCENT = '#065F46'

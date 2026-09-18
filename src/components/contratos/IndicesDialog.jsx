@@ -9,8 +9,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import CheckIcon from '@mui/icons-material/Check'
-import { upsertIndice, deleteIndice } from '../../services/supabase'
-
+import { deleteIndice, upsertIndice } from '../../features/contratos/services/contratos'
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 

@@ -15,7 +15,7 @@ import {
   Chip,
   Button,
 } from '@mui/material'
-import { getDepartamentos } from '../services/supabase'
+import { getDepartamentos } from '../features/consorcios/services/consorcios'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Departamentos() {

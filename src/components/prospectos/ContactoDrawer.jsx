@@ -7,13 +7,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import PersonIcon from '@mui/icons-material/Person'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import HistoryIcon from '@mui/icons-material/History'
-import {
-  updateProspectoAsignado,
-  addHistorialProspecto,
-  getHistorialByProspecto,
-  getContactoPropiedades,
-} from '../../services/supabase'
-
+import { addHistorialProspecto, getContactoPropiedades, getHistorialByProspecto, updateProspectoAsignado } from '../../features/crm/services/crm'
 const ACCENT = '#065F46'
 
 const selectSx = {

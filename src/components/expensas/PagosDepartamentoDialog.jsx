@@ -23,8 +23,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import PaidIcon from '@mui/icons-material/Paid'
-import { registrarPago } from '../../services/supabase'
-
+import { registrarPago } from '../../features/expensas/services/expensas'
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',

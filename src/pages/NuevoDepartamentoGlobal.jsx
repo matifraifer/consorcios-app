@@ -15,7 +15,7 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material'
-import { createDepartamento, getConsorcios } from '../services/supabase'
+import { createDepartamento, getConsorcios } from '../features/consorcios/services/consorcios'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function NuevoDepartamentoGlobal() {

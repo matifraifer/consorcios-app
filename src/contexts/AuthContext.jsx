@@ -1,9 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import {
-  supabase, signInWithEmail, signOutSupabase, getUsuarioByAuthId,
-  resolveEmailForUsername, updateUserPassword,
-} from '../services/supabase'
-
+import { getUsuarioByAuthId, resolveEmailForUsername, signInWithEmail, signOutSupabase, updateUserPassword } from '../features/auth/services/auth'
+import { supabase } from '../shared/services/supabaseClient'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {

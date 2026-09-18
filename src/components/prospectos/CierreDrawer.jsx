@@ -8,8 +8,7 @@ import CancelIcon from '@mui/icons-material/Cancel'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
-import { cerrarProspecto, getPropiedadesInteresByProspecto } from '../../services/supabase'
-
+import { cerrarProspecto, getPropiedadesInteresByProspecto } from '../../features/crm/services/crm'
 const ACCENT = '#065F46'
 
 const ESTADOS_PROPIEDAD = [

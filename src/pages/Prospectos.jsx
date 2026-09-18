@@ -12,7 +12,9 @@ import {
   DndContext, DragOverlay, useSensor, useSensors, PointerSensor,
   useDraggable, useDroppable,
 } from '@dnd-kit/core'
-import { getEtapasCRM, getProspectos, updateProspectoEtapa, getPropiedades, getUsuarios, addHistorialProspecto } from '../services/supabase'
+import { getUsuarios } from '../features/auth/services/auth'
+import { addHistorialProspecto, getEtapasCRM, getProspectos, updateProspectoEtapa } from '../features/crm/services/crm'
+import { getPropiedades } from '../features/propiedades/services/propiedades'
 import { useAuth } from '../contexts/AuthContext'
 import ProspectoFormDrawer from '../components/prospectos/ProspectoFormDrawer'
 import ContactoDrawer from '../components/prospectos/ContactoDrawer'

@@ -13,7 +13,8 @@ import {
   MenuItem,
   TextField,
 } from '@mui/material'
-import { createPeriodo, getConsorcios } from '../services/supabase'
+import { getConsorcios } from '../features/consorcios/services/consorcios'
+import { createPeriodo } from '../features/expensas/services/expensas'
 import { useAuth } from '../contexts/AuthContext'
 
 const MESES = [

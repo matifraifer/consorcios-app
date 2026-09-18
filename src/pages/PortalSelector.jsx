@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Box, Typography, TextField, CircularProgress, Alert } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { buscarClientesPortal, logPortalError } from '../services/supabase'
+import { buscarClientesPortal, logPortalError } from '../features/portal/services/portal'
 import PortalErrorBoundary from '../components/PortalErrorBoundary'
 
 // Mismos tokens de color que PortalVecino.jsx (design system "Consorcios

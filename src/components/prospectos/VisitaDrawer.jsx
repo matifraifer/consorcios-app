@@ -9,8 +9,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AddIcon from '@mui/icons-material/Add'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
-import { getVisitasByProspecto, createVisita, deleteVisita, getContactoPropiedades } from '../../services/supabase'
-
+import { createVisita, deleteVisita, getContactoPropiedades, getVisitasByProspecto } from '../../features/crm/services/crm'
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 

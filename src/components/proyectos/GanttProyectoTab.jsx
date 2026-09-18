@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Box, Typography, Paper, Alert, CircularProgress, Tooltip } from '@mui/material'
 import TimelineIcon from '@mui/icons-material/Timeline'
-import { getEtapasByProyecto } from '../../services/supabase'
+import { getEtapasByProyecto } from '../../features/proyectos/services/proyectos'
 import { calcEtapaStats } from '../../utils/calcEtapaStats'
 
 const ACCENT = '#065F46'

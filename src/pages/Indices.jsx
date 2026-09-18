@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Alert, CircularProgress, Select, MenuItem, FormControl,
 } from '@mui/material'
 import TimelineIcon from '@mui/icons-material/Timeline'
-import { getIndicesActualizacion } from '../services/supabase'
+import { getIndicesActualizacion } from '../features/contratos/services/contratos'
 import { useAuth } from '../contexts/AuthContext'
 import GraficoIndices from '../components/contratos/GraficoIndices'
 import { agruparIndices, labelPeriodoLargo, PERIODOS } from '../utils/agruparIndices'

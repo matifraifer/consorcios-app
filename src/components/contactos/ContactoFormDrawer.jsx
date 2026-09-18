@@ -14,12 +14,9 @@ import LanguageIcon       from '@mui/icons-material/Language'
 import OpenInNewIcon      from '@mui/icons-material/OpenInNew'
 import StorefrontIcon     from '@mui/icons-material/Storefront'
 import PersonAddIcon      from '@mui/icons-material/PersonAdd'
-import {
-  createContacto, updateContacto, getPropiedades, getUsuarios,
-  getContactoPropiedades, getContactoPropiedadesExt, setContactoPropiedades, checkDniExists,
-  sugerirPropiedadesPorContacto, getPropiedadesExtSugeridas,
-  getEtapasCRM, createProspecto,
-} from '../../services/supabase'
+import { getUsuarios } from '../../features/auth/services/auth'
+import { checkDniExists, createContacto, createProspecto, getContactoPropiedades, getContactoPropiedadesExt, getEtapasCRM, getPropiedadesExtSugeridas, setContactoPropiedades, updateContacto } from '../../features/crm/services/crm'
+import { getPropiedades, sugerirPropiedadesPorContacto } from '../../features/propiedades/services/propiedades'
 import { useAuth } from '../../contexts/AuthContext'
 
 // ─── Constants ────────────────────────────────────────────────────────────────

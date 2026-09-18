@@ -11,7 +11,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import GroupAddIcon from '@mui/icons-material/GroupAdd'
-import { importarContactos } from '../../services/supabase'
+import { importarContactos } from '../../features/crm/services/crm'
 import { useAuth } from '../../contexts/AuthContext'
 
 const ACCENT = '#065F46'

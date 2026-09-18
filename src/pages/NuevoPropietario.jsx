@@ -15,7 +15,7 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material'
-import { createPropietario, getConsorcios } from '../services/supabase'
+import { createPropietario, getConsorcios } from '../features/consorcios/services/consorcios'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function NuevoPropietario() {

@@ -40,19 +40,8 @@ import PaidIcon from '@mui/icons-material/Paid'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import {
-  getPeriodoById,
-  getGastosByPeriodo,
-  createGasto,
-  updateGasto,
-  deleteGasto,
-  getDepartamentosConCoeficiente,
-  saveExpensasDepartamento,
-  getExpensasDepartamento,
-  registrarPago,
-  closePeriodo,
-  enviarLiquidacionEmail,
-} from '../services/supabase'
+import { closePeriodo, createGasto, deleteGasto, getDepartamentosConCoeficiente, getExpensasDepartamento, getGastosByPeriodo, getPeriodoById, registrarPago, saveExpensasDepartamento, updateGasto } from '../features/expensas/services/expensas'
+import { enviarLiquidacionEmail } from '../features/portal/services/portal'
 import { calcLiquidacion } from '../utils/calcLiquidacion'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']

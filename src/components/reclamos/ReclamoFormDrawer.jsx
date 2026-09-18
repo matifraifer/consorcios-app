@@ -4,9 +4,8 @@ import {
   Alert, TextField, FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import {
-  createReclamo, getConsorcios, getPropietariosByConsorcio, getDepartamentosByConsorcio,
-} from '../../services/supabase'
+import { getConsorcios, getDepartamentosByConsorcio, getPropietariosByConsorcio } from '../../features/consorcios/services/consorcios'
+import { createReclamo } from '../../features/reclamos/services/reclamos'
 import { useAuth } from '../../contexts/AuthContext'
 import { ESTADOS_RECLAMO, ESTADO_RECLAMO_STYLES } from './EstadoReclamoBadge'
 

@@ -25,7 +25,7 @@ import AddIcon from '@mui/icons-material/Add'
 import ConstructionIcon from '@mui/icons-material/Construction'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import SearchIcon from '@mui/icons-material/Search'
-import { getProyectos, createProyecto } from '../services/supabase'
+import { createProyecto, getProyectos } from '../features/proyectos/services/proyectos'
 import { useAuth } from '../contexts/AuthContext'
 
 const ACCENT = '#065F46'

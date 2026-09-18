@@ -10,10 +10,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import QuestionMarkIcon from '@mui/icons-material/QuestionMark'
 import CloseIcon from '@mui/icons-material/Close'
-import {
-  getPortalDniExiste, getPortalExpensasToken, getPortalExpensasDni,
-  getPortalAlquilerToken, getPortalAlquilerDni, getClientePublico, crearPreferenciaPago, logPortalError,
-} from '../services/supabase'
+import { crearPreferenciaPago } from '../features/integraciones/services/mercadopago'
+import { getPortalAlquilerDni, getPortalAlquilerToken, getPortalDniExiste, getPortalExpensasDni, getPortalExpensasToken, logPortalError } from '../features/portal/services/portal'
+import { getClientePublico } from '../features/propiedades/services/propiedades'
 import { calcularSaldosMora } from '../utils/calcularSaldosMora'
 import { computeMontoActualizado } from '../utils/actualizacionContrato'
 import { generarReciboContrato } from '../services/reciboContrato'

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Box, TextField, Button, Typography, Alert, CircularProgress, Paper, Link } from '@mui/material'
-import { requestPasswordReset } from '../services/supabase'
-
+import { requestPasswordReset } from '../features/auth/services/auth'
 const ACCENT = '#065F46'
 
 const fieldSx = {
