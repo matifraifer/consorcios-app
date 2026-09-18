@@ -187,13 +187,14 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
     .from('pagos_contrato')
     .update({ estado: 'pagado', monto_pagado: Number(monto_pagado), fecha_pago, comprobante_path })
     .eq('id', pagoId)
-    .select(`*, contratos(cliente_id, inquilino_nombre, inquilino_apellido, dia_vencimiento, es_compraventa, propiedades(direccion, titulo))`)
+    .select(`*, contratos(cliente_id, inquilino_nombre, inquilino_apellido, propietario_nombre, propietario_apellido, dia_vencimiento, es_compraventa, comision_gestion, propiedades(direccion, titulo))`)
     .single()
   if (error) throw error
 
-  // Numera y crea el recibo del pago, con un snapshot de los datos que lo componen
-  // (no se recalculan mas adelante ni si se edita el contrato). No bloquea el registro
-  // del pago si falla.
+  // Numera y crea los recibos del pago (inquilino y, si el contrato tiene comisión de
+  // gestión configurada, rendición al propietario), con un snapshot de los datos que
+  // los componen (no se recalculan mas adelante ni si se edita el contrato). No bloquea
+  // el registro del pago si falla.
   try {
     const { data: cargosExtra, error: cargosErr } = await supabase
       .from('cargos_extra_contrato')
@@ -226,6 +227,28 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
       es_compraventa: c.es_compraventa,
       cargos_extra: cargosExtra ?? [],
     })
+
+    if (Number(c.comision_gestion) > 0) {
+      const totalCargos = (cargosExtra ?? []).reduce((s, cg) => s + Number(cg.monto), 0)
+      const montoAlquiler = Number(data.monto_pagado) - totalCargos
+      const comision = montoAlquiler * (Number(c.comision_gestion) / 100)
+
+      await crearReciboPropietario({
+        cliente_id: c.cliente_id,
+        contrato_id: data.contrato_id,
+        pago_id: data.id,
+        fecha_pago: data.fecha_pago,
+        monto: comision,
+        monto_alquiler: montoAlquiler,
+        comision_pct: c.comision_gestion,
+        propietario_nombre: c.propietario_nombre,
+        propietario_apellido: c.propietario_apellido,
+        direccion_inmueble: direccion,
+        cuota_numero: data.periodo_numero,
+        periodo_mes: periodoMes,
+        vencimiento_fecha: vencimientoFecha,
+      })
+    }
   } catch (reciboErr) {
     console.error('No se pudo generar el recibo del pago:', reciboErr)
   }
@@ -271,6 +294,42 @@ export async function crearReciboContrato({
 export async function getReciboByPago(pagoId) {
   const { data, error } = await supabase
     .from('recibos_contrato')
+    .select('*')
+    .eq('pago_id', pagoId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+// ---- RECIBOS DE RENDICIÓN AL PROPIETARIO (comisión de gestión) ----
+
+export async function crearReciboPropietario({
+  cliente_id, contrato_id, pago_id, fecha_pago, monto, monto_alquiler, comision_pct,
+  propietario_nombre, propietario_apellido, direccion_inmueble,
+  cuota_numero, periodo_mes, vencimiento_fecha,
+}) {
+  const { data, error } = await supabase.rpc('crear_recibo_propietario', {
+    p_cliente_id: cliente_id,
+    p_contrato_id: contrato_id,
+    p_pago_id: pago_id,
+    p_fecha_pago: fecha_pago,
+    p_monto: monto,
+    p_monto_alquiler: monto_alquiler,
+    p_comision_pct: comision_pct,
+    p_propietario_nombre: propietario_nombre,
+    p_propietario_apellido: propietario_apellido,
+    p_direccion_inmueble: direccion_inmueble,
+    p_cuota_numero: cuota_numero,
+    p_periodo_mes: periodo_mes,
+    p_vencimiento_fecha: vencimiento_fecha,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function getReciboPropietarioByPago(pagoId) {
+  const { data, error } = await supabase
+    .from('recibos_propietario')
     .select('*')
     .eq('pago_id', pagoId)
     .maybeSingle()

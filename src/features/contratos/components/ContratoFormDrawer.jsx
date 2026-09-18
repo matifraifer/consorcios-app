@@ -41,6 +41,7 @@ const FORM_EMPTY = {
   fecha_fin: '',
   dia_vencimiento: '',
   monto_base: '',
+  comision_gestion: '',
   tipo_actualizacion: '',
   plazo_actualizacion: '',
   observaciones: '',
@@ -128,6 +129,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         fecha_fin:            contrato.fecha_fin ?? '',
         dia_vencimiento:      contrato.dia_vencimiento ?? '',
         monto_base:           contrato.monto_base ?? '',
+        comision_gestion:     contrato.comision_gestion ?? '',
         tipo_actualizacion:   contrato.tipo_actualizacion ?? '',
         plazo_actualizacion:  contrato.plazo_actualizacion ?? '',
         observaciones:        contrato.observaciones ?? '',
@@ -266,6 +268,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       return 'La fecha de fin debe ser posterior a la de inicio.'
     }
     if (Number(form.monto_base) <= 0) return 'El monto base debe ser mayor a 0.'
+    if (form.comision_gestion && (Number(form.comision_gestion) < 0 || Number(form.comision_gestion) > 100)) {
+      return 'La comisión de gestión debe estar entre 0 y 100.'
+    }
     return null
   }
 
@@ -291,6 +296,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         fecha_fin:            form.fecha_fin,
         dia_vencimiento:      form.dia_vencimiento || null,
         monto_base:           Number(form.monto_base),
+        comision_gestion:     form.comision_gestion ? Number(form.comision_gestion) : null,
         tipo_actualizacion:   form.tipo_actualizacion,
         plazo_actualizacion:  form.plazo_actualizacion,
         observaciones:        form.observaciones.trim() || null,
@@ -607,14 +613,26 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
           {/* Datos económicos */}
           <SectionTitle>Datos económicos</SectionTitle>
-          <Box mb={1.5}>
-            <Label required>Monto base (ARS)</Label>
-            <TextField
-              fullWidth size="small" type="number" value={form.monto_base}
-              onChange={e => set('monto_base', e.target.value)}
-              slotProps={{ input: { inputProps: { min: 0 } } }}
-              sx={fieldSx}
-            />
+          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
+            <Box>
+              <Label required>Monto base (ARS)</Label>
+              <TextField
+                fullWidth size="small" type="number" value={form.monto_base}
+                onChange={e => set('monto_base', e.target.value)}
+                slotProps={{ input: { inputProps: { min: 0 } } }}
+                sx={fieldSx}
+              />
+            </Box>
+            <Box>
+              <Label>Comisión de gestión (%)</Label>
+              <TextField
+                fullWidth size="small" type="number" value={form.comision_gestion}
+                onChange={e => set('comision_gestion', e.target.value)}
+                placeholder="Ej: 10"
+                slotProps={{ input: { inputProps: { min: 0, max: 100, step: 0.01 } } }}
+                sx={fieldSx}
+              />
+            </Box>
           </Box>
 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>

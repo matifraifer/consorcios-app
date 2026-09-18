@@ -74,20 +74,16 @@ function mesAnioCapitalizado(fechaConMes) {
   return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} ${y}`
 }
 
-export async function generarReciboContrato({ recibo, contrato, pago, cargosExtra = [], clienteConfig }) {
+// Arma el PDF de recibo (mismo layout para el recibo del inquilino y el de rendición
+// al propietario, solo cambian los datos que se le pasan) y lo descarga.
+async function construirYDescargarRecibo({
+  recibo, clienteConfig,
+  rolLeyenda, nombreCampoLabel, destinatarioNombre, destinatarioApellido,
+  cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
+  conceptoTexto, montoConcepto, cargos, leyenda,
+  firmaIzqLabel, firmaDerLabel,
+}) {
   const logo = await tryLoadImage(clienteConfig?.logo_url)
-
-  // Recibos generados a partir de la migración 0043 traen su propio snapshot (no se
-  // recalcula con los datos actuales de contrato/pago, que pueden haber cambiado desde
-  // el pago). Los recibos viejos, sin snapshot, siguen derivando esos datos en vivo.
-  const inquilinoNombre = recibo.inquilino_nombre ?? contrato.inquilino_nombre
-  const inquilinoApellido = recibo.inquilino_apellido ?? contrato.inquilino_apellido
-  const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
-  const esCompraventa = recibo.es_compraventa ?? contrato.es_compraventa
-  const cuotaNumero = recibo.cuota_numero ?? pago.periodo_numero
-  const mesPeriodo = recibo.periodo_mes ?? pago.periodo_inicio
-  const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
-  const cargos = recibo.cargos_extra?.length ? recibo.cargos_extra : cargosExtra
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -105,7 +101,6 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   // ── Sección 1: logo+datos del cliente / "X - documento no válido como factura" / N° y fecha ──
   const col1W = contentW * 0.3
   const col2W = contentW * 0.38
-  const col3W = contentW - col1W - col2W
   const sec1H = 40
 
   doc.setDrawColor(...BORDER)
@@ -153,7 +148,7 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   doc.setTextColor(...GRAY)
   doc.text('Documento no válido como factura', col2CenterX, y + 27, { align: 'center', maxWidth: col2W - 6 })
   doc.setFont('helvetica', 'bold')
-  doc.text('Recibo para el inquilino', col2CenterX, y + 32, { align: 'center', maxWidth: col2W - 6 })
+  doc.text(rolLeyenda, col2CenterX, y + 32, { align: 'center', maxWidth: col2W - 6 })
 
   // Columna 3: N° y fecha
   const col3X = marginX + col1W + col2W + 5
@@ -169,7 +164,7 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
 
   y += sec1H + 4
 
-  // ── Sección 2: datos del inquilino y del pago (2 columnas x 2 filas) ──
+  // ── Sección 2: datos del destinatario y del pago (2 columnas x 2 filas) ──
   const sec2H = 26
   const sec2Row1Y = y + 6
   const sec2Row2Y = y + 18
@@ -192,7 +187,7 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
     doc.text(valor, colX, rowY + 5.5, { maxWidth: contentW / 2 - 10 })
   }
 
-  campoSec2('NOMBRE Y APELLIDO DEL INQUILINO', `${inquilinoApellido}, ${inquilinoNombre}`, sec2ColA, sec2Row1Y)
+  campoSec2(nombreCampoLabel, `${destinatarioApellido}, ${destinatarioNombre}`, sec2ColA, sec2Row1Y)
   campoSec2('CUOTA', `${cuotaNumero}`, sec2ColB, sec2Row1Y)
   campoSec2('MES', mesAnioCapitalizado(mesPeriodo), sec2ColA, sec2Row2Y)
   campoSec2('VENCIMIENTO DEL PAGO', fmtFecha(vencimientoFecha), sec2ColB, sec2Row2Y)
@@ -200,15 +195,23 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   y += sec2H + 4
 
   // ── Sección 3: detalle ──
-  const conceptoTexto = esCompraventa
-    ? `Cuota del mes de ${mesDelPeriodo(mesPeriodo)}`
-    : `Alquiler del mes de ${mesDelPeriodo(mesPeriodo)} (${pago.es_periodo_actualizacion ? 'con actualización' : 'sin actualización'})`
-  const montoConcepto = recibo.monto - cargos.reduce((s, c) => s + Number(c.monto), 0)
+  const rowH = 7
+  const padTop = 10
+  const padBottomExtra = 4
+  doc.setFontSize(9.5)
 
-  const rowH = 6
-  const padTop = 9
-  const padBottomExtra = 3
-  const rowsCount = 2 + cargos.length // Inmueble + Concepto + cargos extra
+  // Se calculan de antemano los renglones que ocupa cada línea (algunos conceptos
+  // envuelven a 2 líneas) para poder dimensionar el recuadro sin que el texto quede
+  // pegado al total o al borde inferior.
+  function lineasDe(label, valor, montoRow) {
+    const labelW = doc.getTextWidth(`${label} `)
+    const maxWidth = contentW - labelW - (montoRow !== undefined ? 45 : 10)
+    return doc.splitTextToSize(valor, maxWidth)
+  }
+
+  const inmuebleLineas = lineasDe('Inmueble:', direccion)
+  const conceptoLineas = lineasDe('Concepto:', conceptoTexto, montoConcepto)
+  const rowsCount = inmuebleLineas.length + conceptoLineas.length + cargos.length
   const sec3H = padTop + rowsCount * rowH + rowH + padBottomExtra // + fila de Total
 
   doc.setDrawColor(...BORDER)
@@ -221,21 +224,21 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   let itemY = y + padTop
   doc.setFontSize(9.5)
 
-  function labelValor(label, valor, montoRow) {
+  function labelValor(label, lineas, montoRow) {
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...DARK)
     doc.text(label, marginX + 5, itemY)
     const labelW = doc.getTextWidth(`${label} `)
     doc.setFont('helvetica', 'normal')
-    doc.text(valor, marginX + 5 + labelW, itemY, { maxWidth: contentW - labelW - (montoRow ? 45 : 10) })
+    doc.text(lineas, marginX + 5 + labelW, itemY)
     if (montoRow !== undefined) {
       doc.text(`$ ${fmtMonto(montoRow)}`, marginX + contentW - 5, itemY, { align: 'right' })
     }
-    itemY += rowH
+    itemY += rowH * lineas.length
   }
 
-  labelValor('Inmueble:', direccion)
-  labelValor('Concepto:', conceptoTexto, montoConcepto)
+  labelValor('Inmueble:', inmuebleLineas)
+  labelValor('Concepto:', conceptoLineas, montoConcepto)
 
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...DARK)
@@ -256,9 +259,6 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   y += sec3H + 5
 
   // ── Sección 4: leyenda del recibo ──
-  const conceptoLeyenda = esCompraventa ? 'compraventa' : 'alquiler'
-  const leyenda = `Por cuenta y orden del Propietario, recibimos de ${inquilinoNombre} ${inquilinoApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}) en concepto de pago de ${conceptoLeyenda} del inmueble ${direccion} correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}.`
-
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(...DARK)
@@ -274,8 +274,68 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
 
   doc.setFontSize(8.5)
   doc.setTextColor(...GRAY)
-  doc.text('Firma y aclaración inquilino', marginX + (contentW / 2 - 10) / 2, firmaY + 4.5, { align: 'center' })
-  doc.text('Firma y aclaración propietario', marginX + contentW / 2 + 10 + (contentW / 2 - 10) / 2, firmaY + 4.5, { align: 'center' })
+  doc.text(firmaIzqLabel, marginX + (contentW / 2 - 10) / 2, firmaY + 4.5, { align: 'center' })
+  doc.text(firmaDerLabel, marginX + contentW / 2 + 10 + (contentW / 2 - 10) / 2, firmaY + 4.5, { align: 'center' })
 
   doc.save(`recibo-${fmtNumeroRecibo(recibo.serie, recibo.numero)}.pdf`)
+}
+
+export async function generarReciboContrato({ recibo, contrato, pago, cargosExtra = [], clienteConfig }) {
+  // Recibos generados a partir de la migración 0043 traen su propio snapshot (no se
+  // recalcula con los datos actuales de contrato/pago, que pueden haber cambiado desde
+  // el pago). Los recibos viejos, sin snapshot, siguen derivando esos datos en vivo.
+  const inquilinoNombre = recibo.inquilino_nombre ?? contrato.inquilino_nombre
+  const inquilinoApellido = recibo.inquilino_apellido ?? contrato.inquilino_apellido
+  const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
+  const esCompraventa = recibo.es_compraventa ?? contrato.es_compraventa
+  const cuotaNumero = recibo.cuota_numero ?? pago.periodo_numero
+  const mesPeriodo = recibo.periodo_mes ?? pago.periodo_inicio
+  const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
+  const cargos = recibo.cargos_extra?.length ? recibo.cargos_extra : cargosExtra
+
+  const conceptoTexto = esCompraventa
+    ? `Cuota del mes de ${mesDelPeriodo(mesPeriodo)}`
+    : `Alquiler del mes de ${mesDelPeriodo(mesPeriodo)} (${pago.es_periodo_actualizacion ? 'con actualización' : 'sin actualización'})`
+  const montoConcepto = recibo.monto - cargos.reduce((s, c) => s + Number(c.monto), 0)
+
+  const conceptoLeyenda = esCompraventa ? 'compraventa' : 'alquiler'
+  const leyenda = `Por cuenta y orden del Propietario, recibimos de ${inquilinoNombre} ${inquilinoApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}) en concepto de pago de ${conceptoLeyenda} del inmueble ${direccion} correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}.`
+
+  await construirYDescargarRecibo({
+    recibo, clienteConfig,
+    rolLeyenda: 'Recibo para el inquilino',
+    nombreCampoLabel: 'NOMBRE Y APELLIDO DEL INQUILINO',
+    destinatarioNombre: inquilinoNombre,
+    destinatarioApellido: inquilinoApellido,
+    cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
+    conceptoTexto, montoConcepto, cargos, leyenda,
+    firmaIzqLabel: 'Firma y aclaración inquilino',
+    firmaDerLabel: 'Firma y aclaración propietario',
+  })
+}
+
+// Recibo de rendición: lo que la inmobiliaria le cobra al propietario por la gestión
+// del alquiler (comisión de gestión % del monto de alquiler cobrado ese período).
+export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig }) {
+  const propietarioNombre = recibo.propietario_nombre ?? contrato.propietario_nombre
+  const propietarioApellido = recibo.propietario_apellido ?? contrato.propietario_apellido
+  const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
+  const cuotaNumero = recibo.cuota_numero ?? pago.periodo_numero
+  const mesPeriodo = recibo.periodo_mes ?? pago.periodo_inicio
+  const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
+
+  const conceptoTexto = `Comisión de gestión del mes de ${mesDelPeriodo(mesPeriodo)} (${fmtMonto(recibo.comision_pct)}% sobre $ ${fmtMonto(recibo.monto_alquiler)})`
+  const leyenda = `En concepto de comisión por la gestión y administración del alquiler del inmueble ${direccion}, correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}, se rinde al Propietario ${propietarioNombre} ${propietarioApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}).`
+
+  await construirYDescargarRecibo({
+    recibo, clienteConfig,
+    rolLeyenda: 'Recibo para el propietario',
+    nombreCampoLabel: 'NOMBRE Y APELLIDO DEL PROPIETARIO',
+    destinatarioNombre: propietarioNombre,
+    destinatarioApellido: propietarioApellido,
+    cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
+    conceptoTexto, montoConcepto: recibo.monto, cargos: [], leyenda,
+    firmaIzqLabel: 'Firma y aclaración propietario',
+    firmaDerLabel: 'Firma y aclaración inmobiliaria',
+  })
 }

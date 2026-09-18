@@ -13,10 +13,11 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getPagosContrato, getReciboByPago, registrarPagoContrato } from '../services/contratos'
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado } from '../utils/actualizacionContrato.js'
-import { generarReciboContrato } from '../services/reciboContrato.js'
+import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -172,6 +173,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
 
   const [clienteConfig, setClienteConfig] = useState(null)
   const [descargandoRecibo, setDescargandoRecibo] = useState(null) // pago_id | null
+  const [descargandoReciboProp, setDescargandoReciboProp] = useState(null) // pago_id | null
 
   useEffect(() => {
     if (!open || !contrato) return
@@ -250,6 +252,20 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
       setError(e.message)
     } finally {
       setDescargandoRecibo(null)
+    }
+  }
+
+  async function handleDescargarReciboPropietario(pago) {
+    setDescargandoReciboProp(pago.id)
+    setError(null)
+    try {
+      const recibo = await getReciboPropietarioByPago(pago.id)
+      if (!recibo) throw new Error('No se encontró el recibo de rendición de este pago.')
+      await generarReciboPropietario({ recibo, contrato, pago, clienteConfig })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDescargandoReciboProp(null)
     }
   }
 
@@ -519,6 +535,22 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                                 {descargandoRecibo === p.id
                                   ? <CircularProgress size={13} sx={{ color: ACCENT }} />
                                   : <ReceiptLongIcon sx={{ fontSize: 15 }} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )}
+                        {p.estado === 'pagado' && contrato.comision_gestion > 0 && (
+                          <Tooltip title="Descargar recibo de rendición (propietario)">
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={descargandoReciboProp === p.id}
+                                onClick={() => handleDescargarReciboPropietario(p)}
+                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
+                              >
+                                {descargandoReciboProp === p.id
+                                  ? <CircularProgress size={13} sx={{ color: ACCENT }} />
+                                  : <RequestQuoteIcon sx={{ fontSize: 15 }} />}
                               </IconButton>
                             </span>
                           </Tooltip>
