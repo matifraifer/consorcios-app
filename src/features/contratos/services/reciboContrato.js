@@ -68,8 +68,26 @@ function mesDelPeriodo(periodoInicio) {
   return `${MESES[m - 1]} de ${y}`
 }
 
+function mesAnioCapitalizado(fechaConMes) {
+  const [y, m] = fechaConMes.split('-').map(Number)
+  const mes = MESES[m - 1]
+  return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} ${y}`
+}
+
 export async function generarReciboContrato({ recibo, contrato, pago, cargosExtra = [], clienteConfig }) {
   const logo = await tryLoadImage(clienteConfig?.logo_url)
+
+  // Recibos generados a partir de la migración 0043 traen su propio snapshot (no se
+  // recalcula con los datos actuales de contrato/pago, que pueden haber cambiado desde
+  // el pago). Los recibos viejos, sin snapshot, siguen derivando esos datos en vivo.
+  const inquilinoNombre = recibo.inquilino_nombre ?? contrato.inquilino_nombre
+  const inquilinoApellido = recibo.inquilino_apellido ?? contrato.inquilino_apellido
+  const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
+  const esCompraventa = recibo.es_compraventa ?? contrato.es_compraventa
+  const cuotaNumero = recibo.cuota_numero ?? pago.periodo_numero
+  const mesPeriodo = recibo.periodo_mes ?? pago.periodo_inicio
+  const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
+  const cargos = recibo.cargos_extra?.length ? recibo.cargos_extra : cargosExtra
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -151,34 +169,46 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
 
   y += sec1H + 4
 
-  // ── Sección 2: nombre y apellido del locatario ──
-  const sec2H = 13
+  // ── Sección 2: datos del inquilino y del pago (2 columnas x 2 filas) ──
+  const sec2H = 26
+  const sec2Row1Y = y + 6
+  const sec2Row2Y = y + 18
+  const sec2ColA = marginX + 5
+  const sec2ColB = marginX + contentW / 2 + 5
+
   doc.setDrawColor(...BORDER)
   doc.roundedRect(marginX, y, contentW, sec2H, 2, 2)
+  doc.line(marginX + contentW / 2, y, marginX + contentW / 2, y + sec2H)
+  doc.line(marginX, y + sec2H / 2, marginX + contentW, y + sec2H / 2)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(...GRAY)
-  doc.text('NOMBRE Y APELLIDO', marginX + 5, y + 5)
+  function campoSec2(label, valor, colX, rowY) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...GRAY)
+    doc.text(label, colX, rowY)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(...DARK)
+    doc.text(valor, colX, rowY + 5.5, { maxWidth: contentW / 2 - 10 })
+  }
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(...DARK)
-  doc.text(`${contrato.inquilino_apellido}, ${contrato.inquilino_nombre}`, marginX + 5, y + 10.5)
+  campoSec2('NOMBRE Y APELLIDO DEL INQUILINO', `${inquilinoApellido}, ${inquilinoNombre}`, sec2ColA, sec2Row1Y)
+  campoSec2('CUOTA', `${cuotaNumero}`, sec2ColB, sec2Row1Y)
+  campoSec2('MES', mesAnioCapitalizado(mesPeriodo), sec2ColA, sec2Row2Y)
+  campoSec2('VENCIMIENTO DEL PAGO', fmtFecha(vencimientoFecha), sec2ColB, sec2Row2Y)
 
   y += sec2H + 4
 
   // ── Sección 3: detalle ──
-  const direccion = contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar'
-  const conceptoTexto = contrato.es_compraventa
-    ? `Cuota del mes de ${mesDelPeriodo(pago.periodo_inicio)}`
-    : `Alquiler del mes de ${mesDelPeriodo(pago.periodo_inicio)} (${pago.es_periodo_actualizacion ? 'con actualización' : 'sin actualización'})`
-  const montoConcepto = recibo.monto - cargosExtra.reduce((s, c) => s + Number(c.monto), 0)
+  const conceptoTexto = esCompraventa
+    ? `Cuota del mes de ${mesDelPeriodo(mesPeriodo)}`
+    : `Alquiler del mes de ${mesDelPeriodo(mesPeriodo)} (${pago.es_periodo_actualizacion ? 'con actualización' : 'sin actualización'})`
+  const montoConcepto = recibo.monto - cargos.reduce((s, c) => s + Number(c.monto), 0)
 
   const rowH = 6
   const padTop = 9
   const padBottomExtra = 3
-  const rowsCount = 2 + cargosExtra.length // Inmueble + Concepto + cargos extra
+  const rowsCount = 2 + cargos.length // Inmueble + Concepto + cargos extra
   const sec3H = padTop + rowsCount * rowH + rowH + padBottomExtra // + fila de Total
 
   doc.setDrawColor(...BORDER)
@@ -209,7 +239,7 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
 
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...DARK)
-  cargosExtra.forEach(c => {
+  cargos.forEach(c => {
     doc.text(`+ ${c.descripcion}`, marginX + 5, itemY, { maxWidth: contentW - 45 })
     doc.text(`$ ${fmtMonto(c.monto)}`, marginX + contentW - 5, itemY, { align: 'right' })
     itemY += rowH
@@ -226,8 +256,8 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   y += sec3H + 5
 
   // ── Sección 4: leyenda del recibo ──
-  const conceptoLeyenda = contrato.es_compraventa ? 'compraventa' : 'alquiler'
-  const leyenda = `Por cuenta y orden del Propietario, recibimos de ${contrato.inquilino_nombre} ${contrato.inquilino_apellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}) en concepto de pago de ${conceptoLeyenda} del inmueble ${direccion} correspondiente al mes de ${mesDelPeriodo(pago.periodo_inicio)}.`
+  const conceptoLeyenda = esCompraventa ? 'compraventa' : 'alquiler'
+  const leyenda = `Por cuenta y orden del Propietario, recibimos de ${inquilinoNombre} ${inquilinoApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}) en concepto de pago de ${conceptoLeyenda} del inmueble ${direccion} correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}.`
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
