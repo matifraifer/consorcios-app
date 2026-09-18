@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -13,7 +12,6 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  Button,
 } from '@mui/material'
 import { getDepartamentos } from '../services/consorcios'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -23,7 +21,6 @@ export default function Departamentos() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const { clienteId } = useAuth()
-  const navigate = useNavigate()
 
   useEffect(() => {
     getDepartamentos(clienteId)
@@ -41,9 +38,6 @@ export default function Departamentos() {
         <Typography variant="h5" fontWeight="bold">
           Departamentos
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/departamentos/nuevo')}>
-          + Nuevo Departamento
-        </Button>
       </Box>
 
       <TableContainer component={Paper}>

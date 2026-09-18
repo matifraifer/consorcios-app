@@ -10,7 +10,6 @@ import Consorcios        from './features/consorcios/pages/Consorcios.jsx'
 import ConsorcioDetalle  from './features/consorcios/pages/ConsorcioDetalle.jsx'
 import NuevoConsorcio    from './features/consorcios/pages/NuevoConsorcio.jsx'
 import NuevoDepartamento       from './features/consorcios/pages/NuevoDepartamento.jsx'
-import NuevoDepartamentoGlobal from './features/consorcios/pages/NuevoDepartamentoGlobal.jsx'
 import Departamentos           from './features/consorcios/pages/Departamentos.jsx'
 import Propietarios      from './features/consorcios/pages/Propietarios.jsx'
 import NuevoPropietario  from './features/consorcios/pages/NuevoPropietario.jsx'
@@ -60,7 +59,6 @@ export default function App() {
           <Route path="/consorcios/:id"                     element={<ConsorcioDetalle />} />
           <Route path="/consorcios/:id/departamentos/nuevo" element={<NuevoDepartamento />} />
           <Route path="/departamentos"                      element={<Departamentos />} />
-          <Route path="/departamentos/nuevo"                element={<NuevoDepartamentoGlobal />} />
           <Route path="/propietarios"                       element={<Propietarios />} />
           <Route path="/propietarios/nuevo"                 element={<NuevoPropietario />} />
           <Route path="/reclamos"                           element={<Reclamos />} />
