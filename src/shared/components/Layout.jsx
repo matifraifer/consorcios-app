@@ -1,8 +1,8 @@
 import { Box, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { Outlet } from 'react-router-dom'
-import Sidebar from './Sidebar'
-import MobileBottomNav from './MobileBottomNav'
+import Sidebar from './Sidebar.jsx'
+import MobileBottomNav from './MobileBottomNav.jsx'
 
 export default function Layout() {
   const theme = useTheme()
