@@ -184,16 +184,21 @@ export async function getMetricasPropiedad(propiedadId) {
 const CLIENTE_PUBLICO_FIELDS = 'id, nombre, logo_url, portada_urls, titulo_pagina, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, coordenadas, redes_sociales, extension'
 
 export async function getClientePublico(slugOrId) {
-  // 1) intentar por extensión (slug personalizado)
+  // 1) intentar por extensión (slug personalizado) — case-insensitive, la
+  // extensión se guarda tal cual la tipeó el admin en Configuracion.jsx
   const { data: porSlug, error: e1 } = await supabase
     .from('clientes_servicio')
     .select(CLIENTE_PUBLICO_FIELDS)
-    .eq('extension', slugOrId)
+    .ilike('extension', slugOrId)
     .maybeSingle()
   if (e1) throw e1
   if (porSlug) return porSlug
 
-  // 2) fallback: buscar por UUID
+  // 2) fallback: buscar por UUID (si no es un UUID, ni siquiera intentamos —
+  // Postgres tira 22P02 en vez de "no encontrado" para un valor no-UUID)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(slugOrId)) return null
+
   const { data: porId, error: e2 } = await supabase
     .from('clientes_servicio')
     .select(CLIENTE_PUBLICO_FIELDS)
