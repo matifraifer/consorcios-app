@@ -39,7 +39,7 @@ import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { createGasto, deleteGasto, getDepartamentosConCoeficiente, getExpensasDepartamento, getGastosByPeriodo, saveExpensasDepartamento, updateGasto } from '../../features/expensas/services/expensas'
 import { enviarLiquidacionEmail } from '../../features/portal/services/portal'
-import { calcLiquidacion } from '../../utils/calcLiquidacion'
+import { calcLiquidacion } from '../../shared/utils/calcLiquidacion'
 
 const MESES_LABEL = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',

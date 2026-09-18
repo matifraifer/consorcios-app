@@ -4,7 +4,7 @@ import { Box, Typography, TextField, CircularProgress, Alert } from '@mui/materi
 import SearchIcon from '@mui/icons-material/Search'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { buscarClientesPortal, logPortalError } from '../features/portal/services/portal'
-import PortalErrorBoundary from '../components/PortalErrorBoundary'
+import PortalErrorBoundary from '../shared/components/PortalErrorBoundary'
 
 // Mismos tokens de color que PortalVecino.jsx (design system "Consorcios
 // Design System v1.0"): naranja protagonista + verde bosque de estructura.

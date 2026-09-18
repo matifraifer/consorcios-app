@@ -1,6 +1,6 @@
 import { Component } from 'react'
 import { Box, Typography, Button } from '@mui/material'
-import { logPortalError } from '../features/portal/services/portal'
+import { logPortalError } from '../../features/portal/services/portal'
 const ORANGE = '#fb3c00'
 const GREEN_900 = '#142B21'
 const GREEN_BG = '#f7faf9'

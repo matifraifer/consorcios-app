@@ -64,8 +64,8 @@ import { closePeriodo, createPeriodo, getDepartamentosConCoeficiente, getExpensa
 import { enviarLinkConsultaDeuda, enviarLiquidacionEmail, enviarLiquidacionWhatsapp } from '../features/portal/services/portal'
 import GastosPeriodoDrawer from '../components/expensas/GastosPeriodoDrawer'
 import PagosDepartamentoDialog from '../components/expensas/PagosDepartamentoDialog'
-import { calcLiquidacion } from '../utils/calcLiquidacion'
-import { calcularSaldosMora } from '../utils/calcularSaldosMora'
+import { calcLiquidacion } from '../shared/utils/calcLiquidacion'
+import { calcularSaldosMora } from '../shared/utils/calcularSaldosMora'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'

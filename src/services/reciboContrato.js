@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import { montoEnLetras } from '../utils/numeroALetras'
+import { montoEnLetras } from '../shared/utils/numeroALetras'
 
 const ACCENT  = [6, 95, 70]
 const DARK    = [15, 23, 42]

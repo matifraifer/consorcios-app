@@ -16,7 +16,7 @@ import SettingsIcon from '@mui/icons-material/Settings'
 import LogoutIcon from '@mui/icons-material/Logout'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 const ACCENT      = '#10B981'
 const TEXT_MUTED  = '#6B7C74'

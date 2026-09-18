@@ -5,7 +5,7 @@ import {
   Divider,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import { getContactos } from '../features/crm/services/crm'
+import { getContactos } from '../../features/crm/services/crm'
 const ACCENT = '#065F46'
 
 const TIPOS = ['Todos', 'Comprador', 'Vendedor', 'Arrendatario', 'Locatario']

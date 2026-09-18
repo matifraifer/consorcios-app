@@ -13,10 +13,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import { crearPreferenciaPago } from '../features/integraciones/services/mercadopago'
 import { getPortalAlquilerDni, getPortalAlquilerToken, getPortalDniExiste, getPortalExpensasDni, getPortalExpensasToken, logPortalError } from '../features/portal/services/portal'
 import { getClientePublico } from '../features/propiedades/services/propiedades'
-import { calcularSaldosMora } from '../utils/calcularSaldosMora'
+import { calcularSaldosMora } from '../shared/utils/calcularSaldosMora'
 import { computeMontoActualizado } from '../utils/actualizacionContrato'
 import { generarReciboContrato } from '../services/reciboContrato'
-import PortalErrorBoundary from '../components/PortalErrorBoundary'
+import PortalErrorBoundary from '../shared/components/PortalErrorBoundary'
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24
 

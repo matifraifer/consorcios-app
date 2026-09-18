@@ -16,8 +16,8 @@ import { crearPropiedadDesdeContrato, getPropiedades } from '../../features/prop
 import { extraerTexto } from '../../utils/extraerTextoContrato'
 import { useAuth } from '../../contexts/AuthContext'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
-import ContactoPicker from '../ContactoPicker'
-import DocumentacionRespaldatoriaSection from '../DocumentacionRespaldatoriaSection'
+import ContactoPicker from '../../shared/components/ContactoPicker'
+import DocumentacionRespaldatoriaSection from '../../shared/components/DocumentacionRespaldatoriaSection'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'

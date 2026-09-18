@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import ProtectedRoute from './components/ProtectedRoute'
-import Layout from './components/Layout'
+import ProtectedRoute from './shared/components/ProtectedRoute'
+import Layout from './shared/components/Layout'
 
 import Login             from './pages/Login'
 import OlvidePassword    from './pages/OlvidePassword'

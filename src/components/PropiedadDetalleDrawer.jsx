@@ -18,7 +18,7 @@ import ChatBubbleOutlineIcon  from '@mui/icons-material/ChatBubbleOutline'
 import DownloadIcon           from '@mui/icons-material/Download'
 import { getPropiedadContactos } from '../features/crm/services/crm'
 import { getClienteConfig, getMetricasPropiedad, getPropiedadImagenes, getPublicImageUrl } from '../features/propiedades/services/propiedades'
-import DocumentacionRespaldatoriaSection from './DocumentacionRespaldatoriaSection'
+import DocumentacionRespaldatoriaSection from '../shared/components/DocumentacionRespaldatoriaSection'
 import { generarReportePropiedad } from '../services/reportePropiedad'
 
 const ACCENT       = '#065F46'

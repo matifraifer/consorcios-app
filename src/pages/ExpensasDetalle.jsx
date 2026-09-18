@@ -42,7 +42,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { closePeriodo, createGasto, deleteGasto, getDepartamentosConCoeficiente, getExpensasDepartamento, getGastosByPeriodo, getPeriodoById, registrarPago, saveExpensasDepartamento, updateGasto } from '../features/expensas/services/expensas'
 import { enviarLiquidacionEmail } from '../features/portal/services/portal'
-import { calcLiquidacion } from '../utils/calcLiquidacion'
+import { calcLiquidacion } from '../shared/utils/calcLiquidacion'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const CATEGORIAS = ['sueldos','limpieza','mantenimiento','seguros','servicios','administracion','otros']
