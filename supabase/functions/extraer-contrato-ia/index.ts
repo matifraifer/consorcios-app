@@ -39,6 +39,8 @@ async function validarAcceso(req: Request) {
 
 const TIPOS_ACTUALIZACION = ['IPC', 'ICL', 'Otro']
 const PLAZOS_ACTUALIZACION = ['Mensual', 'Trimestral', 'Cuatrimestral', 'Semestral', 'Anual', 'Otro']
+const TIPOS_PROPIEDAD = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina', 'Otro']
+const MONEDAS = ['ARS', 'USD']
 
 const EXTRACT_TOOL = {
   name: 'datos_contrato',
@@ -65,6 +67,11 @@ const EXTRACT_TOOL = {
       servicio_agua: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de agua' },
       servicio_gas: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de gas' },
       servicio_energia: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de energía eléctrica' },
+      direccion: { type: ['string', 'null'], description: 'Dirección del inmueble alquilado' },
+      localidad: { type: ['string', 'null'], description: 'Localidad/ciudad del inmueble alquilado' },
+      provincia: { type: ['string', 'null'], description: 'Provincia del inmueble alquilado' },
+      tipo_propiedad: { type: ['string', 'null'], enum: [...TIPOS_PROPIEDAD, null], description: 'Tipo de inmueble alquilado' },
+      moneda: { type: ['string', 'null'], enum: [...MONEDAS, null], description: 'Moneda en la que se pacta el monto de alquiler' },
     },
     required: [
       'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
@@ -72,6 +79,7 @@ const EXTRACT_TOOL = {
       'fecha_inicio', 'fecha_fin', 'dia_vencimiento', 'monto_base',
       'tipo_actualizacion', 'plazo_actualizacion', 'observaciones',
       'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia',
+      'direccion', 'localidad', 'provincia', 'tipo_propiedad', 'moneda',
     ],
     additionalProperties: false,
   },
@@ -89,7 +97,10 @@ Reglas:
 - observaciones: un resumen breve (1-2 líneas) de cláusulas relevantes no cubiertas por los otros campos, o null.
 - nomenclatura_catastral: el código de nomenclatura catastral del inmueble si figura, o null.
 - servicio_agua, servicio_gas, servicio_energia: número de cuenta o de suministro de cada servicio si figuran en el contrato, o null.
-  Empresas prestadoras habituales para reconocer cada servicio (el número puede aparecer junto al nombre de la empresa o simplemente como "N° de cuenta/suministro"): OSSE es agua, Ecogas es gas, Naturgy es energía eléctrica.`
+  Empresas prestadoras habituales para reconocer cada servicio (el número puede aparecer junto al nombre de la empresa o simplemente como "N° de cuenta/suministro"): OSSE es agua, Ecogas es gas, Naturgy es energía eléctrica.
+- direccion, localidad, provincia: datos de ubicación del inmueble alquilado (no del domicilio de las partes), o null si no figuran.
+- tipo_propiedad solo puede ser uno de: ${TIPOS_PROPIEDAD.join(', ')}, o null si no se puede determinar.
+- moneda solo puede ser uno de: ${MONEDAS.join(', ')}. Si el contrato no menciona explícitamente la moneda, poné "ARS" (moneda por defecto).`
 
 function jsonError(cors: Record<string, string>, message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {

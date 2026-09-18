@@ -8,7 +8,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
-import { createContrato, updateContrato, getPropiedades, getPropietarioCRM, extraerDatosContrato, vincularContactoDesdeContrato } from '../../services/supabase'
+import { createContrato, updateContrato, getPropiedades, getPropietarioCRM, extraerDatosContrato, vincularContactoDesdeContrato, crearPropiedadDesdeContrato } from '../../services/supabase'
 import { extraerTexto } from '../../utils/extraerTextoContrato'
 import { useAuth } from '../../contexts/AuthContext'
 import PropiedadFormDrawer from '../PropiedadFormDrawer'
@@ -94,6 +94,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [extrayendo, setExtrayendo] = useState(false)
   const [extraccionMsg, setExtraccionMsg] = useState(null)
   const [cargadoIA, setCargadoIA] = useState(false)
+  const [datosPropiedadIA, setDatosPropiedadIA] = useState(null)
   const docsRef = useRef(null)
   const contratoFileRef = useRef(null)
 
@@ -103,6 +104,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     setExtraccionMsg(null)
     setPropietarioLocked(false)
     setCargadoIA(isEdit ? (contrato?.cargado_ia ?? false) : false)
+    setDatosPropiedadIA(null)
     loadPropiedades()
 
     if (isEdit && contrato) {
@@ -181,11 +183,18 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       if (PLAZOS_ACTUALIZACION.includes(datos.plazo_actualizacion)) update.plazo_actualizacion = datos.plazo_actualizacion
 
       setForm(prev => ({ ...prev, ...update }))
+      setDatosPropiedadIA({
+        direccion: datos.direccion || null,
+        localidad: datos.localidad || null,
+        provincia: datos.provincia || null,
+        tipo_propiedad: datos.tipo_propiedad || null,
+        moneda: datos.moneda || null,
+      })
       setPropietarioLocked(false)
       setCargadoIA(true)
       setExtraccionMsg({
         severity: 'info',
-        text: 'Datos completados automáticamente desde el archivo. Revisalos antes de guardar (la propiedad hay que seleccionarla a mano).',
+        text: 'Datos completados automáticamente desde el archivo. Revisalos antes de guardar. Si no vinculaste una propiedad existente, se creará una nueva automáticamente con los datos del contrato.',
       })
     } catch (err) {
       setExtraccionMsg({ severity: 'warning', text: err.message ?? 'No se pudo leer el archivo automáticamente.' })
@@ -286,14 +295,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         servicio_gas:         form.servicio_gas.trim() || null,
         servicio_energia:     form.servicio_energia.trim() || null,
       }
-      let result
-      if (isEdit) {
-        result = await updateContrato(contrato.id, payload)
-      } else {
-        result = await createContrato(payload, [], clienteId)
-      }
-      await docsRef.current?.persist(result.id)
-
+      let locador = null
       try {
         await vincularContactoDesdeContrato({
           cliente_id: clienteId,
@@ -305,7 +307,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           creado_por: user?.nombre_usuario,
           origen: cargadoIA ? 'IA' : 'APP',
         })
-        await vincularContactoDesdeContrato({
+        locador = await vincularContactoDesdeContrato({
           cliente_id: clienteId,
           nombre: payload.propietario_nombre,
           apellido: payload.propietario_apellido,
@@ -319,6 +321,29 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         // no bloquea el guardado del contrato si falla la sincronización del contacto
         console.error('No se pudo sincronizar el contacto del contrato:', contactoErr)
       }
+
+      if (!isEdit && cargadoIA && !payload.propiedad_id && datosPropiedadIA && locador) {
+        try {
+          const propiedad = await crearPropiedadDesdeContrato({
+            cliente_id: clienteId,
+            contacto_locador_id: locador.id,
+            monto_base: payload.monto_base,
+            ...datosPropiedadIA,
+          })
+          payload.propiedad_id = propiedad.id
+        } catch (propiedadErr) {
+          // no bloquea el guardado del contrato si falla la creación de la propiedad
+          console.error('No se pudo crear la propiedad desde el contrato:', propiedadErr)
+        }
+      }
+
+      let result
+      if (isEdit) {
+        result = await updateContrato(contrato.id, payload)
+      } else {
+        result = await createContrato(payload, [], clienteId)
+      }
+      await docsRef.current?.persist(result.id)
 
       onSaved(result)
       onClose()

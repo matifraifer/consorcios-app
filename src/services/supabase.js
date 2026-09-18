@@ -1559,6 +1559,46 @@ export async function setPropiedadContactos(propiedad_id, contacto_ids) {
   if (error) throw error
 }
 
+const PROVINCIAS_VALIDAS = [
+  'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+  'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+  'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan',
+  'San Luis', 'Santa Cruz', 'Santa Fe', 'Santiago del Estero',
+  'Tierra del Fuego', 'Tucumán',
+]
+const TIPOS_PROPIEDAD_VALIDOS = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina', 'Otro']
+
+export async function crearPropiedadDesdeContrato({
+  cliente_id, contacto_locador_id, direccion, localidad, provincia, tipo_propiedad, moneda, monto_base,
+}) {
+  const propiedad = await createPropiedad({
+    cliente_id,
+    titulo: `${tipo_propiedad || 'Propiedad'} en alquiler${direccion ? ` - ${direccion}` : localidad ? ` - ${localidad}` : ''}`,
+    direccion: direccion || null,
+    localidad: localidad || null,
+    provincia: PROVINCIAS_VALIDAS.includes(provincia) ? provincia : 'San Juan',
+    tipo_propiedad: TIPOS_PROPIEDAD_VALIDOS.includes(tipo_propiedad) ? tipo_propiedad : 'Otro',
+    tipo_operacion: 'Alquiler',
+    metros_cubiertos: null,
+    metros_totales: null,
+    ambientes: null,
+    dormitorios: null,
+    banios: null,
+    descripcion: 'Propiedad generada automáticamente a partir de la carga de un contrato.',
+    observaciones_internas: null,
+    precio_publicacion: Number(monto_base),
+    moneda: moneda === 'USD' ? 'USD' : 'ARS',
+    estado: 'Alquilada',
+  })
+
+  const { error } = await supabase
+    .from('contactos_propiedades')
+    .insert([{ propiedad_id: propiedad.id, contacto_id: contacto_locador_id, tipo: 'Locador' }])
+  if (error) throw error
+
+  return propiedad
+}
+
 export async function sugerirPropiedadesPorContacto({
   clienteId, tipoPropiedad, tipoOperacion, zonaInteres, presupuesto, moneda, excluirIds = [],
 }) {
