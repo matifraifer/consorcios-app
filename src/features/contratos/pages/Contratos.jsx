@@ -261,7 +261,7 @@ export default function Contratos() {
                       borderLeft: c.cargado_ia ? '3px solid #7C3AED' : '3px solid transparent',
                       '&:last-child td': { border: 0 },
                       '& td': { borderBottom: '1px solid #F3F4F6' },
-                      '&:hover': { bgcolor: '#F9FAFB', '& .row-actions': { opacity: 1 } },
+                      '&:hover': { bgcolor: '#F9FAFB' },
                     }}
                   >
                     <TableCell sx={{ py: 1.5 }}>
@@ -302,7 +302,7 @@ export default function Contratos() {
                       </Typography>
                     </TableCell>
                     <TableCell align="right" sx={{ py: 1.5, pr: 2 }}>
-                      <Box className="row-actions" sx={{ opacity: 0, transition: 'opacity 0.15s', display: 'flex', justifyContent: 'flex-end' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Tooltip title="Ver detalle">
                           <IconButton size="small" onClick={e => { e.stopPropagation(); setDetalleTarget(c) }} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
                             <VisibilityIcon sx={{ fontSize: 16 }} />

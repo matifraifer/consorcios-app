@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, Button, Divider,
   CircularProgress, Alert, Chip, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Tooltip,
+  DialogContent, DialogActions, TextField, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -174,6 +174,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [clienteConfig, setClienteConfig] = useState(null)
   const [descargandoRecibo, setDescargandoRecibo] = useState(null) // pago_id | null
   const [descargandoReciboProp, setDescargandoReciboProp] = useState(null) // pago_id | null
+  const [reciboMenu, setReciboMenu] = useState(null) // { anchorEl, pago } | null
 
   useEffect(() => {
     if (!open || !contrato) return
@@ -267,6 +268,14 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     } finally {
       setDescargandoReciboProp(null)
     }
+  }
+
+  function openReciboMenu(e, pago) {
+    setReciboMenu({ anchorEl: e.currentTarget, pago })
+  }
+
+  function closeReciboMenu() {
+    setReciboMenu(null)
   }
 
   function openPagoDialog(pago, total) {
@@ -524,33 +533,17 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                           </Button>
                         )}
                         {p.estado === 'pagado' && (
-                          <Tooltip title="Descargar recibo">
+                          <Tooltip title="Descarga de recibos">
                             <span>
                               <IconButton
                                 size="small"
-                                disabled={descargandoRecibo === p.id}
-                                onClick={() => handleDescargarRecibo(p)}
+                                disabled={descargandoRecibo === p.id || descargandoReciboProp === p.id}
+                                onClick={e => openReciboMenu(e, p)}
                                 sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
                               >
-                                {descargandoRecibo === p.id
+                                {descargandoRecibo === p.id || descargandoReciboProp === p.id
                                   ? <CircularProgress size={13} sx={{ color: ACCENT }} />
-                                  : <ReceiptLongIcon sx={{ fontSize: 15 }} />}
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
-                        {p.estado === 'pagado' && contrato.comision_gestion > 0 && (
-                          <Tooltip title="Descargar recibo de rendición (propietario)">
-                            <span>
-                              <IconButton
-                                size="small"
-                                disabled={descargandoReciboProp === p.id}
-                                onClick={() => handleDescargarReciboPropietario(p)}
-                                sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}
-                              >
-                                {descargandoReciboProp === p.id
-                                  ? <CircularProgress size={13} sx={{ color: ACCENT }} />
-                                  : <RequestQuoteIcon sx={{ fontSize: 15 }} />}
+                                  : <DownloadIcon sx={{ fontSize: 15 }} />}
                               </IconButton>
                             </span>
                           </Tooltip>
@@ -700,6 +693,31 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
         onClose={() => setPagoDialog(null)}
         onPaid={handlePaid}
       />
+
+      {/* Menú de descarga de recibos */}
+      <Menu
+        anchorEl={reciboMenu?.anchorEl}
+        open={!!reciboMenu}
+        onClose={closeReciboMenu}
+        slotProps={{ paper: { sx: { borderRadius: '10px', minWidth: 220 } } }}
+      >
+        <MenuItem
+          onClick={() => { handleDescargarRecibo(reciboMenu.pago); closeReciboMenu() }}
+          sx={{ fontSize: '0.85rem' }}
+        >
+          <ListItemIcon><ReceiptLongIcon sx={{ fontSize: 18, color: ACCENT }} /></ListItemIcon>
+          <ListItemText>Recibo del inquilino</ListItemText>
+        </MenuItem>
+        {contrato.comision_gestion > 0 && (
+          <MenuItem
+            onClick={() => { handleDescargarReciboPropietario(reciboMenu.pago); closeReciboMenu() }}
+            sx={{ fontSize: '0.85rem' }}
+          >
+            <ListItemIcon><RequestQuoteIcon sx={{ fontSize: 18, color: ACCENT }} /></ListItemIcon>
+            <ListItemText>Recibo del propietario</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
     </>
   )
 }

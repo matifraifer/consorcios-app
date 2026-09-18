@@ -37,7 +37,7 @@ export default function AlquileresKPIs({ vencidoTotal, corrienteTotal, corriente
         <Box display="flex" alignItems="center" gap={1}>
           <HomeWorkIcon sx={{ fontSize: 16, color: '#065F46' }} />
           <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
-            Alquileres por cobrar
+            Alquileres por cobrar 
           </Typography>
         </Box>
       </Box>
@@ -49,7 +49,7 @@ export default function AlquileresKPIs({ vencidoTotal, corrienteTotal, corriente
           <KPI label="Alquileres pendientes de cobrar" value={fmt(corrienteTotal)} accent="#F59E0B" />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <KPI label="Cantidad de alquileres por cobrar" value={corrienteCount} accent="#065F46" />
+          <KPI label="Cantidad de alquileres por cobrar del mes" value={corrienteCount} accent="#065F46" />
         </Grid>
       </Grid>
     </Box>
