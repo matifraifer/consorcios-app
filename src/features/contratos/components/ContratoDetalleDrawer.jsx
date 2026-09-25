@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, Button, Divider,
   CircularProgress, Alert, Chip, Dialog, DialogTitle,
@@ -336,6 +336,20 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     }
   }
 
+  // Recalcula es_periodo_actualizacion y monto acumulado para cada período.
+  // Memoizado: es un cálculo O(n²) sobre todos los pagos del contrato, no debe
+  // repetirse en cada render (ej. al abrir el menú de descarga de recibos).
+  // Va antes del "if (!contrato) return null" de abajo porque los Hooks no
+  // pueden llamarse condicionalmente.
+  const pagosConMonto = useMemo(() => {
+    if (!contrato) return []
+    return pagos.map(p => ({
+      ...p,
+      es_periodo_actualizacion: esActualizacion(p.periodo_numero, contrato.plazo_actualizacion),
+      monto_actualizado: computeMontoActualizado(p, pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion),
+    }))
+  }, [pagos, indices, contrato?.tipo_actualizacion, contrato?.plazo_actualizacion])
+
   if (!contrato) return null
 
   const estado = contrato.finalizado
@@ -348,16 +362,6 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     Finalizado: { bg: '#F1F5F9', color: '#94A3B8', border: '#E2E8F0' },
   }
   const es = estadoStyles[estado]
-
-  // Recalcula es_periodo_actualizacion y monto acumulado para cada período
-  const pagosConMonto = pagos.map(p => {
-    const esActu = esActualizacion(p.periodo_numero, contrato.plazo_actualizacion)
-    return {
-      ...p,
-      es_periodo_actualizacion: esActu,
-      monto_actualizado: computeMontoActualizado(p, pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion),
-    }
-  })
 
   const hasIndicesLoaded = indices.some(i => i.tipo === contrato.tipo_actualizacion)
 

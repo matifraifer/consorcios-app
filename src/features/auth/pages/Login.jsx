@@ -19,6 +19,11 @@ const loginStyles = (
       0%, 100% { opacity: 0.06; }
       50%       { opacity: 0.13; }
     }
+    @keyframes kenBurns {
+      0%   { transform: scale(1) translate(0, 0); }
+      50%  { transform: scale(1.035) translate(-0.5%, -0.3%); }
+      100% { transform: scale(1) translate(0, 0); }
+    }
     @keyframes floatDot {
       0%, 100% { transform: translateY(0px); }
       50%       { transform: translateY(-10px); }
@@ -49,7 +54,7 @@ const loginStyles = (
       font-size: 13px !important;
     }
     .login-field label.Mui-focused {
-      color: #065F46 !important;
+      color: #F97316 !important;
     }
     .login-field .MuiOutlinedInput-root fieldset {
       border-color: #E5E5E0 !important;
@@ -60,7 +65,7 @@ const loginStyles = (
       border-color: #C8C8C0 !important;
     }
     .login-field .MuiOutlinedInput-root.Mui-focused fieldset {
-      border-color: #065F46 !important;
+      border-color: #F97316 !important;
     }
     .login-field .MuiOutlinedInput-root {
       background: #FAFAF8 !important;
@@ -74,7 +79,7 @@ const loginStyles = (
     }
 
     .submit-btn {
-      background: #065F46 !important;
+      background: #F97316 !important;
       color: #ffffff !important;
       font-family: 'Poppins', sans-serif !important;
       font-weight: 600 !important;
@@ -87,16 +92,16 @@ const loginStyles = (
       box-shadow: none !important;
     }
     .submit-btn:hover:not(:disabled) {
-      background: #047857 !important;
+      background: #EA580C !important;
       transform: translateY(-1px) !important;
-      box-shadow: 0 10px 28px rgba(6,95,70,0.25) !important;
+      box-shadow: 0 10px 28px rgba(249,115,22,0.3) !important;
     }
     .submit-btn:active {
       transform: translateY(0px) !important;
     }
     .submit-btn:disabled {
-      background: #D1FAE5 !important;
-      color: #6EE7B7 !important;
+      background: #FED7AA !important;
+      color: #FDBA74 !important;
     }
   `} />
 )
@@ -196,6 +201,18 @@ export default function Login() {
             overflow: 'hidden',
           }}
         >
+          {/* Foto de fondo con efecto Ken Burns */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: -20,
+              backgroundImage: 'url(/Home0.webp)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              animation: 'kenBurns 40s ease-in-out infinite',
+            }}
+          />
+
           {/* Grid sutil */}
           <Box
             sx={{
@@ -313,7 +330,7 @@ export default function Login() {
                 fontFamily: "'Poppins', sans-serif",
                 fontWeight: 300,
                 fontSize: 13.5,
-                color: 'rgba(255,255,255,0.45)',
+                color: 'rgba(255,255,255,0.85)',
                 lineHeight: 1.75,
                 maxWidth: 280,
                 animation: 'fadeUp 0.8s 0.4s ease both',
@@ -495,7 +512,7 @@ export default function Login() {
                 type="submit"
                 fullWidth
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} sx={{ color: '#6EE7B7' }} /> : null}
+                startIcon={loading ? <CircularProgress size={16} sx={{ color: '#a23d07' }} /> : null}
               >
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </Button>
@@ -534,7 +551,6 @@ export default function Login() {
                 letterSpacing: '0.04em',
               }}
             >
-              acceso restringido — solo personal autorizado
             </Typography>
           </Box>
         </Box>

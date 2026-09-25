@@ -36,14 +36,51 @@ function generarPagos(contratoId, fechaInicio, fechaFin, montoBase, plazoActuali
   return pagos
 }
 
-export async function getContratos(cliente_id) {
-  const { data, error } = await supabase
+// Escapa caracteres que rompen la sintaxis de filtros de PostgREST (or/ilike separados por coma)
+function sanitizeFiltro(v) {
+  return v.replace(/[,()%]/g, ' ').trim()
+}
+
+export async function getContratos(cliente_id, filters = {}, { page = 0, pageSize = 25 } = {}) {
+  // Filtrar por propiedades.titulo sobre una relación embebida requiere inner join,
+  // si no PostgREST ignora el filtro y devuelve igual los contratos sin esa propiedad.
+  const propiedadesSelect = filters.busqPropiedad
+    ? 'propiedades!inner(id, titulo, localidad, direccion)'
+    : 'propiedades(id, titulo, localidad, direccion)'
+
+  let query = supabase
     .from('contratos')
-    .select('*, propiedades(id, titulo, localidad, direccion)')
+    .select(`*, ${propiedadesSelect}`, { count: 'exact' })
     .eq('cliente_id', cliente_id)
+
+  if (filters.busqInquilino) {
+    const q = sanitizeFiltro(filters.busqInquilino)
+    query = query.or(`inquilino_nombre.ilike.%${q}%,inquilino_apellido.ilike.%${q}%`)
+  }
+  if (filters.busqPropietario) {
+    const q = sanitizeFiltro(filters.busqPropietario)
+    query = query.or(`propietario_nombre.ilike.%${q}%,propietario_apellido.ilike.%${q}%`)
+  }
+  if (filters.busqPropiedad) {
+    query = query.ilike('propiedades.titulo', `%${sanitizeFiltro(filters.busqPropiedad)}%`)
+  }
+  if (filters.filtroEstado === 'Finalizado') {
+    query = query.eq('finalizado', true)
+  } else if (filters.filtroEstado === 'Vigente' || filters.filtroEstado === 'Vencido') {
+    const today = new Date().toISOString().slice(0, 10)
+    query = query.eq('finalizado', false)
+    query = filters.filtroEstado === 'Vigente' ? query.gte('fecha_fin', today) : query.lt('fecha_fin', today)
+  }
+  if (filters.filtroFechaDesde) query = query.gte('fecha_fin', filters.filtroFechaDesde)
+  if (filters.filtroFechaHasta) query = query.lte('fecha_inicio', filters.filtroFechaHasta)
+
+  const from = page * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await query
     .order('created_at', { ascending: false })
+    .range(from, to)
   if (error) throw error
-  return data ?? []
+  return { data: data ?? [], count: count ?? 0 }
 }
 
 export async function createContrato(payload, files, clienteId) {

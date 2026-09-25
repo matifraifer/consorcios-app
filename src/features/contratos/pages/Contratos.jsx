@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Alert, CircularProgress, Button, TextField,
   Select, MenuItem, FormControl, IconButton, Tooltip, Snackbar,
-  InputAdornment,
+  InputAdornment, TablePagination,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
@@ -68,17 +68,26 @@ export default function Contratos() {
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
 
   const [contratos, setContratos] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
   const [indices, setIndices] = useState([])
+  const [indicesLoaded, setIndicesLoaded] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [snackMsg, setSnackMsg] = useState('')
 
-  // Filtros
+  // Filtros: valores del formulario (se aplican recién al tocar "Aplicar filtros")
   const [busqInquilino, setBusqInquilino] = useState('')
   const [busqPropietario, setBusqPropietario] = useState('')
+  const [busqPropiedad, setBusqPropiedad] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('')
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('')
+
+  // Filtros efectivamente aplicados a la consulta a Supabase
+  const [appliedFilters, setAppliedFilters] = useState({})
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(25)
 
   // Drawers / Dialogs
   const [formOpen, setFormOpen] = useState(false)
@@ -87,38 +96,50 @@ export default function Contratos() {
   const [indicesOpen, setIndicesOpen] = useState(false)
 
   async function load() {
+    setLoading(true)
     try {
-      const [data, idx] = await Promise.all([getContratos(clienteId), getIndicesActualizacion()])
+      const { data, count } = await getContratos(clienteId, appliedFilters, { page, pageSize: rowsPerPage })
       setContratos(data)
-      // Incluye los propios + los "externo" de otros clientes (necesarios para calcular actualizaciones)
-      setIndices(idx)
+      setTotalCount(count)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+      setInitialLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [clienteId, appliedFilters, page, rowsPerPage])
 
-  const filtered = useMemo(() => {
-    return contratos.filter(c => {
-      const estado = getEstado(c)
-      const inquilino = `${c.inquilino_nombre} ${c.inquilino_apellido}`.toLowerCase()
-      const propietario = `${c.propietario_nombre} ${c.propietario_apellido}`.toLowerCase()
+  // Índices IPC/ICL: se usan para calcular actualizaciones en el detalle de un
+  // contrato y en el dialog "Índices" — se traen recién al abrir cualquiera de
+  // los dos por primera vez, no en cada filtro/página de la grilla.
+  async function ensureIndicesLoaded() {
+    if (indicesLoaded) return
+    setIndicesLoaded(true)
+    try {
+      // Incluye los propios + los "externo" de otros clientes (necesarios para calcular actualizaciones)
+      setIndices(await getIndicesActualizacion())
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
-      if (busqInquilino && !inquilino.includes(busqInquilino.toLowerCase())) return false
-      if (busqPropietario && !propietario.includes(busqPropietario.toLowerCase())) return false
-      if (filtroEstado && estado !== filtroEstado) return false
-      if (filtroFechaDesde && c.fecha_fin < filtroFechaDesde) return false
-      if (filtroFechaHasta && c.fecha_inicio > filtroFechaHasta) return false
-      return true
-    })
-  }, [contratos, busqInquilino, busqPropietario, filtroEstado, filtroFechaDesde, filtroFechaHasta])
+  function handleAplicarFiltros() {
+    setPage(0)
+    setAppliedFilters({ busqInquilino, busqPropietario, busqPropiedad, filtroEstado, filtroFechaDesde, filtroFechaHasta })
+  }
+
+  function handleLimpiarFiltros() {
+    setBusqInquilino(''); setBusqPropietario(''); setBusqPropiedad('')
+    setFiltroEstado(''); setFiltroFechaDesde(''); setFiltroFechaHasta('')
+    setPage(0)
+    setAppliedFilters({})
+  }
 
   function handleSaved(contrato) {
-    setContratos(prev => [contrato, ...prev])
     setSnackMsg(`Contrato de "${contrato.inquilino_nombre} ${contrato.inquilino_apellido}" creado.`)
+    load()
   }
 
   function handleUpdated(contrato) {
@@ -138,9 +159,9 @@ export default function Contratos() {
     setSnackMsg('Contrato finalizado.')
   }
 
-  const activeFilters = [busqInquilino, busqPropietario, filtroEstado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
+  const activeFilters = [busqInquilino, busqPropietario, busqPropiedad, filtroEstado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
 
-  if (loading) return <Box display="flex" justifyContent="center" mt={6}><CircularProgress sx={{ color: ACCENT }} /></Box>
+  if (initialLoading) return <Box display="flex" justifyContent="center" mt={6}><CircularProgress sx={{ color: ACCENT }} /></Box>
   if (error) return <Alert severity="error">{error}</Alert>
 
   return (
@@ -161,7 +182,7 @@ export default function Contratos() {
               <Button
                 variant="outlined"
                 startIcon={<TuneIcon sx={{ fontSize: 16 }} />}
-                onClick={() => setIndicesOpen(true)}
+                onClick={() => { ensureIndicesLoaded(); setIndicesOpen(true) }}
                 sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', borderColor: '#E5E7EB', color: '#6B7280', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: ACCENT_LIGHT } }}
               >
                 Índices
@@ -194,6 +215,12 @@ export default function Contratos() {
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 17, color: '#9CA3AF' }} /></InputAdornment> } }}
             sx={{ minWidth: 200, flex: 1, '& .MuiOutlinedInput-root': { borderRadius: '8px', fontSize: '0.82rem', bgcolor: 'white', '& fieldset': { borderColor: '#E5E7EB' }, '&:hover fieldset': { borderColor: ACCENT }, '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 } } }}
           />
+          <TextField
+            size="small" placeholder="Buscar propiedad..."
+            value={busqPropiedad} onChange={e => setBusqPropiedad(e.target.value)}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 17, color: '#9CA3AF' }} /></InputAdornment> } }}
+            sx={{ minWidth: 200, flex: 1, '& .MuiOutlinedInput-root': { borderRadius: '8px', fontSize: '0.82rem', bgcolor: 'white', '& fieldset': { borderColor: '#E5E7EB' }, '&:hover fieldset': { borderColor: ACCENT }, '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 } } }}
+          />
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select value={filtroEstado} displayEmpty onChange={e => setFiltroEstado(e.target.value)} sx={selectSx}>
               <MenuItem value="" sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>Estado</MenuItem>
@@ -212,36 +239,47 @@ export default function Contratos() {
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ width: 160, '& .MuiOutlinedInput-root': { borderRadius: '8px', fontSize: '0.82rem', '& fieldset': { borderColor: '#E5E7EB' }, '&:hover fieldset': { borderColor: ACCENT } } }}
           />
+        </Box>
+        <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1.5} mt={1.5}>
+          <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+            {totalCount} contrato{totalCount !== 1 ? 's' : ''}
+          </Typography>
           {activeFilters > 0 && (
             <Button size="small"
-              onClick={() => { setBusqInquilino(''); setBusqPropietario(''); setFiltroEstado(''); setFiltroFechaDesde(''); setFiltroFechaHasta('') }}
+              onClick={handleLimpiarFiltros}
               sx={{ fontSize: '0.75rem', color: '#6B7280', textTransform: 'none', borderRadius: '7px', px: 1.5, '&:hover': { bgcolor: '#F3F4F6' } }}>
               Limpiar ({activeFilters})
             </Button>
           )}
-        </Box>
-        <Box display="flex" justifyContent="flex-end" mt={1}>
-          <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-            {filtered.length} contrato{filtered.length !== 1 ? 's' : ''}
-          </Typography>
+          <Button
+            size="small" variant="contained"
+            onClick={handleAplicarFiltros}
+            sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.78rem', boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}>
+            Aplicar filtros
+          </Button>
         </Box>
       </Paper>
 
       {/* Tabla */}
-      <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #E5E7EB', position: 'relative' }}>
+        {loading && (
+          <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+            <CircularProgress size={26} sx={{ color: ACCENT }} />
+          </Box>
+        )}
         <TableContainer>
-          <Table>
+          <Table size="small" sx={{ '& td, & th': { px: 1.25 } }}>
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
                 {['Inquilino', 'Propietario', 'Propiedad', 'Inicio', 'Fin', 'Estado', 'Monto', ''].map((label, i) => (
-                  <TableCell key={i} sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#6B7280', letterSpacing: '0.05em', textTransform: 'uppercase', py: 1.5, borderBottom: '1px solid #E5E7EB' }}>
+                  <TableCell key={i} sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#6B7280', letterSpacing: '0.05em', textTransform: 'uppercase', py: 1, borderBottom: '1px solid #E5E7EB' }}>
                     {label}
                   </TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.length === 0 ? (
+              {contratos.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} sx={{ py: 8, textAlign: 'center', border: 0 }}>
                     <DescriptionIcon sx={{ fontSize: 32, color: '#E5E7EB', mb: 1, display: 'block', mx: 'auto' }} />
@@ -250,12 +288,12 @@ export default function Contratos() {
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : filtered.map(c => {
+              ) : contratos.map(c => {
                 const estado = getEstado(c)
                 return (
                   <TableRow
                     key={c.id}
-                    onClick={() => setDetalleTarget(c)}
+                    onClick={() => { ensureIndicesLoaded(); setDetalleTarget(c) }}
                     sx={{
                       cursor: 'pointer',
                       borderLeft: c.cargado_ia ? '3px solid #7C3AED' : '3px solid transparent',
@@ -264,47 +302,47 @@ export default function Contratos() {
                       '&:hover': { bgcolor: '#F9FAFB' },
                     }}
                   >
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell sx={{ py: 1 }}>
                       <Box display="flex" alignItems="center" gap={0.6}>
-                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827' }}>
                           {c.inquilino_apellido}, {c.inquilino_nombre}
                         </Typography>
                         {c.cargado_ia && (
                           <Tooltip title="Contrato cargado con autocompletado por IA">
-                            <Box component="span" sx={{ display: 'inline-block', px: 0.7, py: 0.1, borderRadius: '5px', bgcolor: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+                            <Box component="span" sx={{ display: 'inline-block', px: 0.7, py: 0.1, borderRadius: '5px', bgcolor: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em' }}>
                               IA
                             </Box>
                           </Tooltip>
                         )}
                       </Box>
-                      {c.inquilino_dni && <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF' }}>DNI {c.inquilino_dni}</Typography>}
+                      {c.inquilino_dni && <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF' }}>DNI {c.inquilino_dni}</Typography>}
                     </TableCell>
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.82rem', color: '#374151' }}>
+                    <TableCell sx={{ py: 1 }}>
+                      <Typography sx={{ fontSize: '0.78rem', color: '#374151' }}>
                         {c.propietario_apellido}, {c.propietario_nombre}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 1.5, maxWidth: 160 }}>
-                      <Typography sx={{ fontSize: '0.82rem', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <TableCell sx={{ py: 1, maxWidth: 260 }}>
+                      <Typography sx={{ fontSize: '0.78rem', color: '#111827', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.3 }}>
                         {c.propiedades?.titulo ?? '—'}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.78rem', color: '#6B7280' }}>{fmtDate(c.fecha_inicio)}</Typography>
+                    <TableCell sx={{ py: 1 }}>
+                      <Typography sx={{ fontSize: '0.74rem', color: '#6B7280' }}>{fmtDate(c.fecha_inicio)}</Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.78rem', color: '#6B7280' }}>{fmtDate(c.fecha_fin)}</Typography>
+                    <TableCell sx={{ py: 1 }}>
+                      <Typography sx={{ fontSize: '0.74rem', color: '#6B7280' }}>{fmtDate(c.fecha_fin)}</Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 1.5 }}><EstadoBadge estado={estado} /></TableCell>
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                    <TableCell sx={{ py: 1 }}><EstadoBadge estado={estado} /></TableCell>
+                    <TableCell sx={{ py: 1 }}>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
                         $ {fmt(c.monto_base)}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right" sx={{ py: 1.5, pr: 2 }}>
+                    <TableCell align="right" sx={{ py: 1, pr: 2 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Tooltip title="Ver detalle">
-                          <IconButton size="small" onClick={e => { e.stopPropagation(); setDetalleTarget(c) }} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
+                          <IconButton size="small" onClick={e => { e.stopPropagation(); ensureIndicesLoaded(); setDetalleTarget(c) }} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
                             <VisibilityIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
@@ -323,6 +361,18 @@ export default function Contratos() {
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={totalCount}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          labelRowsPerPage="Filas por página"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+          sx={{ borderTop: '1px solid #E5E7EB', '.MuiTablePagination-toolbar': { fontSize: '0.8rem' } }}
+        />
       </Paper>
 
       <ContratoFormDrawer
