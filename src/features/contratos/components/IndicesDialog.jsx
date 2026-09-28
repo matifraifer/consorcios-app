@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, Dialog, DialogTitle, DialogContent, DialogActions,
   Button, IconButton, TextField, Select, MenuItem, FormControl,
-  CircularProgress, Alert, Divider, Tabs, Tab, Tooltip, Checkbox, FormControlLabel,
+  CircularProgress, Alert, Divider, Tabs, Tab, Tooltip, Checkbox, FormControlLabel, Pagination,
 } from '@mui/material'
 import PublicIcon from '@mui/icons-material/Public'
 import CloseIcon from '@mui/icons-material/Close'
@@ -13,9 +13,15 @@ import { deleteIndice, upsertIndice } from '../services/contratos'
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
-const TIPOS = ['IPC', 'ICL']
+const TIPOS_BASE = ['IPC', 'ICL']
+// Valores reservados que no pueden usarse como nombre de un índice propio
+// ("Otro" es la opción de actualización sin índice en ContratoFormDrawer).
+const TIPOS_RESERVADOS = [...TIPOS_BASE, 'OTRO']
+const MAX_TIPO_LENGTH = 20
 const MESES_LABEL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MESES_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+const PAGE_SIZE = 12
 
 const currentYear = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
@@ -127,12 +133,50 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
   const [newExterno, setNewExterno] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
+  // Índices propios creados en esta sesión que todavía no tienen valores cargados
+  // (los que ya tienen valores se derivan de `indices`).
+  const [nuevosTipos, setNuevosTipos] = useState([])
+  const [nuevoTipoOpen, setNuevoTipoOpen] = useState(false)
+  const [nuevoTipoNombre, setNuevoTipoNombre] = useState('')
+  const [nuevoTipoError, setNuevoTipoError] = useState(null)
 
-  const tipo = TIPOS[tab]
+  const tiposPropios = [...new Set([...indices.map(i => i.tipo), ...nuevosTipos])]
+    .filter(t => !TIPOS_BASE.includes(t))
+    .sort((a, b) => a.localeCompare(b))
+  const tipos = [...TIPOS_BASE, ...tiposPropios]
+  const tipo = tipos[Math.min(tab, tipos.length - 1)]
 
   const filtered = indices
     .filter(i => i.tipo === tipo)
-    .sort((a, b) => a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes)
+    .sort((a, b) => a.anio !== b.anio ? b.anio - a.anio : b.mes - a.mes)
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  useEffect(() => { setPage(1) }, [tab, open])
+
+  function openNuevoTipo() {
+    setNuevoTipoNombre('')
+    setNuevoTipoError(null)
+    setNuevoTipoOpen(true)
+  }
+
+  function handleCrearTipo() {
+    const nombre = nuevoTipoNombre.trim()
+    if (!nombre) { setNuevoTipoError('Ingrese un nombre.'); return }
+    if (nombre.length > MAX_TIPO_LENGTH) { setNuevoTipoError(`Máximo ${MAX_TIPO_LENGTH} caracteres.`); return }
+    const existente = tipos.find(t => t.toUpperCase() === nombre.toUpperCase())
+    if (existente || TIPOS_RESERVADOS.includes(nombre.toUpperCase())) {
+      setNuevoTipoError('Ya existe un índice con ese nombre.')
+      return
+    }
+    const nextTipos = [...TIPOS_BASE, ...[...tiposPropios, nombre].sort((a, b) => a.localeCompare(b))]
+    setNuevosTipos(prev => [...prev, nombre])
+    setTab(nextTipos.indexOf(nombre))
+    setNuevoTipoOpen(false)
+  }
 
   function handleUpdate(updated) {
     onIndicesChange(prev => prev.map(i => i.id === updated.id ? updated : i))
@@ -180,18 +224,27 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
       <Divider />
 
       <DialogContent sx={{ p: 0 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            px: 3, borderBottom: '1px solid #E5E7EB',
-            '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', minHeight: 44 },
-            '& .MuiTabs-indicator': { bgcolor: ACCENT },
-            '& .Mui-selected': { color: `${ACCENT} !important` },
-          }}
-        >
-          {TIPOS.map(t => <Tab key={t} label={t} />)}
-        </Tabs>
+        <Box display="flex" alignItems="center" sx={{ px: 3, borderBottom: '1px solid #E5E7EB' }}>
+          <Tabs
+            value={tipos.indexOf(tipo)}
+            onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              flex: 1, minWidth: 0,
+              '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', minHeight: 44 },
+              '& .MuiTabs-indicator': { bgcolor: ACCENT },
+              '& .Mui-selected': { color: `${ACCENT} !important` },
+            }}
+          >
+            {tipos.map(t => <Tab key={t} label={t} />)}
+          </Tabs>
+          <Tooltip title="Agregar un índice propio">
+            <IconButton size="small" onClick={openNuevoTipo} sx={{ color: ACCENT, ml: 1, flexShrink: 0 }}>
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
 
         <Box sx={{ px: 3, py: 2 }}>
           {/* Agregar nuevo */}
@@ -260,11 +313,27 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
               </Typography>
             </Box>
           ) : (
-            <Box display="flex" flexDirection="column" gap={0.75}>
-              {filtered.map(i => (
-                <IndiceRow key={i.id} indice={i} onDelete={handleDelete} onUpdate={handleUpdate} />
-              ))}
-            </Box>
+            <>
+              <Box display="flex" flexDirection="column" gap={0.75}>
+                {pageItems.map(i => (
+                  <IndiceRow key={i.id} indice={i} onDelete={handleDelete} onUpdate={handleUpdate} />
+                ))}
+              </Box>
+              {pageCount > 1 && (
+                <Box display="flex" alignItems="center" justifyContent="space-between" mt={2} gap={1} flexWrap="wrap">
+                  <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                    {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+                  </Typography>
+                  <Pagination
+                    size="small"
+                    count={pageCount}
+                    page={currentPage}
+                    onChange={(_, p) => setPage(p)}
+                    sx={{ '& .Mui-selected': { bgcolor: `${ACCENT} !important`, color: '#fff' } }}
+                  />
+                </Box>
+              )}
+            </>
           )}
         </Box>
       </DialogContent>
@@ -274,6 +343,38 @@ export default function IndicesDialog({ open, onClose, indices, onIndicesChange,
           Cerrar
         </Button>
       </DialogActions>
+
+      <Dialog open={nuevoTipoOpen} onClose={() => setNuevoTipoOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A', pb: 1 }}>Nuevo índice</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.75rem', color: '#9CA3AF', mb: 1.5 }}>
+            Creá un índice propio (por ejemplo, RIPTE o CAC) para cargar sus valores mensuales y usarlo en tus contratos.
+          </Typography>
+          <TextField
+            autoFocus fullWidth size="small"
+            placeholder="Nombre del índice"
+            value={nuevoTipoNombre}
+            onChange={e => { setNuevoTipoNombre(e.target.value); setNuevoTipoError(null) }}
+            onKeyDown={e => { if (e.key === 'Enter') handleCrearTipo() }}
+            error={!!nuevoTipoError}
+            helperText={nuevoTipoError}
+            slotProps={{ htmlInput: { maxLength: MAX_TIPO_LENGTH } }}
+            sx={fieldSx}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setNuevoTipoOpen(false)} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280', fontWeight: 600 }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCrearTipo}
+            sx={{ bgcolor: ACCENT, textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            Crear
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   )
 }

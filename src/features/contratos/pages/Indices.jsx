@@ -7,9 +7,14 @@ import TimelineIcon from '@mui/icons-material/Timeline'
 import { getIndicesActualizacion } from '../services/contratos'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import GraficoIndices from '../components/GraficoIndices.jsx'
-import { agruparIndices, labelPeriodoLargo, PERIODOS } from '../utils/agruparIndices.js'
+import { agruparIndices, labelPeriodoLargo, listarTiposIndices, PERIODOS } from '../utils/agruparIndices.js'
 
 const ACCENT = '#065F46'
+
+const FUENTES = {
+  IPC: 'Datos obtenidos de INDEC',
+  ICL: 'Datos obtenidos de BCRA',
+}
 
 const selectSx = {
   fontSize: '0.82rem', borderRadius: '8px', bgcolor: 'white',
@@ -81,8 +86,11 @@ export default function Indices() {
       .finally(() => setLoading(false))
   }, [clienteId])
 
-  const ipc = useMemo(() => agruparIndices(indices.filter(i => i.tipo === 'IPC'), periodo), [indices, periodo])
-  const icl = useMemo(() => agruparIndices(indices.filter(i => i.tipo === 'ICL'), periodo), [indices, periodo])
+  const tablas = useMemo(() => listarTiposIndices(indices).map(({ tipo, color }) => ({
+    tipo,
+    color,
+    filas: agruparIndices(indices.filter(i => i.tipo === tipo), periodo),
+  })), [indices, periodo])
 
   if (loading) return <Box display="flex" justifyContent="center" mt={6}><CircularProgress sx={{ color: ACCENT }} /></Box>
   if (error) return <Alert severity="error">{error}</Alert>
@@ -127,8 +135,16 @@ export default function Indices() {
 
           {/* Tablas */}
           <Box display="flex" gap={2.5} flexWrap="wrap">
-            <TablaIndices titulo="Índices IPC" fuente="Datos obtenidos de INDEC" color="#2a78d6" filas={ipc} periodo={periodo} />
-            <TablaIndices titulo="Índices ICL" fuente="Datos obtenidos de BCRA" color="#eb6834" filas={icl} periodo={periodo} />
+            {tablas.map(({ tipo, color, filas }) => (
+              <TablaIndices
+                key={tipo}
+                titulo={`Índices ${tipo}`}
+                fuente={FUENTES[tipo] ?? 'Cargado manualmente'}
+                color={color}
+                filas={filas}
+                periodo={periodo}
+              />
+            ))}
           </Box>
         </>
       )}

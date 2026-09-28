@@ -83,7 +83,7 @@ function SectionTitle({ children }) {
   )
 }
 
-export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, mode = 'new', contrato = null }) {
+export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, mode = 'new', contrato = null, indices = [] }) {
   const isEdit = mode === 'edit'
   const { user } = useAuth()
 
@@ -102,6 +102,13 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [datosPropiedadIA, setDatosPropiedadIA] = useState(null)
   const docsRef = useRef(null)
   const contratoFileRef = useRef(null)
+
+  // IPC/ICL + índices propios cargados desde el dialog "Índices" (+ el valor
+  // actual del contrato, por si su índice ya no tiene valores cargados) + "Otro".
+  const tiposPropios = [...new Set([...indices.map(i => i.tipo), form.tipo_actualizacion])]
+    .filter(t => t && !TIPOS_ACTUALIZACION.includes(t))
+    .sort((a, b) => a.localeCompare(b))
+  const tiposActualizacion = [...TIPOS_ACTUALIZACION.filter(t => t !== 'Otro'), ...tiposPropios, 'Otro']
 
   useEffect(() => {
     if (!open) return
@@ -641,7 +648,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               <FormControl fullWidth size="small">
                 <Select value={form.tipo_actualizacion} onChange={e => set('tipo_actualizacion', e.target.value)} displayEmpty sx={selectSx}>
                   <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
-                  {TIPOS_ACTUALIZACION.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
+                  {tiposActualizacion.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
                 </Select>
               </FormControl>
             </Box>

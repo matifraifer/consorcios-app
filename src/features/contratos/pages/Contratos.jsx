@@ -65,7 +65,8 @@ const selectSx = {
 
 export default function Contratos() {
   const { clienteId, user } = useAuth()
-  const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const rol = user?.rol?.toLowerCase()
+  const canManageIndices = rol === 'admin' || rol === 'inmo'
 
   const [contratos, setContratos] = useState([])
   const [totalCount, setTotalCount] = useState(0)
@@ -150,6 +151,7 @@ export default function Contratos() {
   }
 
   function handleEdit(contrato) {
+    ensureIndicesLoaded()
     setEditTarget(contrato)
   }
 
@@ -177,7 +179,7 @@ export default function Contratos() {
           </Typography>
         </Box>
         <Box display="flex" gap={1.5}>
-          {isAdmin && (
+          {canManageIndices && (
             <Tooltip title="Gestionar índices IPC / ICL">
               <Button
                 variant="outlined"
@@ -192,7 +194,7 @@ export default function Contratos() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setFormOpen(true)}
+            onClick={() => { ensureIndicesLoaded(); setFormOpen(true) }}
             sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem', px: 2, py: 1, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
           >
             Nuevo contrato
@@ -379,6 +381,7 @@ export default function Contratos() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         clienteId={clienteId}
+        indices={indices}
         onSaved={handleSaved}
       />
 
@@ -388,6 +391,7 @@ export default function Contratos() {
         clienteId={clienteId}
         mode="edit"
         contrato={editTarget}
+        indices={indices}
         onSaved={handleUpdated}
       />
 

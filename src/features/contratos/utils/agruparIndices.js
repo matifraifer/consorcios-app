@@ -8,6 +8,22 @@ export const PERIODOS = {
   anual: { label: 'Anual', meses: 12 },
 }
 
+const COLORES_BASE = { IPC: '#2a78d6', ICL: '#eb6834' }
+const COLORES_EXTRA = ['#7c3aed', '#0891b2', '#db2777', '#ca8a04', '#16a34a', '#64748b']
+
+// Tipos presentes en `indices` (IPC/ICL primero, después los propios en orden
+// alfabético), cada uno con un color estable según su posición.
+export function listarTiposIndices(indices) {
+  const extras = [...new Set(indices.map(i => i.tipo))]
+    .filter(t => t && !(t in COLORES_BASE))
+    .sort((a, b) => a.localeCompare(b))
+  const base = Object.keys(COLORES_BASE).filter(t => indices.some(i => i.tipo === t))
+  return [
+    ...base.map(tipo => ({ tipo, color: COLORES_BASE[tipo] })),
+    ...extras.map((tipo, idx) => ({ tipo, color: COLORES_EXTRA[idx % COLORES_EXTRA.length] })),
+  ]
+}
+
 // Agrupa registros mensuales de índices en bloques calendario (ancla en enero:
 // bimestral = Ene-Feb/Mar-Abr/..., trimestral = Ene-Mar/Abr-Jun/..., etc.)
 // componiendo la variación de los meses de cada bloque (interés compuesto),

@@ -1,11 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Box, Typography, Tooltip } from '@mui/material'
-import { agruparIndices, labelPeriodo } from '../utils/agruparIndices.js'
-
-const SERIES = {
-  IPC: { color: '#2a78d6', label: 'IPC' },
-  ICL: { color: '#eb6834', label: 'ICL' },
-}
+import { agruparIndices, labelPeriodo, listarTiposIndices } from '../utils/agruparIndices.js'
 
 const W = 800
 const H = 260
@@ -21,22 +16,26 @@ function fmtVal(v) {
 }
 
 export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
-  const [visible, setVisible] = useState({ IPC: true, ICL: true })
+  // Series ocultas por el usuario (toggle de la leyenda); el resto se muestra.
+  const [ocultos, setOcultos] = useState({})
+
+  const series = useMemo(() => listarTiposIndices(indices), [indices])
+  const visibles = series.filter(s => !ocultos[s.tipo])
 
   const { puntos, minVal, maxVal } = useMemo(() => {
     const agrupados = agruparIndices(indices, periodo)
     const claves = new Map()
     for (const g of agrupados) {
       const key = `${g.anio}-${String(g.mesInicio).padStart(2, '0')}`
-      if (!claves.has(key)) claves.set(key, { key, mesInicio: g.mesInicio, mesFin: g.mesFin, anio: g.anio, IPC: null, ICL: null })
-      claves.get(key)[g.tipo] = g.valor
+      if (!claves.has(key)) claves.set(key, { key, mesInicio: g.mesInicio, mesFin: g.mesFin, anio: g.anio, valores: {} })
+      claves.get(key).valores[g.tipo] = g.valor
     }
     const puntos = [...claves.values()].sort((a, b) => a.key.localeCompare(b.key))
-    const valores = agrupados.map(g => g.valor)
+    const valores = agrupados.filter(g => !ocultos[g.tipo]).map(g => g.valor)
     const minVal = valores.length ? Math.min(0, ...valores) : 0
     const maxVal = valores.length ? Math.max(...valores, 1) : 1
     return { puntos, minVal, maxVal }
-  }, [indices, periodo])
+  }, [indices, periodo, ocultos])
 
   if (puntos.length === 0) {
     return (
@@ -59,7 +58,7 @@ export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
     const segments = []
     let current = []
     puntos.forEach((p, i) => {
-      const v = p[tipo]
+      const v = p.valores[tipo]
       if (v === null || v === undefined) {
         if (current.length) segments.push(current)
         current = []
@@ -72,7 +71,7 @@ export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
   }
 
   function toggle(tipo) {
-    setVisible(prev => ({ ...prev, [tipo]: !prev[tipo] }))
+    setOcultos(prev => ({ ...prev, [tipo]: !prev[tipo] }))
   }
 
   return (
@@ -81,20 +80,20 @@ export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
         <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF' }}>
           Variación de índices en el tiempo
         </Typography>
-        <Box display="flex" gap={2}>
-          {Object.entries(SERIES).map(([tipo, { color, label }]) => (
+        <Box display="flex" gap={2} flexWrap="wrap">
+          {series.map(({ tipo, color }) => (
             <Box
               key={tipo}
               onClick={() => toggle(tipo)}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, cursor: 'pointer', userSelect: 'none', opacity: visible[tipo] ? 1 : 0.4 }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, cursor: 'pointer', userSelect: 'none', opacity: ocultos[tipo] ? 0.4 : 1 }}
             >
               <Box sx={{
                 width: 14, height: 14, borderRadius: '4px',
                 border: `2px solid ${color}`,
-                bgcolor: visible[tipo] ? color : 'transparent',
+                bgcolor: ocultos[tipo] ? 'transparent' : color,
                 transition: 'all 0.15s',
               }} />
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>{label}</Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>{tipo}</Typography>
             </Box>
           ))}
         </Box>
@@ -124,8 +123,7 @@ export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
           ))}
 
           {/* Líneas */}
-          {Object.entries(SERIES).map(([tipo, { color }]) => {
-            if (!visible[tipo]) return null
+          {visibles.map(({ tipo, color }) => {
             const segments = buildSegments(tipo)
             return (
               <g key={tipo}>
@@ -146,10 +144,9 @@ export default function GraficoIndices({ indices = [], periodo = 'mensual' }) {
         </svg>
 
         {/* Puntos con tooltip (overlay HTML para poder usar MUI Tooltip, posicionado en % para escalar junto al SVG) */}
-        {Object.entries(SERIES).map(([tipo, { color }]) => {
-          if (!visible[tipo]) return null
+        {visibles.map(({ tipo, color }) => {
           return puntos.map((p, i) => {
-            const v = p[tipo]
+            const v = p.valores[tipo]
             if (v === null || v === undefined) return null
             const leftPct = (xScale(i) / W) * 100
             const topPct = (yScale(v) / H) * 100
