@@ -54,6 +54,25 @@ export async function uploadClienteLogo(clienteId, file) {
   return getPublicImageUrl(path)
 }
 
+// Firma para recibos: bucket privado "firmas". Cada carga va a un path nuevo y nunca
+// se borra la anterior — los recibos ya emitidos guardan el path de la firma que
+// estaba vigente (recibos_*.file_firma). Se guarda en firma_path en el momento.
+export async function uploadClienteFirma(clienteId, file) {
+  const ext = file.name.split('.').pop()
+  const path = `${clienteId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('firmas').upload(path, file)
+  if (error) throw error
+  await updateClienteConfig(clienteId, { firma_path: path })
+  return path
+}
+
+export async function getClienteFirmaUrl(path) {
+  if (!path) return null
+  const { data, error } = await supabase.storage.from('firmas').createSignedUrl(path, 300)
+  if (error) throw error
+  return data.signedUrl
+}
+
 export async function uploadPortadaImage(clienteId, file) {
   const ext = file.name.split('.').pop()
   const path = `portada/${clienteId}/${Date.now()}.${ext}`
@@ -73,7 +92,7 @@ export async function deletePortadaImage(url) {
 export async function getClienteConfig(cliente_id) {
   const { data, error } = await supabase
     .from('clientes_servicio')
-    .select('id, nombre, logo_url, portada_urls, titulo_pagina, extension, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, direccion, coordenadas, redes_sociales')
+    .select('id, nombre, logo_url, portada_urls, titulo_pagina, extension, color_principal, color_secundario, color_acentuaciones, sobre_nosotros, email_contacto, whatsapp, telefono, direccion, coordenadas, redes_sociales, firma_path')
     .eq('id', cliente_id)
     .single()
   if (error) throw error

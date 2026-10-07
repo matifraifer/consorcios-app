@@ -13,7 +13,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { disconnectMercadoPago, getMpToken, testMercadoPago } from '../services/mercadopago'
 import { connectWhatsapp, disconnectWhatsapp, getWhatsappSesion } from '../services/whatsapp'
-import { deletePortadaImage, getClienteConfig, updateClienteConfig, uploadClienteLogo, uploadPortadaImage } from '../../propiedades/services/propiedades'
+import { deletePortadaImage, getClienteConfig, getClienteFirmaUrl, updateClienteConfig, uploadClienteFirma, uploadClienteLogo, uploadPortadaImage } from '../../propiedades/services/propiedades'
 import { supabase } from '../../../shared/services/supabaseClient'
 
 const ACCENT = '#065F46'
@@ -323,6 +323,12 @@ export default function Configuracion() {
   const [snackMsg, setSnackMsg]     = useState('')
   const [webError, setWebError]     = useState(null)
 
+  // ── Firma para recibos ──
+  const [firmaUrl, setFirmaUrl]             = useState(null)
+  const [firmaUploading, setFirmaUploading] = useState(false)
+  const [firmaError, setFirmaError]         = useState(null)
+  const [firmaConfirmDelete, setFirmaConfirmDelete] = useState(false)
+
   useEffect(() => {
     if (!clienteId) return
     getClienteConfig(clienteId)
@@ -341,6 +347,7 @@ export default function Configuracion() {
         setDireccion(data.direccion ?? '')
         setCoordenadas(data.coordenadas ?? '')
         setRedes(Array.isArray(data.redes_sociales) ? data.redes_sociales : [])
+        getClienteFirmaUrl(data.firma_path).then(setFirmaUrl).catch(() => {})
       })
       .catch(err => setWebError(err.message))
       .finally(() => setWebLoading(false))
@@ -358,6 +365,48 @@ export default function Configuracion() {
       setWebError(err.message)
     } finally {
       setLogoUploading(false)
+    }
+  }
+
+  async function handleFirmaChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setFirmaError('La firma tiene que ser una imagen PNG o JPG.')
+      return
+    }
+    if (file.size > 1024 * 1024) {
+      setFirmaError('La imagen de la firma no puede superar 1 MB.')
+      return
+    }
+    setFirmaUploading(true)
+    setFirmaError(null)
+    try {
+      const path = await uploadClienteFirma(clienteId, file)
+      setFirmaUrl(await getClienteFirmaUrl(path))
+      setSnackMsg('Firma guardada. Se va a usar en los recibos de los próximos pagos.')
+    } catch (err) {
+      setFirmaError(err.message)
+    } finally {
+      setFirmaUploading(false)
+    }
+  }
+
+  // Solo desvincula la firma del cliente (firma_path = null): el archivo no se borra
+  // del bucket porque los recibos ya emitidos lo siguen referenciando en file_firma.
+  async function handleFirmaDelete() {
+    setFirmaConfirmDelete(false)
+    setFirmaUploading(true)
+    setFirmaError(null)
+    try {
+      await updateClienteConfig(clienteId, { firma_path: null })
+      setFirmaUrl(null)
+      setSnackMsg('Firma eliminada. Los próximos recibos se van a emitir sin firma.')
+    } catch (err) {
+      setFirmaError(err.message)
+    } finally {
+      setFirmaUploading(false)
     }
   }
 
@@ -466,6 +515,70 @@ export default function Configuracion() {
           />
 
         </Box>
+      </Box>
+
+      {/* Sección: Recibos */}
+      <Box mb={5}>
+        <SectionTitle>Recibos</SectionTitle>
+
+        <Box sx={{ bgcolor: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', p: 3 }}>
+          {firmaError && <Alert severity="error" sx={{ mb: 2.5, borderRadius: '8px', fontSize: '0.82rem' }}>{firmaError}</Alert>}
+
+          <Label>Firma para recibos</Label>
+          <Box display="flex" alignItems="center" gap={2} mb={0.75}>
+            <Box sx={{
+              width: 160, height: 64, borderRadius: '10px', flexShrink: 0,
+              bgcolor: '#F9FAFB', border: '1px solid #E5E7EB',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+            }}>
+              {firmaUploading ? (
+                <CircularProgress size={20} sx={{ color: ACCENT }} />
+              ) : firmaUrl ? (
+                <Box component="img" src={firmaUrl} alt="Firma" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <CloudUploadIcon sx={{ fontSize: 24, color: '#D1D5DB' }} />
+              )}
+            </Box>
+            <Button
+              component="label"
+              variant="outlined"
+              disabled={firmaUploading || webLoading}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.8rem', borderColor: '#E5E7EB', color: '#374151', '&:hover': { borderColor: '#D1D5DB', bgcolor: '#F9FAFB' } }}
+            >
+              {firmaUrl ? 'Cambiar firma' : 'Subir firma'}
+              <input type="file" hidden accept=".png,.jpeg,.jpg,image/png,image/jpeg" onChange={handleFirmaChange} />
+            </Button>
+            {firmaUrl && (
+              <Button
+                variant="text"
+                disabled={firmaUploading}
+                onClick={() => setFirmaConfirmDelete(true)}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.8rem', color: '#DC2626', '&:hover': { bgcolor: '#FEF2F2' } }}
+              >
+                Eliminar firma
+              </Button>
+            )}
+          </Box>
+          <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+            Se imprime en los recibos de inquilino y propietario de los pagos que se registren a partir de ahora.
+            Recomendamos PNG con fondo transparente. Los recibos ya emitidos conservan la firma que tenían.
+          </Typography>
+        </Box>
+
+        <Dialog open={firmaConfirmDelete} onClose={() => setFirmaConfirmDelete(false)} PaperProps={{ sx: { borderRadius: '12px' } }}>
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Eliminar firma</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ fontSize: '0.85rem', color: '#374151' }}>
+              Los recibos de los próximos pagos se van a emitir sin firma. Los recibos ya emitidos conservan la firma que tenían.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setFirmaConfirmDelete(false)} sx={{ textTransform: 'none', color: '#6B7280' }}>Cancelar</Button>
+            <Button onClick={handleFirmaDelete} variant="contained" disableElevation sx={{ textTransform: 'none', borderRadius: '8px', bgcolor: '#DC2626', '&:hover': { bgcolor: '#B91C1C' } }}>
+              Eliminar
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
 
       {/* Sección: Configuración de web pública */}

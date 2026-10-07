@@ -3,6 +3,7 @@ import { supabase } from '../../../shared/services/supabaseClient'
 // ---- CONTRATOS ----
 
 const CONTRATOS_BUCKET = 'contratos-adjuntos'
+const FIRMAS_BUCKET = 'firmas'
 
 const PLAZO_MAP = { Mensual: 1, Trimestral: 3, Cuatrimestral: 4, Semestral: 6, Anual: 12, Otro: 0 }
 
@@ -211,7 +212,19 @@ export async function getPagosContratoCliente(clienteId) {
   return data ?? []
 }
 
-export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, file }) {
+// Condiciones del contrato que cambian del lado de la base al registrar pagos
+// (deposito_vigente lo actualiza la RPC al aplicar una actualización).
+export async function getContratoCondiciones(id) {
+  const { data, error } = await supabase
+    .from('contratos')
+    .select('deposito, deposito_vigente, interes_mora_diario')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, file, monto_mora = 0, dias_mora = null }) {
   let comprobante_path = null
   if (file) {
     const ext = file.name.split('.').pop()
@@ -220,11 +233,25 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
     if (upErr) throw upErr
     comprobante_path = path
   }
+
+  // En una sola transacción: aplica las actualizaciones por índice pendientes hasta este
+  // período (monto_vigente + historial + cargo por diferencia de depósito), guarda el
+  // cargo de interés por mora y marca el pago como pagado. Si faltan índices, falla
+  // entera y el pago no se registra.
+  const { error: rpcError } = await supabase.rpc('registrar_pago_contrato', {
+    p_pago_id: pagoId,
+    p_monto_pagado: Number(monto_pagado),
+    p_fecha_pago: fecha_pago,
+    p_comprobante_path: comprobante_path,
+    p_monto_mora: Number(monto_mora) || 0,
+    p_dias_mora: dias_mora,
+  })
+  if (rpcError) throw rpcError
+
   const { data, error } = await supabase
     .from('pagos_contrato')
-    .update({ estado: 'pagado', monto_pagado: Number(monto_pagado), fecha_pago, comprobante_path })
-    .eq('id', pagoId)
     .select(`*, contratos(cliente_id, inquilino_nombre, inquilino_apellido, propietario_nombre, propietario_apellido, dia_vencimiento, es_compraventa, comision_gestion, propiedades(direccion, titulo))`)
+    .eq('id', pagoId)
     .single()
   if (error) throw error
 
@@ -326,6 +353,15 @@ export async function crearReciboContrato({
   })
   if (error) throw error
   return data
+}
+
+// Firma de la inmobiliaria guardada en el recibo (file_firma, bucket privado "firmas").
+export async function getFirmaReciboUrl(fileFirma) {
+  if (!fileFirma) return null
+  const { data, error } = await supabase.storage
+    .from(FIRMAS_BUCKET).createSignedUrl(fileFirma, 300)
+  if (error) throw error
+  return data.signedUrl
 }
 
 export async function getReciboByPago(pagoId) {

@@ -39,6 +39,17 @@ export async function getPortalAlquilerDni(clienteId, dni) {
   return data
 }
 
+// Signed URL de la firma del recibo (bucket privado) — valida token/cliente + DNI
+// del lado del servidor, igual que las RPC del portal. null si el recibo no tiene firma.
+export async function getPortalFirmaRecibo({ token, clienteId, dni, pagoId }) {
+  const { data, error } = await supabase.functions.invoke('firma-recibo', {
+    body: { token, cliente_id: clienteId, dni, pago_id: pagoId },
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data?.url ?? null
+}
+
 export async function enviarLinkConsultaDeuda(departamento_id) {
   const { data, error } = await supabase.functions.invoke('enviar-link-consulta', { body: { departamento_id } })
   if (error) throw error

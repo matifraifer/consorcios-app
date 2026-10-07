@@ -60,6 +60,8 @@ const EXTRACT_TOOL = {
       fecha_fin: { type: ['string', 'null'], description: 'Formato YYYY-MM-DD' },
       dia_vencimiento: { type: ['integer', 'null'], description: 'Día del mes (1-31) en que vence el pago' },
       monto_base: { type: ['number', 'null'] },
+      deposito: { type: ['number', 'null'], description: 'Monto del depósito en garantía' },
+      interes_mora_diario: { type: ['number', 'null'], description: 'Interés por mora como porcentaje DIARIO' },
       tipo_actualizacion: { type: ['string', 'null'], enum: [...TIPOS_ACTUALIZACION, null] },
       plazo_actualizacion: { type: ['string', 'null'], enum: [...PLAZOS_ACTUALIZACION, null] },
       observaciones: { type: ['string', 'null'] },
@@ -67,6 +69,7 @@ const EXTRACT_TOOL = {
       servicio_agua: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de agua' },
       servicio_gas: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de gas' },
       servicio_energia: { type: ['string', 'null'], description: 'Número de cuenta o suministro del servicio de energía eléctrica' },
+      servicio_municipalidad: { type: ['string', 'null'], description: 'Número de cuenta o partida municipal del inmueble (tasas municipales)' },
       direccion: { type: ['string', 'null'], description: 'Dirección del inmueble alquilado' },
       localidad: { type: ['string', 'null'], description: 'Localidad/ciudad del inmueble alquilado' },
       provincia: { type: ['string', 'null'], description: 'Provincia del inmueble alquilado' },
@@ -76,9 +79,9 @@ const EXTRACT_TOOL = {
     required: [
       'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
       'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
-      'fecha_inicio', 'fecha_fin', 'dia_vencimiento', 'monto_base',
+      'fecha_inicio', 'fecha_fin', 'dia_vencimiento', 'monto_base', 'deposito', 'interes_mora_diario',
       'tipo_actualizacion', 'plazo_actualizacion', 'observaciones',
-      'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia',
+      'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia', 'servicio_municipalidad',
       'direccion', 'localidad', 'provincia', 'tipo_propiedad', 'moneda',
     ],
     additionalProperties: false,
@@ -92,12 +95,18 @@ Reglas:
 - Si un dato no aparece en el texto, poné null en ese campo. No inventes ni asumas datos.
 - Las fechas van en formato YYYY-MM-DD.
 - monto_base es el monto de alquiler mensual base, como número (sin separadores de miles ni símbolo de moneda).
+- deposito: monto del depósito en garantía, como número (sin separadores de miles ni símbolo de moneda), o null.
+  Si el contrato lo expresa como cantidad de meses de alquiler (ej. "un mes de alquiler"), calculalo multiplicando por monto_base.
+- interes_mora_diario: interés punitorio/moratorio por atraso en el pago, expresado como PORCENTAJE DIARIO (ej. 0.5 para 0,5% diario), o null.
+  Si el contrato lo expresa mensual, dividilo por 30; si es anual, dividilo por 365. Si es un monto fijo en pesos (no un porcentaje), poné null.
 - tipo_actualizacion solo puede ser uno de: ${TIPOS_ACTUALIZACION.join(', ')}, o null si no se menciona un índice de actualización reconocible.
 - plazo_actualizacion solo puede ser uno de: ${PLAZOS_ACTUALIZACION.join(', ')}, o null si no se menciona la periodicidad de actualización.
 - observaciones: un resumen breve (1-2 líneas) de cláusulas relevantes no cubiertas por los otros campos, o null.
 - nomenclatura_catastral: el código de nomenclatura catastral del inmueble si figura, o null.
 - servicio_agua, servicio_gas, servicio_energia: número de cuenta o de suministro de cada servicio si figuran en el contrato, o null.
   Empresas prestadoras habituales para reconocer cada servicio (el número puede aparecer junto al nombre de la empresa o simplemente como "N° de cuenta/suministro"): OSSE es agua, Ecogas es gas, Naturgy es energía eléctrica.
+- servicio_municipalidad: número de cuenta, partida o padrón municipal del inmueble (tasas municipales, por ejemplo "cuenta municipal", "partida municipal", "TSU", "ABL" o "tasa de servicios urbanos"), o null.
+  No confundir con la nomenclatura catastral ni con la partida inmobiliaria provincial (ARBA/Rentas).
 - direccion, localidad, provincia: datos de ubicación del inmueble alquilado (no del domicilio de las partes), o null si no figuran.
 - tipo_propiedad solo puede ser uno de: ${TIPOS_PROPIEDAD.join(', ')}, o null si no se puede determinar.
 - moneda solo puede ser uno de: ${MONEDAS.join(', ')}. Si el contrato no menciona explícitamente la moneda, poné "ARS" (moneda por defecto).`

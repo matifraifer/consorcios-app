@@ -81,9 +81,9 @@ async function construirYDescargarRecibo({
   rolLeyenda, nombreCampoLabel, destinatarioNombre, destinatarioApellido,
   cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
   conceptoTexto, montoConcepto, cargos, leyenda,
-  firmaIzqLabel, firmaDerLabel,
+  firmaIzqLabel, firmaDerLabel, firmaUrl,
 }) {
-  const logo = await tryLoadImage(clienteConfig?.logo_url)
+  const [logo, firma] = await Promise.all([tryLoadImage(clienteConfig?.logo_url), tryLoadImage(firmaUrl)])
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -267,10 +267,21 @@ async function construirYDescargarRecibo({
   y += leyendaLines.length * 4.8 + 8
 
   // ── Sección 5: firmas ──
-  const firmaY = y + 8
+  // La firma de la inmobiliaria (si el recibo tiene una) va sobre la línea derecha,
+  // así que se deja más aire arriba de las líneas para que entre la imagen.
+  const firmaBandH = 22
+  const firmaY = y + (firma ? firmaBandH + 2 : 8)
+  const firmaColW = contentW / 2 - 10
+  const firmaDerX = marginX + contentW / 2 + 10
+  if (firma) {
+    const ratio = Math.min((firmaColW * 0.8) / firma.width, firmaBandH / firma.height)
+    const w = firma.width * ratio
+    const h = firma.height * ratio
+    doc.addImage(firma.dataUrl, firma.format, firmaDerX + (firmaColW - w) / 2, firmaY - h - 1, w, h)
+  }
   doc.setDrawColor(...DARK)
-  doc.line(marginX, firmaY, marginX + contentW / 2 - 10, firmaY)
-  doc.line(marginX + contentW / 2 + 10, firmaY, marginX + contentW, firmaY)
+  doc.line(marginX, firmaY, marginX + firmaColW, firmaY)
+  doc.line(firmaDerX, firmaY, marginX + contentW, firmaY)
 
   doc.setFontSize(8.5)
   doc.setTextColor(...GRAY)
@@ -280,7 +291,14 @@ async function construirYDescargarRecibo({
   doc.save(`recibo-${fmtNumeroRecibo(recibo.serie, recibo.numero)}.pdf`)
 }
 
-export async function generarReciboContrato({ recibo, contrato, pago, cargosExtra = [], clienteConfig }) {
+function firmaClienteLabel(clienteConfig, fallback) {
+  return `Firma y aclaración ${clienteConfig?.nombre || fallback}`
+}
+
+// firmaUrl: signed URL de recibo.file_firma, resuelta por quien llama (panel admin:
+// Storage directo; portal público: Edge Function firma-recibo). Sin firmaUrl el
+// recibo sale sin firma.
+export async function generarReciboContrato({ recibo, contrato, pago, cargosExtra = [], clienteConfig, firmaUrl }) {
   // Recibos generados a partir de la migración 0043 traen su propio snapshot (no se
   // recalcula con los datos actuales de contrato/pago, que pueden haber cambiado desde
   // el pago). Los recibos viejos, sin snapshot, siguen derivando esos datos en vivo.
@@ -310,13 +328,14 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
     cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
     conceptoTexto, montoConcepto, cargos, leyenda,
     firmaIzqLabel: 'Firma y aclaración inquilino',
-    firmaDerLabel: 'Firma y aclaración propietario',
+    firmaDerLabel: firmaClienteLabel(clienteConfig, 'propietario'),
+    firmaUrl,
   })
 }
 
 // Recibo de rendición: lo que la inmobiliaria le cobra al propietario por la gestión
 // del alquiler (comisión de gestión % del monto de alquiler cobrado ese período).
-export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig }) {
+export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl }) {
   const propietarioNombre = recibo.propietario_nombre ?? contrato.propietario_nombre
   const propietarioApellido = recibo.propietario_apellido ?? contrato.propietario_apellido
   const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
@@ -336,6 +355,7 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
     cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
     conceptoTexto, montoConcepto: recibo.monto, cargos: [], leyenda,
     firmaIzqLabel: 'Firma y aclaración propietario',
-    firmaDerLabel: 'Firma y aclaración inmobiliaria',
+    firmaDerLabel: firmaClienteLabel(clienteConfig, 'inmobiliaria'),
+    firmaUrl,
   })
 }

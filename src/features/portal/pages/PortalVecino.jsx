@@ -11,10 +11,10 @@ import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import QuestionMarkIcon from '@mui/icons-material/QuestionMark'
 import CloseIcon from '@mui/icons-material/Close'
 import { crearPreferenciaPago } from '../../integraciones/services/mercadopago'
-import { getPortalAlquilerDni, getPortalAlquilerToken, getPortalDniExiste, getPortalExpensasDni, getPortalExpensasToken, logPortalError } from '../services/portal'
+import { getPortalAlquilerDni, getPortalAlquilerToken, getPortalDniExiste, getPortalFirmaRecibo, getPortalExpensasDni, getPortalExpensasToken, logPortalError } from '../services/portal'
 import { getClientePublico } from '../../propiedades/services/propiedades'
 import { calcularSaldosMora } from '../../../shared/utils/calcularSaldosMora'
-import { computeMontoActualizado } from '../../contratos/utils/actualizacionContrato.js'
+import { computeDepositoInicial, computeDiferenciaDeposito, computeMontoActualizado, computeMora, esActualizacion, fechaVencimientoCuota } from '../../contratos/utils/actualizacionContrato.js'
 import { generarReciboContrato } from '../../contratos/services/reciboContrato.js'
 import PortalErrorBoundary from '../../../shared/components/PortalErrorBoundary'
 
@@ -108,16 +108,6 @@ function fmtFecha(iso) {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
-}
-
-// El vencimiento de una cuota no se guarda: se arma con el mes del período
-// (periodo_inicio) + el día de vencimiento configurado en el contrato.
-function fechaVencimientoCuota(periodoInicio, diaVencimiento) {
-  if (!periodoInicio) return null
-  const [y, m] = periodoInicio.split('-').map(Number)
-  const ultimoDiaMes = new Date(y, m, 0).getDate()
-  const dia = Math.min(Number(diaVencimiento || ultimoDiaMes), ultimoDiaMes)
-  return new Date(y, m - 1, dia)
 }
 
 function fmtFechaObj(date) {
@@ -486,28 +476,54 @@ function ExpensasSection({ unidades, dni, onPagar }) {
   ))
 }
 
-function DetalleCuota({ pago, montoActualizado }) {
-  const actualizacion = pago.es_periodo_actualizacion ? montoActualizado - Number(pago.monto_base) : 0
+// Desglose de una cuota pendiente. "Monto base" es el alquiler vigente ANTES de la
+// actualización de este período (no el monto original del contrato) y "Actualización"
+// es solo la diferencia de esta actualización. Depósito y mora todavía no registrados
+// se muestran como estimados (la mora, calculada al día de hoy). La cuota 1 incluye el
+// depósito en garantía completo.
+function calcularCuota(pago, contrato, indices) {
+  const montoDe = p => computeMontoActualizado(p, contrato.pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion)
+  const montoActualizado = montoDe(pago)
+  const anterior = esActualizacion(pago.periodo_numero, contrato.plazo_actualizacion)
+    ? contrato.pagos.find(p => p.periodo_numero === pago.periodo_numero - 1)
+    : null
+  const montoBase = anterior ? montoDe(anterior) : montoActualizado
   const cargos = pago.cargos_extra ?? []
-  const total = montoActualizado + cargos.reduce((acc, c) => acc + Number(c.monto), 0)
+  const estimados = [
+    { label: 'Depósito en garantía', monto: computeDepositoInicial(pago, contrato, cargos) },
+    { label: 'Actualización de depósito', monto: computeDiferenciaDeposito(pago, contrato.pagos, indices, contrato) },
+    (() => {
+      const m = computeMora(pago, contrato, montoActualizado, new Date())
+      return { label: `Interés por mora al día de hoy (${m.dias} días)`, monto: m.monto }
+    })(),
+  ].filter(e => e.monto > 0)
+  const total = montoActualizado
+    + cargos.reduce((acc, c) => acc + Number(c.monto), 0)
+    + estimados.reduce((acc, e) => acc + e.monto, 0)
+  return { montoBase, actualizacion: montoActualizado - montoBase, cargos, estimados, total }
+}
+
+function DetalleCuota({ cuota }) {
   return (
     <Box sx={{ bgcolor: SURFACE_SUNKEN, borderRadius: '12px', p: 1.75, mt: 1 }}>
-      <SaldoRow label="Monto base" value={Number(pago.monto_base)} />
-      {actualizacion !== 0 && <SaldoRow label="Actualización" value={actualizacion} />}
-      {cargos.map((c, i) => (
+      <SaldoRow label="Monto base" value={cuota.montoBase} />
+      {cuota.actualizacion !== 0 && <SaldoRow label="Actualización" value={cuota.actualizacion} />}
+      {cuota.cargos.map((c, i) => (
         <SaldoRow key={i} label={c.descripcion} value={Number(c.monto)} />
       ))}
+      {cuota.estimados.map(e => (
+        <SaldoRow key={e.label} label={e.label} value={e.monto} />
+      ))}
       <Divider sx={{ my: 1, borderColor: BORDER_STRONG }} />
-      <SaldoRow label="Total" value={total} destacado />
+      <SaldoRow label="Total" value={cuota.total} destacado />
     </Box>
   )
 }
 
 function ProximoPagoItem({ pago, indices, contrato }) {
   const [expanded, setExpanded] = useState(false)
-  const montoActualizado = computeMontoActualizado(pago, contrato.pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion)
-  const cargosTotal = (pago.cargos_extra ?? []).reduce((acc, c) => acc + Number(c.monto), 0)
-  const total = montoActualizado + cargosTotal
+  const cuota = calcularCuota(pago, contrato, indices)
+  const total = cuota.total
   const vencimiento = fechaVencimientoCuota(pago.periodo_inicio, contrato.dia_vencimiento)
 
   return (
@@ -534,26 +550,28 @@ function ProximoPagoItem({ pago, indices, contrato }) {
       </Box>
       <Collapse in={expanded} timeout={200}>
         <Box sx={{ pb: 1.5 }}>
-          <DetalleCuota pago={pago} montoActualizado={montoActualizado} />
+          <DetalleCuota cuota={cuota} />
         </Box>
       </Collapse>
     </Box>
   )
 }
 
-function PagoRealizadoItem({ pago, contrato, clienteConfig, onError, last }) {
+function PagoRealizadoItem({ pago, contrato, clienteConfig, getFirmaUrl, onError, last }) {
   const [descargando, setDescargando] = useState(false)
 
   async function handleDescargar() {
     if (!pago.recibo) return
     setDescargando(true)
     try {
+      const firmaUrl = await getFirmaUrl(pago.id).catch(() => null)
       await generarReciboContrato({
         recibo: pago.recibo,
         contrato: { ...contrato, propiedades: contrato.propiedad },
         pago,
         cargosExtra: pago.cargos_extra ?? [],
         clienteConfig,
+        firmaUrl,
       })
     } catch (err) {
       logPortalError('portal_vecino', 'descargar_recibo', err, { pagoId: pago.id, contratoId: contrato.contrato_id })
@@ -598,7 +616,7 @@ function PagoRealizadoItem({ pago, contrato, clienteConfig, onError, last }) {
   )
 }
 
-function ContratoCard({ contrato, indices, clienteConfig, onError }) {
+function ContratoCard({ contrato, indices, clienteConfig, getFirmaUrl, onError }) {
   const [verPagados, setVerPagados] = useState(false)
   const pendientes = contrato.pagos.filter(p => p.estado === 'pendiente').sort((a, b) => a.periodo_numero - b.periodo_numero)
   const pagados = contrato.pagos.filter(p => p.estado === 'pagado').sort((a, b) => b.periodo_numero - a.periodo_numero)
@@ -640,7 +658,7 @@ function ContratoCard({ contrato, indices, clienteConfig, onError }) {
             <Typography sx={{ fontSize: '0.82rem', color: TEXT_MUTED, py: 1 }}>Todavía no registramos pagos de este contrato.</Typography>
           ) : (
             pagados.map((pago, i) => (
-              <PagoRealizadoItem key={pago.id} pago={pago} contrato={contrato} clienteConfig={clienteConfig} onError={onError} last={i === pagados.length - 1} />
+              <PagoRealizadoItem key={pago.id} pago={pago} contrato={contrato} clienteConfig={clienteConfig} getFirmaUrl={getFirmaUrl} onError={onError} last={i === pagados.length - 1} />
             ))
           )}
         </Box>
@@ -649,10 +667,10 @@ function ContratoCard({ contrato, indices, clienteConfig, onError }) {
   )
 }
 
-function AlquilerSection({ contratos, indices, clienteConfig, onError }) {
+function AlquilerSection({ contratos, indices, clienteConfig, getFirmaUrl, onError }) {
   return contratos.map((contrato, i) => (
     <Box key={contrato.contrato_id} sx={{ mb: i === contratos.length - 1 ? 0 : 3, pb: i === contratos.length - 1 ? 0 : 3, borderBottom: i === contratos.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
-      <ContratoCard contrato={contrato} indices={indices} clienteConfig={clienteConfig} onError={onError} />
+      <ContratoCard contrato={contrato} indices={indices} clienteConfig={clienteConfig} getFirmaUrl={getFirmaUrl} onError={onError} />
     </Box>
   ))
 }
@@ -867,7 +885,10 @@ function PortalVecinoInner() {
     if (!tabData[key]) return null
     return key === 'expensas'
       ? <ExpensasSection unidades={tabData.expensas.unidades} dni={dniConsulta} onPagar={handlePagar} />
-      : <AlquilerSection contratos={tabData.alquiler.contratos} indices={tabData.alquiler.indices} clienteConfig={tabData.alquiler.clienteConfig} onError={msg => setTabError(prev => ({ ...prev, alquiler: msg }))} />
+      : <AlquilerSection
+          contratos={tabData.alquiler.contratos} indices={tabData.alquiler.indices} clienteConfig={tabData.alquiler.clienteConfig}
+          getFirmaUrl={pagoId => getPortalFirmaRecibo({ token, clienteId: cliente?.id, dni: dniConsulta, pagoId })}
+          onError={msg => setTabError(prev => ({ ...prev, alquiler: msg }))} />
   }
 
   const hayResultado = authenticated

@@ -14,9 +14,9 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato } from '../services/contratos'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
-import { esActualizacion, computeMontoActualizado } from '../utils/actualizacionContrato.js'
+import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
 
 const ACCENT = '#065F46'
@@ -32,7 +32,7 @@ function fmtDate(d) {
 
 function fmt(v) {
   if (!v && v !== 0) return '—'
-  return Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  return Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 function InfoRow({ label, value }) {
@@ -68,27 +68,58 @@ function SectionTitle({ children }) {
 }
 
 // ---- Dialog: Registrar pago ----
-function RegistrarPagoDialog({ open, pago, montoSugerido, onClose, onPaid }) {
+// pago trae el desglose ya calculado por el drawer: alquiler (monto vigente o estimado),
+// cargosTotal (cargos extra ya cargados), depositoInicial (depósito completo de la cuota 1),
+// depositoEstimado (diferencia de depósito que la RPC va a cargar al aplicar la
+// actualización) y faltantes (meses sin índice).
+function RegistrarPagoDialog({ open, pago, contrato, onClose, onPaid }) {
   const [montoPagado, setMontoPagado] = useState('')
+  const [montoEditado, setMontoEditado] = useState(false)
   const [fechaPago, setFechaPago] = useState('')
+  const [mora, setMora] = useState('')
   const [file, setFile] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  const moraCalculada = pago && contrato && fechaPago
+    ? computeMora(pago, contrato, pago.alquiler, fechaPago)
+    : { dias: 0, monto: 0 }
+  const faltantes = pago?.faltantes ?? []
+  const totalSugerido = pago
+    ? Math.round((pago.alquiler + pago.cargosTotal + pago.depositoInicial + pago.depositoEstimado + (Number(mora) || 0)) * 100) / 100
+    : 0
+
   useEffect(() => {
     if (open) {
-      setMontoPagado(montoSugerido ? String(montoSugerido) : '')
       setFechaPago(new Date().toISOString().slice(0, 10))
+      setMontoEditado(false)
       setFile(null)
       setError(null)
     }
-  }, [open, montoSugerido])
+  }, [open])
+
+  // La mora se recalcula al cambiar la fecha de pago (el admin la puede editar o dejar en 0)
+  useEffect(() => {
+    if (open) setMora(moraCalculada.monto ? String(moraCalculada.monto) : '0')
+  }, [open, fechaPago]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mientras el admin no toque el monto pagado, sigue al total sugerido
+  useEffect(() => {
+    if (open && !montoEditado) setMontoPagado(totalSugerido ? String(totalSugerido) : '')
+  }, [open, totalSugerido, montoEditado])
 
   async function handleSave() {
     if (!montoPagado || !fechaPago) { setError('Completar monto y fecha.'); return }
+    if (Number(mora) < 0) { setError('El interés por mora no puede ser negativo.'); return }
     setSaving(true)
     try {
-      const updated = await registrarPagoContrato(pago.id, { monto_pagado: Number(montoPagado), fecha_pago: fechaPago, file })
+      const updated = await registrarPagoContrato(pago.id, {
+        monto_pagado: Number(montoPagado),
+        fecha_pago: fechaPago,
+        file,
+        monto_mora: Number(mora) || 0,
+        dias_mora: Number(mora) > 0 ? moraCalculada.dias || null : null,
+      })
       onPaid(updated)
       onClose()
     } catch (e) {
@@ -97,6 +128,8 @@ function RegistrarPagoDialog({ open, pago, montoSugerido, onClose, onPaid }) {
       setSaving(false)
     }
   }
+
+  const tasaMora = Number(contrato?.interes_mora_diario) || 0
 
   const fieldSx = {
     '& .MuiOutlinedInput-root': {
@@ -112,14 +145,58 @@ function RegistrarPagoDialog({ open, pago, montoSugerido, onClose, onPaid }) {
       <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, pb: 1 }}>Registrar pago</DialogTitle>
       <DialogContent sx={{ pt: '8px !important' }}>
         {error && <Alert severity="error" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
+        {faltantes.length > 0 && (
+          <Alert severity="warning" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.8rem' }}>
+            Este período tiene una actualización y faltan índices {contrato?.tipo_actualizacion} de: {faltantes.join(', ')}.
+            Cargalos desde "Índices" antes de registrar el pago.
+          </Alert>
+        )}
         <Box display="flex" flexDirection="column" gap={1.5}>
-          <Box>
-            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Monto pagado *</Typography>
-            <TextField fullWidth size="small" type="number" value={montoPagado} onChange={e => setMontoPagado(e.target.value)} sx={fieldSx} />
-          </Box>
           <Box>
             <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Fecha de pago *</Typography>
             <TextField fullWidth size="small" type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx} />
+          </Box>
+          {tasaMora > 0 && (
+            <Box>
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>
+                Interés por mora {moraCalculada.dias > 0 ? `(${moraCalculada.dias} días al ${tasaMora}% diario)` : '(pago en término)'}
+              </Typography>
+              <TextField
+                fullWidth size="small" type="number" value={mora}
+                onChange={e => setMora(e.target.value)}
+                slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
+                helperText="Calculado automáticamente. Podés modificarlo o dejarlo en 0."
+                sx={fieldSx}
+              />
+            </Box>
+          )}
+          {pago && (
+            <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 1 }}>
+              {[
+                ['Alquiler', pago.alquiler],
+                ['Cargos extra', pago.cargosTotal],
+                ['Depósito en garantía', pago.depositoInicial],
+                ['Actualización de depósito', pago.depositoEstimado],
+                ['Interés por mora', Number(mora) || 0],
+              ].filter(([, v], i) => i === 0 || v > 0).map(([label, v]) => (
+                <Box key={label} display="flex" justifyContent="space-between" py={0.2}>
+                  <Typography sx={{ fontSize: '0.75rem', color: '#6B7280' }}>{label}</Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>$ {fmt(v)}</Typography>
+                </Box>
+              ))}
+              <Box display="flex" justifyContent="space-between" pt={0.5} mt={0.5} sx={{ borderTop: '1px solid #E5E7EB' }}>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#111827' }}>Total sugerido</Typography>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>$ {fmt(totalSugerido)}</Typography>
+              </Box>
+            </Box>
+          )}
+          <Box>
+            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Monto pagado *</Typography>
+            <TextField
+              fullWidth size="small" type="number" value={montoPagado}
+              onChange={e => { setMontoPagado(e.target.value); setMontoEditado(true) }}
+              sx={fieldSx}
+            />
           </Box>
           <Box>
             <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Comprobante (opcional)</Typography>
@@ -137,7 +214,7 @@ function RegistrarPagoDialog({ open, pago, montoSugerido, onClose, onPaid }) {
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
         <Button
-          onClick={handleSave} disabled={saving} variant="contained"
+          onClick={handleSave} disabled={saving || faltantes.length > 0} variant="contained"
           startIcon={saving ? <CircularProgress size={13} color="inherit" /> : null}
           sx={{ bgcolor: ACCENT, textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
         >
@@ -160,7 +237,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [error, setError] = useState(null)
 
   const [pagoDialog, setPagoDialog] = useState(null)
-  const [montoSugerido, setMontoSugerido] = useState(0)
+  const [condiciones, setCondiciones] = useState(null) // deposito, deposito_vigente, interes_mora_diario actuales
   const [finalizandoId, setFinalizandoId] = useState(null)
   const [confirmFin, setConfirmFin] = useState(false)
 
@@ -187,12 +264,14 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     setLoadingPagos(true)
     setLoadingAdj(true)
     try {
-      const [p, a] = await Promise.all([
+      const [p, a, cond] = await Promise.all([
         getPagosContrato(contrato.id),
         getContratoAdjuntos(contrato.id),
+        getContratoCondiciones(contrato.id),
       ])
       setPagos(p)
       setAdjuntos(a)
+      setCondiciones(cond)
       // Cargar cargos extra para todos los períodos
       const cargosData = await getCargosExtraByPagos(p.map(x => x.id))
       const map = {}
@@ -242,12 +321,14 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     try {
       const recibo = await getReciboByPago(pago.id)
       if (!recibo) throw new Error('No se encontró el recibo de este pago.')
+      const firmaUrl = await getFirmaReciboUrl(recibo.file_firma).catch(() => null)
       await generarReciboContrato({
         recibo,
         contrato,
         pago,
         cargosExtra: cargos[pago.id] ?? [],
         clienteConfig,
+        firmaUrl,
       })
     } catch (e) {
       setError(e.message)
@@ -262,7 +343,8 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     try {
       const recibo = await getReciboPropietarioByPago(pago.id)
       if (!recibo) throw new Error('No se encontró el recibo de rendición de este pago.')
-      await generarReciboPropietario({ recibo, contrato, pago, clienteConfig })
+      const firmaUrl = await getFirmaReciboUrl(recibo.file_firma).catch(() => null)
+      await generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl })
     } catch (e) {
       setError(e.message)
     } finally {
@@ -278,9 +360,15 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     setReciboMenu(null)
   }
 
-  function openPagoDialog(pago, total) {
-    setMontoSugerido(total)
-    setPagoDialog(pago)
+  function openPagoDialog(pago, cargosTotal) {
+    setPagoDialog({
+      ...pago,
+      alquiler: Number(pago.monto_actualizado),
+      cargosTotal,
+      depositoEstimado: pago.deposito_estimado,
+      depositoInicial: pago.deposito_inicial,
+      faltantes: indicesFaltantes(pago, pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion),
+    })
   }
 
   function openCargoDialog(pagoId) {
@@ -318,9 +406,11 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     }
   }
 
-  function handlePaid(updated) {
-    setPagos(prev => prev.map(p => p.id === updated.id ? updated : p))
+  // Al registrar un pago la base puede cambiar más que ese pago (monto_vigente de los
+  // períodos siguientes, cargos de mora/depósito, deposito_vigente): se recarga todo.
+  function handlePaid() {
     setPagoDialog(null)
+    loadData()
   }
 
   async function handleFinalizar() {
@@ -341,14 +431,23 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   // repetirse en cada render (ej. al abrir el menú de descarga de recibos).
   // Va antes del "if (!contrato) return null" de abajo porque los Hooks no
   // pueden llamarse condicionalmente.
+  // contrato + condiciones leídas en el momento (deposito_vigente cambia en la base al
+  // aplicar actualizaciones, el contrato que llega por props puede estar desactualizado).
+  const contratoCalc = useMemo(
+    () => (contrato ? { ...contrato, ...(condiciones ?? {}) } : null),
+    [contrato, condiciones],
+  )
+
   const pagosConMonto = useMemo(() => {
-    if (!contrato) return []
+    if (!contratoCalc) return []
     return pagos.map(p => ({
       ...p,
-      es_periodo_actualizacion: esActualizacion(p.periodo_numero, contrato.plazo_actualizacion),
-      monto_actualizado: computeMontoActualizado(p, pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion),
+      es_periodo_actualizacion: esActualizacion(p.periodo_numero, contratoCalc.plazo_actualizacion),
+      monto_actualizado: computeMontoActualizado(p, pagos, indices, contratoCalc.tipo_actualizacion, contratoCalc.plazo_actualizacion),
+      deposito_estimado: p.estado === 'pagado' ? 0 : computeDiferenciaDeposito(p, pagos, indices, contratoCalc),
+      deposito_inicial: computeDepositoInicial(p, contratoCalc, cargos[p.id]),
     }))
-  }, [pagos, indices, contrato?.tipo_actualizacion, contrato?.plazo_actualizacion])
+  }, [pagos, indices, contratoCalc, cargos])
 
   if (!contrato) return null
 
@@ -482,7 +581,18 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                 const isVencido = p.estado === 'pendiente' && new Date(p.periodo_fin + 'T23:59:59') < today
                 const pagosCargos = cargos[p.id] ?? []
                 const totalCargos = pagosCargos.reduce((sum, c) => sum + Number(c.monto), 0)
-                const total = efectivo + totalCargos
+                // Todavía no guardados (se guardan como cargo al registrar el pago): depósito en
+                // garantía de la cuota 1, diferencia de depósito de una actualización no
+                // aplicada y mora al día de hoy (estas dos últimas, estimadas).
+                const estimados = p.estado === 'pagado' ? [] : [
+                  { label: 'Depósito en garantía', monto: p.deposito_inicial },
+                  { label: 'Actualización de depósito', monto: p.deposito_estimado },
+                  (() => {
+                    const m = computeMora(p, contratoCalc, efectivo, new Date())
+                    return { label: `Interés por mora (${m.dias} días, al día de hoy)`, monto: m.monto }
+                  })(),
+                ].filter(e => e.monto > 0)
+                const total = efectivo + totalCargos + estimados.reduce((s, e) => s + e.monto, 0)
 
                 return (
                   <Box
@@ -530,7 +640,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                         {p.estado === 'pendiente' && !contrato.finalizado && (
                           <Button
                             size="small" variant="outlined"
-                            onClick={() => openPagoDialog(p, total)}
+                            onClick={() => openPagoDialog(p, totalCargos)}
                             sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'none', borderRadius: '7px', borderColor: ACCENT, color: ACCENT, py: 0.3, px: 1.25, '&:hover': { bgcolor: ACCENT_LIGHT } }}
                           >
                             Pagó
@@ -563,8 +673,16 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                     </Box>
 
                     {/* Cargos extra */}
-                    {pagosCargos.length > 0 && (
+                    {(pagosCargos.length > 0 || estimados.length > 0) && (
                       <Box mt={1} pt={1} sx={{ borderTop: '1px dashed #E5E7EB' }}>
+                        {estimados.map(e => (
+                          <Box key={e.label} display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
+                            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', fontStyle: 'italic', flex: 1 }}>+ {e.label}</Typography>
+                            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#9CA3AF', fontVariantNumeric: 'tabular-nums', mr: 2.5 }}>
+                              $ {fmt(e.monto)}
+                            </Typography>
+                          </Box>
+                        ))}
                         {pagosCargos.map(c => (
                           <Box key={c.id} display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
                             <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', flex: 1 }}>+ {c.descripcion}</Typography>
@@ -693,7 +811,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
       <RegistrarPagoDialog
         open={!!pagoDialog}
         pago={pagoDialog}
-        montoSugerido={montoSugerido}
+        contrato={contratoCalc}
         onClose={() => setPagoDialog(null)}
         onPaid={handlePaid}
       />

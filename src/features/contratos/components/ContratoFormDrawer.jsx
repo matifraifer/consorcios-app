@@ -41,6 +41,8 @@ const FORM_EMPTY = {
   fecha_fin: '',
   dia_vencimiento: '',
   monto_base: '',
+  deposito: '',
+  interes_mora_diario: '',
   comision_gestion: '',
   tipo_actualizacion: '',
   plazo_actualizacion: '',
@@ -48,6 +50,7 @@ const FORM_EMPTY = {
   servicio_agua: '',
   servicio_gas: '',
   servicio_energia: '',
+  servicio_municipalidad: '',
 }
 
 const fieldSx = {
@@ -136,6 +139,8 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         fecha_fin:            contrato.fecha_fin ?? '',
         dia_vencimiento:      contrato.dia_vencimiento ?? '',
         monto_base:           contrato.monto_base ?? '',
+        deposito:             contrato.deposito ?? '',
+        interes_mora_diario:  contrato.interes_mora_diario ?? '',
         comision_gestion:     contrato.comision_gestion ?? '',
         tipo_actualizacion:   contrato.tipo_actualizacion ?? '',
         plazo_actualizacion:  contrato.plazo_actualizacion ?? '',
@@ -143,6 +148,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         servicio_agua:        contrato.servicio_agua ?? '',
         servicio_gas:         contrato.servicio_gas ?? '',
         servicio_energia:     contrato.servicio_energia ?? '',
+        servicio_municipalidad: contrato.servicio_municipalidad ?? '',
       })
     } else {
       setForm(FORM_EMPTY)
@@ -165,6 +171,12 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
+  // Solo dígitos con decimales opcionales (acepta coma o punto, se guarda con punto)
+  function setDecimal(field, value) {
+    const normalizado = value.replace(',', '.')
+    if (normalizado === '' || /^\d*\.?\d*$/.test(normalizado)) set(field, normalizado)
+  }
+
   async function handleContratoFileSelected(e) {
     const file = e.target.files[0]
     e.target.value = ''
@@ -181,7 +193,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
         'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
         'fecha_inicio', 'fecha_fin', 'observaciones',
-        'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia',
+        'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia', 'servicio_municipalidad',
       ]
       const update = {}
       for (const campo of camposTexto) {
@@ -192,6 +204,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       }
       if (datos.dia_vencimiento) update.dia_vencimiento = Number(datos.dia_vencimiento)
       if (datos.monto_base) update.monto_base = String(datos.monto_base)
+      if (Number(datos.deposito) > 0) update.deposito = String(datos.deposito)
+      if (Number(datos.interes_mora_diario) > 0 && Number(datos.interes_mora_diario) <= 100) {
+        update.interes_mora_diario = String(Math.round(Number(datos.interes_mora_diario) * 10000) / 10000)
+      }
       if (TIPOS_ACTUALIZACION.includes(datos.tipo_actualizacion)) update.tipo_actualizacion = datos.tipo_actualizacion
       if (PLAZOS_ACTUALIZACION.includes(datos.plazo_actualizacion)) update.plazo_actualizacion = datos.plazo_actualizacion
 
@@ -275,6 +291,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       return 'La fecha de fin debe ser posterior a la de inicio.'
     }
     if (Number(form.monto_base) <= 0) return 'El monto base debe ser mayor a 0.'
+    if (form.deposito !== '' && Number(form.deposito) < 0) return 'El depósito no puede ser negativo.'
+    if (form.interes_mora_diario !== '' && (Number(form.interes_mora_diario) < 0 || Number(form.interes_mora_diario) > 100)) {
+      return 'El interés por mora debe estar entre 0 y 100.'
+    }
     if (form.comision_gestion && (Number(form.comision_gestion) < 0 || Number(form.comision_gestion) > 100)) {
       return 'La comisión de gestión debe estar entre 0 y 100.'
     }
@@ -303,6 +323,8 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         fecha_fin:            form.fecha_fin,
         dia_vencimiento:      form.dia_vencimiento || null,
         monto_base:           Number(form.monto_base),
+        deposito:             form.deposito === '' ? null : Number(form.deposito),
+        interes_mora_diario:  form.interes_mora_diario === '' ? null : Number(form.interes_mora_diario),
         comision_gestion:     form.comision_gestion ? Number(form.comision_gestion) : null,
         tipo_actualizacion:   form.tipo_actualizacion,
         plazo_actualizacion:  form.plazo_actualizacion,
@@ -311,6 +333,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         servicio_agua:        form.servicio_agua.trim() || null,
         servicio_gas:         form.servicio_gas.trim() || null,
         servicio_energia:     form.servicio_energia.trim() || null,
+        servicio_municipalidad: form.servicio_municipalidad.trim() || null,
       }
       let locador = null
       try {
@@ -644,6 +667,31 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
+              <Label>Depósito (ARS)</Label>
+              <TextField
+                fullWidth size="small" value={form.deposito}
+                onChange={e => setDecimal('deposito', e.target.value)}
+                placeholder="Opcional"
+                slotProps={{ input: { inputProps: { inputMode: 'decimal' } } }}
+                helperText="Se actualiza junto con el alquiler"
+                sx={fieldSx}
+              />
+            </Box>
+            <Box>
+              <Label>Interés por mora (diario %)</Label>
+              <TextField
+                fullWidth size="small" value={form.interes_mora_diario}
+                onChange={e => setDecimal('interes_mora_diario', e.target.value)}
+                placeholder="Ej: 0.5"
+                slotProps={{ input: { inputProps: { inputMode: 'decimal' } } }}
+                helperText="% por día de atraso"
+                sx={fieldSx}
+              />
+            </Box>
+          </Box>
+
+          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
+            <Box>
               <Label required>Tipo de actualización</Label>
               <FormControl fullWidth size="small">
                 <Select value={form.tipo_actualizacion} onChange={e => set('tipo_actualizacion', e.target.value)} displayEmpty sx={selectSx}>
@@ -676,6 +724,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           <Box mb={1.5}>
             <Label>Número de cuenta o suministro de Energía</Label>
             <TextField fullWidth size="small" value={form.servicio_energia} onChange={e => set('servicio_energia', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+          </Box>
+          <Box mb={1.5}>
+            <Label>Número de cuenta de Municipalidad</Label>
+            <TextField fullWidth size="small" value={form.servicio_municipalidad} onChange={e => set('servicio_municipalidad', e.target.value)} placeholder="Opcional" sx={fieldSx} />
           </Box>
 
           {/* Documentación respaldatoria */}
