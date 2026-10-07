@@ -3,6 +3,7 @@ import {
   Box, Typography, Drawer, IconButton, Button, Divider,
   CircularProgress, Alert, Chip, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab,
+  RadioGroup, Radio, FormControlLabel,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -14,7 +15,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato } from '../services/contratos'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
@@ -261,6 +262,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [descargandoRecibo, setDescargandoRecibo] = useState(null) // pago_id | null
   const [descargandoReciboProp, setDescargandoReciboProp] = useState(null) // pago_id | null
   const [reciboMenu, setReciboMenu] = useState(null) // { anchorEl, pago } | null
+  const [rendicionDialog, setRendicionDialog] = useState(null) // { pago, recibo, medio } | null
 
   useEffect(() => {
     if (!open || !contrato) return
@@ -346,14 +348,31 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     }
   }
 
+  // Recibo del propietario: antes de descargar se elige el medio de rendición
+  // (transferencia/efectivo), que queda guardado en el recibo y se precarga la próxima vez.
   async function handleDescargarReciboPropietario(pago) {
     setDescargandoReciboProp(pago.id)
     setError(null)
     try {
       const recibo = await getReciboPropietarioByPago(pago.id)
-      if (!recibo) throw new Error('No se encontró el recibo de rendición de este pago.')
+      if (!recibo) throw new Error('Este pago no tiene recibo de rendición (se registró antes de que el recibo del propietario se generara para todos los contratos).')
+      setRendicionDialog({ pago, recibo, medio: recibo.medio_rendicion ?? 'transferencia' })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDescargandoReciboProp(null)
+    }
+  }
+
+  async function handleConfirmarRendicion() {
+    const { pago, recibo, medio } = rendicionDialog
+    setRendicionDialog(null)
+    setDescargandoReciboProp(pago.id)
+    setError(null)
+    try {
+      if (medio !== recibo.medio_rendicion) await setMedioRendicion(recibo.id, medio)
       const firmaUrl = await getFirmaReciboUrl(recibo.file_firma).catch(() => null)
-      await generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl })
+      await generarReciboPropietario({ recibo: { ...recibo, medio_rendicion: medio }, contrato, pago, clienteConfig, firmaUrl })
     } catch (e) {
       setError(e.message)
     } finally {
@@ -874,16 +893,45 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
           <ListItemIcon><ReceiptLongIcon sx={{ fontSize: 18, color: ACCENT }} /></ListItemIcon>
           <ListItemText>Recibo del inquilino</ListItemText>
         </MenuItem>
-        {contrato.comision_gestion > 0 && (
-          <MenuItem
-            onClick={() => { handleDescargarReciboPropietario(reciboMenu.pago); closeReciboMenu() }}
-            sx={{ fontSize: '0.85rem' }}
-          >
-            <ListItemIcon><RequestQuoteIcon sx={{ fontSize: 18, color: ACCENT }} /></ListItemIcon>
-            <ListItemText>Recibo del propietario</ListItemText>
-          </MenuItem>
-        )}
+        <MenuItem
+          onClick={() => { handleDescargarReciboPropietario(reciboMenu.pago); closeReciboMenu() }}
+          sx={{ fontSize: '0.85rem' }}
+        >
+          <ListItemIcon><RequestQuoteIcon sx={{ fontSize: 18, color: ACCENT }} /></ListItemIcon>
+          <ListItemText>Recibo del propietario</ListItemText>
+        </MenuItem>
       </Menu>
+
+      {/* Medio de rendición al propietario */}
+      <Dialog open={!!rendicionDialog} onClose={() => setRendicionDialog(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, pb: 1 }}>Recibo del propietario</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.8rem', color: '#6B7280', mb: 1.5 }}>
+            ¿Cómo se le rindió el dinero al propietario?
+          </Typography>
+          <RadioGroup
+            value={rendicionDialog?.medio ?? 'transferencia'}
+            onChange={e => setRendicionDialog(prev => ({ ...prev, medio: e.target.value }))}
+          >
+            {[['transferencia', 'Transferencia'], ['efectivo', 'Efectivo']].map(([value, label]) => (
+              <FormControlLabel
+                key={value} value={value} label={label}
+                control={<Radio size="small" sx={{ '&.Mui-checked': { color: ACCENT } }} />}
+                sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
+              />
+            ))}
+          </RadioGroup>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setRendicionDialog(null)} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
+          <Button
+            onClick={handleConfirmarRendicion} variant="contained" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+            sx={{ bgcolor: ACCENT, textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            Descargar recibo
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

@@ -316,13 +316,16 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
       cargos_extra: cargosExtra ?? [],
     })
 
-    if (Number(c.comision_gestion) > 0) {
-      // Los descuentos se guardan con monto negativo, así que al restar totalCargos
-      // montoAlquiler queda en el alquiler completo: la comisión no se ve afectada por
-      // los descuentos, solo se informan en el recibo del propietario.
+    // Recibo de rendición al propietario: se genera siempre (sin comisión de gestión se
+    // rinde el 100% del alquiler). Los cargos extra se restan para quedarse con el
+    // alquiler; como los descuentos están en negativo, montoAlquiler queda en el alquiler
+    // completo y la comisión no se ve afectada. Los descuentos se guardan aparte y se
+    // restan de lo rendido al armar el PDF.
+    {
+      const comisionPct = Number(c.comision_gestion) || 0
       const totalCargos = (cargosExtra ?? []).reduce((s, cg) => s + Number(cg.monto), 0)
       const montoAlquiler = Number(data.monto_pagado) - totalCargos
-      const comision = montoAlquiler * (Number(c.comision_gestion) / 100)
+      const comision = montoAlquiler * (comisionPct / 100)
 
       await crearReciboPropietario({
         cliente_id: c.cliente_id,
@@ -331,7 +334,7 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
         fecha_pago: data.fecha_pago,
         monto: comision,
         monto_alquiler: montoAlquiler,
-        comision_pct: c.comision_gestion,
+        comision_pct: comisionPct,
         propietario_nombre: c.propietario_nombre,
         propietario_apellido: c.propietario_apellido,
         direccion_inmueble: direccion,
@@ -429,6 +432,14 @@ export async function crearReciboPropietario({
   })
   if (error) throw error
   return data
+}
+
+export async function setMedioRendicion(reciboId, medio) {
+  const { error } = await supabase
+    .from('recibos_propietario')
+    .update({ medio_rendicion: medio })
+    .eq('id', reciboId)
+  if (error) throw error
 }
 
 export async function getReciboPropietarioByPago(pagoId) {

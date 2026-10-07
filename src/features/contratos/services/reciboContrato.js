@@ -76,12 +76,15 @@ function mesAnioCapitalizado(fechaConMes) {
 
 // Arma el PDF de recibo (mismo layout para el recibo del inquilino y el de rendición
 // al propietario, solo cambian los datos que se le pasan) y lo descarga.
+// campo4: 4º dato del recuadro (por defecto, vencimiento del pago).
+// totalLabel/totalMonto: fila final del detalle (por defecto "Total" y recibo.monto).
 async function construirYDescargarRecibo({
   recibo, clienteConfig,
   rolLeyenda, nombreCampoLabel, destinatarioNombre, destinatarioApellido,
   cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
   conceptoTexto, montoConcepto, cargos, leyenda,
   firmaIzqLabel, firmaDerLabel, firmaUrl,
+  campo4 = null, totalLabel = 'Total', totalMonto = recibo.monto,
 }) {
   const [logo, firma] = await Promise.all([tryLoadImage(clienteConfig?.logo_url), tryLoadImage(firmaUrl)])
 
@@ -190,7 +193,8 @@ async function construirYDescargarRecibo({
   campoSec2(nombreCampoLabel, `${destinatarioApellido}, ${destinatarioNombre}`, sec2ColA, sec2Row1Y)
   campoSec2('CUOTA', `${cuotaNumero}`, sec2ColB, sec2Row1Y)
   campoSec2('MES', mesAnioCapitalizado(mesPeriodo), sec2ColA, sec2Row2Y)
-  campoSec2('VENCIMIENTO DEL PAGO', fmtFecha(vencimientoFecha), sec2ColB, sec2Row2Y)
+  if (campo4) campoSec2(campo4.label, campo4.valor, sec2ColB, sec2Row2Y)
+  else campoSec2('VENCIMIENTO DEL PAGO', fmtFecha(vencimientoFecha), sec2ColB, sec2Row2Y)
 
   y += sec2H + 4
 
@@ -211,7 +215,11 @@ async function construirYDescargarRecibo({
 
   const inmuebleLineas = lineasDe('Inmueble:', direccion)
   const conceptoLineas = lineasDe('Concepto:', conceptoTexto, montoConcepto)
-  const rowsCount = inmuebleLineas.length + conceptoLineas.length + cargos.length
+  // Los descuentos (y la comisión en el recibo del propietario) vienen con monto negativo
+  const cargosLineas = cargos.map(c =>
+    doc.splitTextToSize(`${Number(c.monto) < 0 ? '-' : '+'} ${c.descripcion}`, contentW - 50))
+  const rowsCount = inmuebleLineas.length + conceptoLineas.length
+    + cargosLineas.reduce((n, l) => n + l.length, 0)
   const sec3H = padTop + rowsCount * rowH + rowH + padBottomExtra // + fila de Total
 
   doc.setDrawColor(...BORDER)
@@ -242,12 +250,11 @@ async function construirYDescargarRecibo({
 
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...DARK)
-  // Los descuentos vienen con monto negativo
-  cargos.forEach(c => {
-    const esDescuento = Number(c.monto) < 0
-    doc.text(`${esDescuento ? '-' : '+'} ${c.descripcion}`, marginX + 5, itemY, { maxWidth: contentW - 45 })
-    doc.text(`${esDescuento ? '- ' : ''}$ ${fmtMonto(Math.abs(Number(c.monto)))}`, marginX + contentW - 5, itemY, { align: 'right' })
-    itemY += rowH
+  cargos.forEach((c, i) => {
+    const esNegativo = Number(c.monto) < 0
+    doc.text(cargosLineas[i], marginX + 5, itemY)
+    doc.text(`${esNegativo ? '- ' : ''}$ ${fmtMonto(Math.abs(Number(c.monto)))}`, marginX + contentW - 5, itemY, { align: 'right' })
+    itemY += rowH * cargosLineas[i].length
   })
 
   doc.setDrawColor(...BORDER)
@@ -255,8 +262,8 @@ async function construirYDescargarRecibo({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10.5)
   doc.setTextColor(...DARK)
-  doc.text('Total', marginX + 5, itemY + 4)
-  doc.text(`$ ${fmtMonto(recibo.monto)}`, marginX + contentW - 5, itemY + 4, { align: 'right' })
+  doc.text(totalLabel, marginX + 5, itemY + 4)
+  doc.text(`$ ${fmtMonto(totalMonto)}`, marginX + contentW - 5, itemY + 4, { align: 'right' })
 
   y += sec3H + 5
 
@@ -335,8 +342,12 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
   })
 }
 
-// Recibo de rendición: lo que la inmobiliaria le cobra al propietario por la gestión
-// del alquiler (comisión de gestión % del monto de alquiler cobrado ese período).
+const MEDIO_RENDICION_LABEL = { transferencia: 'Transferencia', efectivo: 'Efectivo' }
+
+// Recibo de rendición al propietario: alquiler cobrado − comisión de gestión − descuentos
+// aplicados al inquilino = neto rendido. La comisión se calcula sobre el alquiler completo
+// (recibo.monto = comisión, recibo.monto_alquiler = alquiler, guardados al registrar el
+// pago); el neto se calcula acá.
 export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl }) {
   const propietarioNombre = recibo.propietario_nombre ?? contrato.propietario_nombre
   const propietarioApellido = recibo.propietario_apellido ?? contrato.propietario_apellido
@@ -345,15 +356,31 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
   const mesPeriodo = recibo.periodo_mes ?? pago.periodo_inicio
   const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
 
-  const conceptoTexto = `Comisión de gestión del mes de ${mesDelPeriodo(mesPeriodo)} (${fmtMonto(recibo.comision_pct)}% sobre $ ${fmtMonto(recibo.monto_alquiler)})`
-  // Descuentos aplicados al inquilino en ese período: solo se informan, la comisión se
-  // calcula igual sobre el alquiler completo.
+  const [anio, mesNum] = mesPeriodo.split('-').map(Number)
+  const mes = MESES[mesNum - 1]
+  const tipoConcepto = contrato.es_compraventa ? 'cuota' : 'alquiler'
+  const montoAlquiler = Number(recibo.monto_alquiler)
+  const comisionPct = Number(recibo.comision_pct) || 0
+  const comision = Number(recibo.monto) || 0
   const descuentos = recibo.descuentos ?? []
   const totalDescuentos = descuentos.reduce((s, d) => s + Number(d.monto), 0)
-  const leyendaDescuentos = descuentos.length
-    ? ` Se informa que en este período se aplicó al inquilino un descuento de $ ${fmtMonto(totalDescuentos)} (${descuentos.map(d => `${d.descripcion}: $ ${fmtMonto(d.monto)}`).join('; ')}), que no modifica la comisión de gestión.`
-    : ''
-  const leyenda = `En concepto de comisión por la gestión y administración del alquiler del inmueble ${direccion}, correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}, se rinde al Propietario ${propietarioNombre} ${propietarioApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}).${leyendaDescuentos}`
+  const netoRendido = Math.round((montoAlquiler - comision - totalDescuentos) * 100) / 100
+
+  const conceptoTexto = `Rendición ${tipoConcepto} correspondiente al mes ${mes} de ${anio}`
+  const lineas = [
+    ...(comisionPct > 0
+      ? [{ descripcion: `Comisión de gestión inmobiliaria del mes ${mes} del año ${anio} (${fmtMonto(comisionPct)}% sobre $ ${fmtMonto(montoAlquiler)})`, monto: -comision }]
+      : []),
+    ...descuentos.map(d => ({ descripcion: `Descuento aplicado al inquilino: ${d.descripcion}`, monto: -Number(d.monto) })),
+  ]
+
+  const deducciones = [
+    comisionPct > 0 ? `el ${fmtMonto(comisionPct)}% en concepto de Administración Inmobiliaria` : null,
+    descuentos.length ? 'el descuento aplicado al inquilino' : null,
+  ].filter(Boolean)
+  const textoDeducciones = deducciones.length ? `, una vez deducido ${deducciones.join(' y ')}` : ''
+  const montoTexto = montoEnLetras(netoRendido, '').trim()
+  const leyenda = `Por medio de la presente se deja constancia de la rendición y entrega al propietario de la suma de Pesos ${montoTexto} ($ ${fmtMonto(netoRendido)}), correspondientes al ${tipoConcepto} del mes de ${mesDelPeriodo(mesPeriodo)} del inmueble individualizado precedentemente${textoDeducciones}.`
 
   await construirYDescargarRecibo({
     recibo, clienteConfig,
@@ -362,9 +389,12 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
     destinatarioNombre: propietarioNombre,
     destinatarioApellido: propietarioApellido,
     cuotaNumero, mesPeriodo, vencimientoFecha, direccion,
-    conceptoTexto, montoConcepto: recibo.monto, cargos: [], leyenda,
+    conceptoTexto, montoConcepto: montoAlquiler, cargos: lineas, leyenda,
     firmaIzqLabel: 'Firma y aclaración propietario',
     firmaDerLabel: firmaClienteLabel(clienteConfig, 'inmobiliaria'),
     firmaUrl,
+    campo4: { label: 'FORMA DE RENDICIÓN', valor: MEDIO_RENDICION_LABEL[recibo.medio_rendicion] ?? '—' },
+    totalLabel: 'Total neto rendido al propietario',
+    totalMonto: netoRendido,
   })
 }
