@@ -4,14 +4,16 @@ import {
   TableHead, TableRow, Alert, CircularProgress, Button, TextField,
   Select, MenuItem, FormControl, IconButton, Tooltip, Snackbar,
   InputAdornment, TablePagination,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import TuneIcon from '@mui/icons-material/Tune'
 import DescriptionIcon from '@mui/icons-material/Description'
-import { getContratos, getIndicesActualizacion } from '../services/contratos'
+import { contarPagosRegistrados, eliminarContrato, getContratos, getIndicesActualizacion } from '../services/contratos'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import ContratoFormDrawer from '../components/ContratoFormDrawer.jsx'
 import ContratoDetalleDrawer from '../components/ContratoDetalleDrawer.jsx'
@@ -95,6 +97,9 @@ export default function Contratos() {
   const [editTarget, setEditTarget] = useState(null)
   const [detalleTarget, setDetalleTarget] = useState(null)
   const [indicesOpen, setIndicesOpen] = useState(false)
+  // Eliminar contrato: { contrato, pagosPagados (null mientras se cuenta) } | null
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [eliminando, setEliminando] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -159,6 +164,32 @@ export default function Contratos() {
     setContratos(prev => prev.map(c => c.id === updated.id ? { ...c, finalizado: true } : c))
     setDetalleTarget(prev => prev ? { ...prev, finalizado: true } : null)
     setSnackMsg('Contrato finalizado.')
+  }
+
+  async function openEliminar(contrato) {
+    setDeleteTarget({ contrato, pagosPagados: null })
+    try {
+      const pagosPagados = await contarPagosRegistrados(contrato.id)
+      setDeleteTarget(prev => prev?.contrato.id === contrato.id ? { ...prev, pagosPagados } : prev)
+    } catch {
+      setDeleteTarget(prev => prev?.contrato.id === contrato.id ? { ...prev, pagosPagados: 0 } : prev)
+    }
+  }
+
+  async function handleEliminar() {
+    setEliminando(true)
+    try {
+      await eliminarContrato(deleteTarget.contrato.id)
+      setDeleteTarget(null)
+      setSnackMsg('Contrato eliminado.')
+      // Si era el único de la última página, volver a la anterior (el efecto recarga)
+      if (contratos.length === 1 && page > 0) setPage(page - 1)
+      else load()
+    } catch (err) {
+      setSnackMsg(`No se pudo eliminar el contrato: ${err.message}`)
+    } finally {
+      setEliminando(false)
+    }
   }
 
   const activeFilters = [busqInquilino, busqPropietario, busqPropiedad, filtroEstado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
@@ -355,6 +386,11 @@ export default function Contratos() {
                             </IconButton>
                           </Tooltip>
                         )}
+                        <Tooltip title="Eliminar contrato">
+                          <IconButton size="small" onClick={e => { e.stopPropagation(); openEliminar(c) }} sx={{ color: '#9CA3AF', '&:hover': { color: '#DC2626' } }}>
+                            <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -403,6 +439,35 @@ export default function Contratos() {
         userRole={user?.rol}
         onFinalizado={handleFinalizado}
       />
+
+      {/* Confirm eliminar */}
+      <Dialog open={!!deleteTarget} onClose={() => !eliminando && setDeleteTarget(null)} maxWidth="xs" PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Eliminar contrato</DialogTitle>
+        <DialogContent>
+          {deleteTarget?.pagosPagados > 0 && (
+            <Alert severity="warning" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.8rem' }}>
+              Este contrato tiene {deleteTarget.pagosPagados} {deleteTarget.pagosPagados === 1 ? 'pago registrado' : 'pagos registrados'} y sus recibos emitidos.
+              Al eliminarlo dejarán de verse en el sistema y en el Portal del Vecino.
+            </Alert>
+          )}
+          <Typography sx={{ fontSize: '0.875rem', color: '#374151' }}>
+            {deleteTarget && `Contrato de ${deleteTarget.contrato.inquilino_apellido}, ${deleteTarget.contrato.inquilino_nombre}. `}
+            Dejará de mostrarse en el listado, en el inicio y en el Portal del Vecino. Si el contrato terminó normalmente, usá "Finalizar contrato" desde el detalle.
+            ¿Querés eliminarlo?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setDeleteTarget(null)} disabled={eliminando} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
+          <Button
+            onClick={handleEliminar} variant="contained"
+            disabled={eliminando || deleteTarget?.pagosPagados === null}
+            startIcon={eliminando ? <CircularProgress size={13} color="inherit" /> : null}
+            sx={{ bgcolor: '#DC2626', textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+          >
+            {eliminando ? 'Eliminando...' : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <IndicesDialog
         open={indicesOpen}

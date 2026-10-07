@@ -242,9 +242,11 @@ async function construirYDescargarRecibo({
 
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...DARK)
+  // Los descuentos vienen con monto negativo
   cargos.forEach(c => {
-    doc.text(`+ ${c.descripcion}`, marginX + 5, itemY, { maxWidth: contentW - 45 })
-    doc.text(`$ ${fmtMonto(c.monto)}`, marginX + contentW - 5, itemY, { align: 'right' })
+    const esDescuento = Number(c.monto) < 0
+    doc.text(`${esDescuento ? '-' : '+'} ${c.descripcion}`, marginX + 5, itemY, { maxWidth: contentW - 45 })
+    doc.text(`${esDescuento ? '- ' : ''}$ ${fmtMonto(Math.abs(Number(c.monto)))}`, marginX + contentW - 5, itemY, { align: 'right' })
     itemY += rowH
   })
 
@@ -344,7 +346,14 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
   const vencimientoFecha = recibo.vencimiento_fecha ?? contrato.fecha_fin
 
   const conceptoTexto = `Comisión de gestión del mes de ${mesDelPeriodo(mesPeriodo)} (${fmtMonto(recibo.comision_pct)}% sobre $ ${fmtMonto(recibo.monto_alquiler)})`
-  const leyenda = `En concepto de comisión por la gestión y administración del alquiler del inmueble ${direccion}, correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}, se rinde al Propietario ${propietarioNombre} ${propietarioApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}).`
+  // Descuentos aplicados al inquilino en ese período: solo se informan, la comisión se
+  // calcula igual sobre el alquiler completo.
+  const descuentos = recibo.descuentos ?? []
+  const totalDescuentos = descuentos.reduce((s, d) => s + Number(d.monto), 0)
+  const leyendaDescuentos = descuentos.length
+    ? ` Se informa que en este período se aplicó al inquilino un descuento de $ ${fmtMonto(totalDescuentos)} (${descuentos.map(d => `${d.descripcion}: $ ${fmtMonto(d.monto)}`).join('; ')}), que no modifica la comisión de gestión.`
+    : ''
+  const leyenda = `En concepto de comisión por la gestión y administración del alquiler del inmueble ${direccion}, correspondiente al mes de ${mesDelPeriodo(mesPeriodo)}, se rinde al Propietario ${propietarioNombre} ${propietarioApellido} la suma de ${montoEnLetras(recibo.monto)} ($ ${fmtMonto(recibo.monto)}).${leyendaDescuentos}`
 
   await construirYDescargarRecibo({
     recibo, clienteConfig,

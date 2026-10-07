@@ -245,7 +245,9 @@ function DesgloseTarifa({ montoDeuda, tarifaServicio, montoTotal }) {
   )
 }
 
-function SaldoRow({ label, value, destacado }) {
+// conSigno: muestra montos negativos (descuentos de alquiler) en vez de "—"
+function SaldoRow({ label, value, destacado, conSigno = false }) {
+  const negativo = conSigno && value < 0
   return (
     <Box display="flex" justifyContent="space-between" alignItems="baseline" py={0.75}>
       <Typography sx={{ fontSize: destacado ? '0.9rem' : '0.82rem', color: destacado ? GREEN_900 : TEXT_MUTED, fontWeight: destacado ? 700 : 400 }}>
@@ -254,10 +256,10 @@ function SaldoRow({ label, value, destacado }) {
       <Typography sx={{
         fontSize: destacado ? '1.1rem' : '0.88rem',
         fontWeight: destacado ? 800 : 600,
-        color: value > 0 ? ORANGE : 'rgba(20,43,33,0.3)',
+        color: value > 0 ? ORANGE : negativo ? GREEN_900 : 'rgba(20,43,33,0.3)',
         fontVariantNumeric: 'tabular-nums',
       }}>
-        {value > 0 ? fmt(value) : '—'}
+        {value > 0 ? fmt(value) : negativo ? `- ${fmt(-value)}` : '—'}
       </Typography>
     </Box>
   )
@@ -509,7 +511,7 @@ function DetalleCuota({ cuota }) {
       <SaldoRow label="Monto base" value={cuota.montoBase} />
       {cuota.actualizacion !== 0 && <SaldoRow label="Actualización" value={cuota.actualizacion} />}
       {cuota.cargos.map((c, i) => (
-        <SaldoRow key={i} label={c.descripcion} value={Number(c.monto)} />
+        <SaldoRow key={i} label={c.descripcion} value={Number(c.monto)} conSigno />
       ))}
       {cuota.estimados.map(e => (
         <SaldoRow key={e.label} label={e.label} value={e.monto} />

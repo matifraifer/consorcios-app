@@ -44,10 +44,11 @@ const MONEDAS = ['ARS', 'USD']
 
 const EXTRACT_TOOL = {
   name: 'datos_contrato',
-  description: 'Datos estructurados extraídos de un contrato de alquiler argentino.',
+  description: 'Datos estructurados extraídos de un contrato de alquiler o de compraventa en cuotas argentino.',
   input_schema: {
     type: 'object',
     properties: {
+      es_compraventa: { type: 'boolean', description: 'true si es un contrato de compraventa del inmueble (no una locación/alquiler)' },
       inquilino_nombre: { type: ['string', 'null'] },
       inquilino_apellido: { type: ['string', 'null'] },
       inquilino_dni: { type: ['string', 'null'] },
@@ -77,6 +78,7 @@ const EXTRACT_TOOL = {
       moneda: { type: ['string', 'null'], enum: [...MONEDAS, null], description: 'Moneda en la que se pacta el monto de alquiler' },
     },
     required: [
+      'es_compraventa',
       'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
       'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
       'fecha_inicio', 'fecha_fin', 'dia_vencimiento', 'monto_base', 'deposito', 'interes_mora_diario',
@@ -88,11 +90,16 @@ const EXTRACT_TOOL = {
   },
 }
 
-const SYSTEM_PROMPT = `Sos un asistente que extrae datos estructurados de contratos de alquiler de inmuebles en Argentina.
+const SYSTEM_PROMPT = `Sos un asistente que extrae datos estructurados de contratos de alquiler o de compraventa de inmuebles en Argentina.
 Se te va a dar el texto plano de un contrato (puede tener errores de OCR/formato). Extraé únicamente los datos que
 aparezcan explícitamente en el texto y llamá a la herramienta "datos_contrato" con el resultado.
 Reglas:
 - Si un dato no aparece en el texto, poné null en ese campo. No inventes ni asumas datos.
+- es_compraventa: true si el contrato es de COMPRAVENTA del inmueble (boleto de compraventa, venta con pago en cuotas,
+  "vendedor"/"comprador", "precio de venta", transferencia de dominio o escrituración). false si es una LOCACIÓN/ALQUILER
+  ("locador"/"locatario", "alquiler", "canon locativo") o si no está claro.
+  En una compraventa, completá los campos propietario_* con los datos del VENDEDOR e inquilino_* con los del COMPRADOR,
+  y monto_base con el valor de la cuota mensual.
 - Las fechas van en formato YYYY-MM-DD.
 - monto_base es el monto de alquiler mensual base, como número (sin separadores de miles ni símbolo de moneda).
 - deposito: monto del depósito en garantía, como número (sin separadores de miles ni símbolo de moneda), o null.

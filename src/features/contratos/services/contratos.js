@@ -53,6 +53,7 @@ export async function getContratos(cliente_id, filters = {}, { page = 0, pageSiz
     .from('contratos')
     .select(`*, ${propiedadesSelect}`, { count: 'exact' })
     .eq('cliente_id', cliente_id)
+    .eq('deleted', false)
 
   if (filters.busqInquilino) {
     const q = sanitizeFiltro(filters.busqInquilino)
@@ -170,6 +171,28 @@ export async function finalizarContrato(id) {
   return data
 }
 
+// Eliminación lógica: el contrato deja de mostrarse en todos lados, pero la fila (y sus
+// pagos, recibos, cargos e historial de actualizaciones) queda en la base.
+export async function eliminarContrato(id) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { error } = await supabase
+    .from('contratos')
+    .update({ deleted: true, deleted_at: new Date().toISOString(), deleted_by: user?.id ?? null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// Para la advertencia al eliminar un contrato desde la grilla
+export async function contarPagosRegistrados(contratoId) {
+  const { count, error } = await supabase
+    .from('pagos_contrato')
+    .select('id', { count: 'exact', head: true })
+    .eq('contrato_id', contratoId)
+    .eq('estado', 'pagado')
+  if (error) throw error
+  return count ?? 0
+}
+
 export async function getContratoAdjuntos(contrato_id) {
   const { data, error } = await supabase
     .from('contratos_adjuntos').select('*')
@@ -207,6 +230,7 @@ export async function getPagosContratoCliente(clienteId) {
     .select('*, contratos!inner(id, cliente_id, tipo_actualizacion, plazo_actualizacion, finalizado)')
     .eq('contratos.cliente_id', clienteId)
     .eq('contratos.finalizado', false)
+    .eq('contratos.deleted', false)
     .order('periodo_numero')
   if (error) throw error
   return data ?? []
@@ -262,7 +286,7 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
   try {
     const { data: cargosExtra, error: cargosErr } = await supabase
       .from('cargos_extra_contrato')
-      .select('descripcion, monto')
+      .select('descripcion, monto, tipo')
       .eq('pago_id', data.id)
     if (cargosErr) throw cargosErr
 
@@ -293,6 +317,9 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
     })
 
     if (Number(c.comision_gestion) > 0) {
+      // Los descuentos se guardan con monto negativo, así que al restar totalCargos
+      // montoAlquiler queda en el alquiler completo: la comisión no se ve afectada por
+      // los descuentos, solo se informan en el recibo del propietario.
       const totalCargos = (cargosExtra ?? []).reduce((s, cg) => s + Number(cg.monto), 0)
       const montoAlquiler = Number(data.monto_pagado) - totalCargos
       const comision = montoAlquiler * (Number(c.comision_gestion) / 100)
@@ -311,6 +338,9 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
         cuota_numero: data.periodo_numero,
         periodo_mes: periodoMes,
         vencimiento_fecha: vencimientoFecha,
+        descuentos: (cargosExtra ?? [])
+          .filter(cg => cg.tipo === 'descuento')
+          .map(cg => ({ descripcion: cg.descripcion, monto: Math.abs(Number(cg.monto)) })),
       })
     }
   } catch (reciboErr) {
@@ -379,7 +409,7 @@ export async function getReciboByPago(pagoId) {
 export async function crearReciboPropietario({
   cliente_id, contrato_id, pago_id, fecha_pago, monto, monto_alquiler, comision_pct,
   propietario_nombre, propietario_apellido, direccion_inmueble,
-  cuota_numero, periodo_mes, vencimiento_fecha,
+  cuota_numero, periodo_mes, vencimiento_fecha, descuentos = [],
 }) {
   const { data, error } = await supabase.rpc('crear_recibo_propietario', {
     p_cliente_id: cliente_id,
@@ -395,6 +425,7 @@ export async function crearReciboPropietario({
     p_cuota_numero: cuota_numero,
     p_periodo_mes: periodo_mes,
     p_vencimiento_fecha: vencimiento_fecha,
+    p_descuentos: descuentos,
   })
   if (error) throw error
   return data
@@ -517,10 +548,12 @@ export async function getCargosExtraByPagos(pagoIds) {
   return data ?? []
 }
 
-export async function createCargoExtra({ pago_id, descripcion, monto }) {
+// tipo 'descuento': monto se recibe en positivo y se guarda negativo (resta del total).
+export async function createCargoExtra({ pago_id, descripcion, monto, tipo = 'manual' }) {
+  const valor = tipo === 'descuento' ? -Math.abs(Number(monto)) : Number(monto)
   const { data, error } = await supabase
     .from('cargos_extra_contrato')
-    .insert([{ pago_id, descripcion, monto: Number(monto) }])
+    .insert([{ pago_id, descripcion, monto: valor, tipo }])
     .select()
     .single()
   if (error) throw error

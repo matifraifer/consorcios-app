@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, Button, Divider,
   CircularProgress, Alert, Chip, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText,
+  DialogContent, DialogActions, TextField, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -33,6 +33,13 @@ function fmtDate(d) {
 function fmt(v) {
   if (!v && v !== 0) return '—'
   return Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+
+// Los descuentos se guardan con monto negativo
+const DESCUENTO_COLOR = '#059669'
+
+function fmtSigned(v) {
+  return Number(v) < 0 ? `- $ ${fmt(-Number(v))}` : `$ ${fmt(v)}`
 }
 
 function InfoRow({ label, value }) {
@@ -174,14 +181,15 @@ function RegistrarPagoDialog({ open, pago, contrato, onClose, onPaid }) {
             <Box sx={{ bgcolor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 1 }}>
               {[
                 ['Alquiler', pago.alquiler],
-                ['Cargos extra', pago.cargosTotal],
+                ['Recargos', pago.recargosTotal],
+                ['Descuentos', pago.descuentosTotal],
                 ['Depósito en garantía', pago.depositoInicial],
                 ['Actualización de depósito', pago.depositoEstimado],
                 ['Interés por mora', Number(mora) || 0],
-              ].filter(([, v], i) => i === 0 || v > 0).map(([label, v]) => (
+              ].filter(([, v], i) => i === 0 || v !== 0).map(([label, v]) => (
                 <Box key={label} display="flex" justifyContent="space-between" py={0.2}>
                   <Typography sx={{ fontSize: '0.75rem', color: '#6B7280' }}>{label}</Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>$ {fmt(v)}</Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: v < 0 ? DESCUENTO_COLOR : '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtSigned(v)}</Typography>
                 </Box>
               ))}
               <Box display="flex" justifyContent="space-between" pt={0.5} mt={0.5} sx={{ borderTop: '1px solid #E5E7EB' }}>
@@ -244,6 +252,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   // Cargos extra por período
   const [cargos, setCargos] = useState({}) // { [pago_id]: cargo[] }
   const [cargoDialog, setCargoDialog] = useState(null) // pago_id | null
+  const [cargoTab, setCargoTab] = useState('recargos') // 'recargos' | 'descuentos'
   const [cargoDesc, setCargoDesc] = useState('')
   const [cargoMonto, setCargoMonto] = useState('')
   const [savingCargo, setSavingCargo] = useState(false)
@@ -360,11 +369,16 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     setReciboMenu(null)
   }
 
-  function openPagoDialog(pago, cargosTotal) {
+  function openPagoDialog(pago) {
+    const pagoCargos = cargos[pago.id] ?? []
+    const recargosTotal = pagoCargos.filter(c => Number(c.monto) > 0).reduce((s, c) => s + Number(c.monto), 0)
+    const descuentosTotal = pagoCargos.filter(c => Number(c.monto) < 0).reduce((s, c) => s + Number(c.monto), 0)
     setPagoDialog({
       ...pago,
       alquiler: Number(pago.monto_actualizado),
-      cargosTotal,
+      cargosTotal: recargosTotal + descuentosTotal,
+      recargosTotal,
+      descuentosTotal,
       depositoEstimado: pago.deposito_estimado,
       depositoInicial: pago.deposito_inicial,
       faltantes: indicesFaltantes(pago, pagos, indices, contrato.tipo_actualizacion, contrato.plazo_actualizacion),
@@ -373,6 +387,13 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
 
   function openCargoDialog(pagoId) {
     setCargoDialog(pagoId)
+    setCargoTab('recargos')
+    setCargoDesc('')
+    setCargoMonto('')
+  }
+
+  function changeCargoTab(tab) {
+    setCargoTab(tab)
     setCargoDesc('')
     setCargoMonto('')
   }
@@ -381,7 +402,12 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     if (!cargoDesc.trim() || !cargoMonto || Number(cargoMonto) <= 0) return
     setSavingCargo(true)
     try {
-      const nuevo = await createCargoExtra({ pago_id: cargoDialog, descripcion: cargoDesc.trim(), monto: Number(cargoMonto) })
+      const nuevo = await createCargoExtra({
+        pago_id: cargoDialog,
+        descripcion: cargoDesc.trim(),
+        monto: Number(cargoMonto),
+        tipo: cargoTab === 'descuentos' ? 'descuento' : 'manual',
+      })
       setCargos(prev => ({
         ...prev,
         [cargoDialog]: [...(prev[cargoDialog] ?? []), nuevo],
@@ -631,7 +657,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                       <Box display="flex" alignItems="center" gap={0.5}>
                         <EstadoPagoBadge estado={isVencido ? 'vencido' : p.estado} />
                         {!contrato.finalizado && p.estado !== 'pagado' && (
-                          <Tooltip title="Agregar cargo extra">
+                          <Tooltip title="Cargos extra">
                             <IconButton size="small" onClick={() => openCargoDialog(p.id)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
                               <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -640,7 +666,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                         {p.estado === 'pendiente' && !contrato.finalizado && (
                           <Button
                             size="small" variant="outlined"
-                            onClick={() => openPagoDialog(p, totalCargos)}
+                            onClick={() => openPagoDialog(p)}
                             sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'none', borderRadius: '7px', borderColor: ACCENT, color: ACCENT, py: 0.3, px: 1.25, '&:hover': { bgcolor: ACCENT_LIGHT } }}
                           >
                             Pagó
@@ -685,10 +711,10 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                         ))}
                         {pagosCargos.map(c => (
                           <Box key={c.id} display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
-                            <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', flex: 1 }}>+ {c.descripcion}</Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', flex: 1 }}>{Number(c.monto) < 0 ? '−' : '+'} {c.descripcion}</Typography>
                             <Box display="flex" alignItems="center" gap={0.5}>
-                              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
-                                $ {fmt(c.monto)}
+                              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: Number(c.monto) < 0 ? DESCUENTO_COLOR : '#374151', fontVariantNumeric: 'tabular-nums' }}>
+                                {fmtSigned(c.monto)}
                               </Typography>
                               {!contrato.finalizado && (
                                 <IconButton size="small" onClick={() => handleDeleteCargo(p.id, c.id)} sx={{ p: 0.2, color: '#D1D5DB', '&:hover': { color: '#EF4444' } }}>
@@ -770,14 +796,32 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
 
       {/* Dialog cargo extra */}
       <Dialog open={!!cargoDialog} onClose={() => setCargoDialog(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
-        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, pb: 1 }}>Agregar cargo extra</DialogTitle>
-        <DialogContent sx={{ pt: '8px !important' }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, pb: 0.5 }}>Cargos Extra</DialogTitle>
+        <Tabs
+          value={cargoTab}
+          onChange={(_, v) => changeCargoTab(v)}
+          sx={{
+            px: 3, minHeight: 36, borderBottom: '1px solid #E5E7EB',
+            '& .MuiTab-root': { textTransform: 'none', fontSize: '0.82rem', fontWeight: 600, minHeight: 36, px: 1.5, color: '#6B7280' },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+            '& .MuiTabs-indicator': { bgcolor: ACCENT },
+          }}
+        >
+          <Tab value="recargos" label="Recargos" />
+          <Tab value="descuentos" label="Descuentos" />
+        </Tabs>
+        <DialogContent sx={{ pt: '16px !important' }}>
+          <Typography sx={{ fontSize: '0.75rem', color: '#6B7280', mb: 1.5 }}>
+            {cargoTab === 'descuentos'
+              ? 'El descuento se resta del monto a pagar por el inquilino. No modifica la comisión de gestión.'
+              : 'El recargo se suma al monto a pagar por el inquilino.'}
+          </Typography>
           <Box display="flex" flexDirection="column" gap={1.5}>
             <Box>
               <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#374151', mb: 0.5 }}>Descripción *</Typography>
               <TextField
                 fullWidth size="small" autoFocus
-                placeholder="Ej: Multa por atraso, Expensas, etc."
+                placeholder={cargoTab === 'descuentos' ? 'Ej: Bonificación, Reparación a cargo del inquilino, etc.' : 'Ej: Multa por atraso, Expensas, etc.'}
                 value={cargoDesc} onChange={e => setCargoDesc(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveCargo() }}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', fontSize: '0.875rem', '& fieldset': { borderColor: '#E5E7EB' }, '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 } } }}
@@ -802,7 +846,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
             startIcon={savingCargo ? <CircularProgress size={13} color="inherit" /> : null}
             sx={{ bgcolor: ACCENT, textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
           >
-            {savingCargo ? 'Guardando...' : 'Agregar'}
+            {savingCargo ? 'Guardando...' : cargoTab === 'descuentos' ? 'Agregar descuento' : 'Agregar recargo'}
           </Button>
         </DialogActions>
       </Dialog>

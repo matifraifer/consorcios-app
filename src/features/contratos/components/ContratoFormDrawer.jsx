@@ -202,6 +202,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           update[campo] = campo.endsWith('_dni') ? valor.replace(/\D/g, '') : valor
         }
       }
+      if (typeof datos.es_compraventa === 'boolean') update.es_compraventa = datos.es_compraventa
       if (datos.dia_vencimiento) update.dia_vencimiento = Number(datos.dia_vencimiento)
       if (datos.monto_base) update.monto_base = String(datos.monto_base)
       if (Number(datos.deposito) > 0) update.deposito = String(datos.deposito)
