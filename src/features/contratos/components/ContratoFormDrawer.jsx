@@ -13,7 +13,7 @@ import { createContrato, updateContrato } from '../services/contratos'
 import { vincularContactoDesdeContrato } from '../../crm/services/crm'
 import { extraerDatosContrato } from '../../portal/services/portal'
 import { crearPropiedadDesdeContrato, getPropiedades } from '../../propiedades/services/propiedades'
-import { extraerTexto } from '../utils/extraerTextoContrato.js'
+import { ACCEPT_CONTRATO, prepararContrato } from '../utils/extraerTextoContrato.js'
 import { useAuth } from '../../auth/AuthContext'
 import PropiedadFormDrawer from '../../propiedades/components/PropiedadFormDrawer'
 import ContactoPicker from '../../../shared/components/ContactoPicker'
@@ -178,16 +178,16 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   }
 
   async function handleContratoFileSelected(e) {
-    const file = e.target.files[0]
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
+    if (!files.length) return
 
     setExtrayendo(true)
     setExtraccionMsg(null)
     setError(null)
     try {
-      const texto = await extraerTexto(file)
-      const datos = await extraerDatosContrato(texto)
+      const contenido = await prepararContrato(files)
+      const datos = await extraerDatosContrato(contenido)
 
       const camposTexto = [
         'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
@@ -424,7 +424,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
           {!isEdit && (
             <Box mb={2}>
-              <input ref={contratoFileRef} type="file" hidden accept=".pdf,.docx" onChange={handleContratoFileSelected} />
+              <input ref={contratoFileRef} type="file" hidden multiple accept={ACCEPT_CONTRATO} onChange={handleContratoFileSelected} />
               <Button
                 variant="outlined"
                 size="small"
@@ -465,6 +465,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               >
                 {extrayendo ? 'Leyendo contrato...' : 'Cargar contrato y autocompletar'}
               </Button>
+              <Typography sx={{ fontSize: '0.7rem', color: '#9CA3AF', mt: 0.75, textAlign: 'center' }}>
+                PDF (también escaneado), Word o fotos de las páginas (podés elegir varias)
+              </Typography>
               {extraccionMsg && (
                 <Alert severity={extraccionMsg.severity} sx={{ mt: 1.5, borderRadius: '8px', fontSize: '0.8rem' }} onClose={() => setExtraccionMsg(null)}>
                   {extraccionMsg.text}

@@ -57,8 +57,10 @@ export async function enviarLinkConsultaDeuda(departamento_id) {
   return data
 }
 
-export async function extraerDatosContrato(texto) {
-  const { data, error } = await supabase.functions.invoke('extraer-contrato-ia', { body: { texto } })
+// contenido: { texto } (PDF con texto / Word) o { archivos: [{ media_type, data }] }
+// (PDF escaneado o fotos), armado por prepararContrato.
+export async function extraerDatosContrato(contenido) {
+  const { data, error } = await supabase.functions.invoke('extraer-contrato-ia', { body: contenido })
   if (error) throw error
   if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
   return data.data

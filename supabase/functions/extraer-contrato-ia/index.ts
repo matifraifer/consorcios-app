@@ -91,8 +91,10 @@ const EXTRACT_TOOL = {
 }
 
 const SYSTEM_PROMPT = `Sos un asistente que extrae datos estructurados de contratos de alquiler o de compraventa de inmuebles en Argentina.
-Se te va a dar el texto plano de un contrato (puede tener errores de OCR/formato). Extraé únicamente los datos que
-aparezcan explícitamente en el texto y llamá a la herramienta "datos_contrato" con el resultado.
+Se te va a dar el texto plano de un contrato (puede tener errores de OCR/formato), o el contrato como PDF escaneado
+o como fotos de sus páginas (pueden venir torcidas, con sellos o firmas encima). Extraé únicamente los datos que
+aparezcan explícitamente en el contrato y llamá a la herramienta "datos_contrato" con el resultado. Si un dato no se
+lee con claridad en un escaneo o foto, poné null en vez de adivinarlo.
 Reglas:
 - Si un dato no aparece en el texto, poné null en ese campo. No inventes ni asumas datos.
 - es_compraventa: true si el contrato es de COMPRAVENTA del inmueble (boleto de compraventa, venta con pago en cuotas,
@@ -118,6 +120,48 @@ Reglas:
 - tipo_propiedad solo puede ser uno de: ${TIPOS_PROPIEDAD.join(', ')}, o null si no se puede determinar.
 - moneda solo puede ser uno de: ${MONEDAS.join(', ')}. Si el contrato no menciona explícitamente la moneda, poné "ARS" (moneda por defecto).`
 
+// Archivos que manda el frontend cuando el PDF es escaneado o son fotos (prepararContrato)
+const MEDIA_TYPES_IMAGEN = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_ARCHIVOS = 20
+const MAX_BASE64_TOTAL = 28 * 1024 * 1024 // margen bajo el límite de 32 MB por pedido de la API
+
+// Arma el contenido del mensaje: texto plano, o un bloque document (PDF) / image por archivo.
+function armarContenido(body: any): { contenido?: unknown; error?: string } {
+  if (typeof body?.texto === 'string' && body.texto.trim()) {
+    return { contenido: body.texto.slice(0, 40000) }
+  }
+
+  const archivos = body?.archivos
+  if (!Array.isArray(archivos) || archivos.length === 0) {
+    return { error: 'Falta el contenido del contrato.' }
+  }
+  if (archivos.length > MAX_ARCHIVOS) return { error: `Se pueden enviar hasta ${MAX_ARCHIVOS} archivos.` }
+
+  let total = 0
+  const bloques: unknown[] = []
+  for (const a of archivos) {
+    if (typeof a?.data !== 'string' || !a.data) return { error: 'Archivo inválido.' }
+    total += a.data.length
+    if (a.media_type === 'application/pdf') {
+      if (archivos.length > 1) return { error: 'El PDF se envía solo, sin otros archivos.' }
+      bloques.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: a.data } })
+    } else if (MEDIA_TYPES_IMAGEN.includes(a.media_type)) {
+      bloques.push({ type: 'image', source: { type: 'base64', media_type: a.media_type, data: a.data } })
+    } else {
+      return { error: 'Tipo de archivo no soportado.' }
+    }
+  }
+  if (total > MAX_BASE64_TOTAL) return { error: 'Los archivos son demasiado pesados.' }
+
+  bloques.push({
+    type: 'text',
+    text: bloques.length > 1
+      ? 'Estas son las páginas del contrato, en orden. Extraé sus datos.'
+      : 'Este es el contrato. Extraé sus datos.',
+  })
+  return { contenido: bloques }
+}
+
 function jsonError(cors: Record<string, string>, message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status, headers: { ...cors, 'Content-Type': 'application/json' },
@@ -132,11 +176,8 @@ serve(async (req) => {
     const acceso = await validarAcceso(req)
     if (!acceso.ok) return jsonError(CORS, acceso.error, acceso.status)
 
-    const { texto } = await req.json()
-
-    if (!texto || typeof texto !== 'string' || !texto.trim()) {
-      return jsonError(CORS, 'Falta el texto del contrato.')
-    }
+    const { contenido, error: errorContenido } = armarContenido(await req.json())
+    if (errorContenido) return jsonError(CORS, errorContenido)
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -152,7 +193,7 @@ serve(async (req) => {
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'datos_contrato' },
         messages: [
-          { role: 'user', content: texto.slice(0, 40000) },
+          { role: 'user', content: contenido },
         ],
       }),
     })
