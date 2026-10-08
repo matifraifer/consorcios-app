@@ -2,14 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, TextField, Button,
   Alert, CircularProgress, Select, MenuItem, FormControl,
-  Divider, Chip, Checkbox, FormControlLabel,
+  Divider, Chip, Checkbox, FormControlLabel, FormHelperText,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { getPropietarioCRM } from '../../consorcios/services/consorcios'
-import { createContrato, updateContrato } from '../services/contratos'
+import { createContrato, getRestriccionesEdicion, updateContrato } from '../services/contratos'
 import { vincularContactoDesdeContrato } from '../../crm/services/crm'
 import { extraerDatosContrato } from '../../portal/services/portal'
 import { crearPropiedadDesdeContrato, getPropiedades } from '../../propiedades/services/propiedades'
@@ -104,6 +105,10 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [cargadoIA, setCargadoIA] = useState(false)
   const [datosPropiedadIA, setDatosPropiedadIA] = useState(null)
   const docsRef = useRef(null)
+  // Edición: qué condiciones ya no se pueden cambiar (ver getRestriccionesEdicion) y
+  // avisos a confirmar antes de guardar cambios que impactan en los pagos.
+  const [restricciones, setRestricciones] = useState(null)
+  const [confirmEdicion, setConfirmEdicion] = useState(null) // string[] | null
   const contratoFileRef = useRef(null)
 
   // IPC/ICL + índices propios cargados desde el dialog "Índices" (+ el valor
@@ -120,7 +125,12 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     setPropietarioLocked(false)
     setCargadoIA(isEdit ? (contrato?.cargado_ia ?? false) : false)
     setDatosPropiedadIA(null)
+    setRestricciones(null)
+    setConfirmEdicion(null)
     loadPropiedades()
+    if (isEdit && contrato) {
+      getRestriccionesEdicion(contrato.id).then(setRestricciones).catch(() => {})
+    }
 
     if (isEdit && contrato) {
       setForm({
@@ -302,10 +312,31 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     return null
   }
 
-  async function handleSubmit() {
+  // Avisos de una edición que impacta en los pagos ya generados
+  function avisosEdicion() {
+    if (!isEdit || !contrato || !restricciones?.totalPagos) return []
+    const avisos = []
+    if (form.fecha_inicio !== contrato.fecha_inicio) {
+      avisos.push(`Se van a rearmar los ${restricciones.totalPagos} períodos del contrato con la nueva fecha de inicio.`
+        + (restricciones.cargosPendientes ? ` Se van a eliminar los ${restricciones.cargosPendientes} cargos extra cargados en esos períodos.` : ''))
+    } else if (Number(form.monto_base) !== Number(contrato.monto_base)) {
+      avisos.push(`Se va a actualizar el monto base de los ${restricciones.totalPagos} períodos del contrato.`
+        + (restricciones.pagados ? ' Lo ya cobrado y sus recibos no cambian.' : ''))
+    }
+    if (form.plazo_actualizacion !== contrato.plazo_actualizacion) {
+      avisos.push('Se van a recalcular los meses de actualización según el nuevo plazo.')
+    }
+    return avisos
+  }
+
+  async function handleSubmit(confirmado = false) {
     const err = validate()
     if (err) { setError(err); return }
     setError(null)
+    if (!confirmado) {
+      const avisos = avisosEdicion()
+      if (avisos.length) { setConfirmEdicion(avisos); return }
+    }
     setSaving(true)
     try {
       const payload = {
@@ -380,7 +411,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
 
       let result
       if (isEdit) {
-        result = await updateContrato(contrato.id, payload)
+        result = await updateContrato(contrato.id, payload, contrato)
       } else {
         result = await createContrato(payload, [], clienteId)
       }
@@ -616,7 +647,11 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
               <Label required>Fecha inicio</Label>
-              <TextField fullWidth size="small" type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx} />
+              <TextField
+                fullWidth size="small" type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)}
+                disabled={!!restricciones?.fechaInicio} helperText={restricciones?.fechaInicio ?? undefined}
+                slotProps={{ inputLabel: { shrink: true } }} sx={fieldSx}
+              />
             </Box>
             <Box>
               <Label required>Fecha fin</Label>
@@ -653,6 +688,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               <TextField
                 fullWidth size="small" type="number" value={form.monto_base}
                 onChange={e => set('monto_base', e.target.value)}
+                disabled={!!restricciones?.montoBase} helperText={restricciones?.montoBase ?? undefined}
                 slotProps={{ input: { inputProps: { min: 0 } } }}
                 sx={fieldSx}
               />
@@ -676,8 +712,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
                 fullWidth size="small" value={form.deposito}
                 onChange={e => setDecimal('deposito', e.target.value)}
                 placeholder="Opcional"
+                disabled={!!restricciones?.deposito}
                 slotProps={{ input: { inputProps: { inputMode: 'decimal' } } }}
-                helperText="Se actualiza junto con el alquiler"
+                helperText={restricciones?.deposito ?? 'Se cobra con la primera cuota y se actualiza junto con el alquiler'}
                 sx={fieldSx}
               />
             </Box>
@@ -697,7 +734,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={1.5}>
             <Box>
               <Label required>Tipo de actualización</Label>
-              <FormControl fullWidth size="small">
+              <FormControl fullWidth size="small" disabled={!!restricciones?.actualizacion}>
                 <Select value={form.tipo_actualizacion} onChange={e => set('tipo_actualizacion', e.target.value)} displayEmpty sx={selectSx}>
                   <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
                   {tiposActualizacion.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>{t}</MenuItem>)}
@@ -706,7 +743,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             </Box>
             <Box>
               <Label required>Plazo de actualización</Label>
-              <FormControl fullWidth size="small">
+              <FormControl fullWidth size="small" disabled={!!restricciones?.actualizacion}>
                 <Select value={form.plazo_actualizacion} onChange={e => set('plazo_actualizacion', e.target.value)} displayEmpty sx={selectSx}>
                   <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Seleccionar</MenuItem>
                   {PLAZOS_ACTUALIZACION.map(p => <MenuItem key={p} value={p} sx={{ fontSize: '0.875rem' }}>{p}</MenuItem>)}
@@ -714,6 +751,11 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
               </FormControl>
             </Box>
           </Box>
+          {restricciones?.actualizacion && (
+            <FormHelperText sx={{ mt: -1, mb: 1.5 }}>
+              El tipo y el plazo de actualización no se pueden cambiar porque el contrato ya tuvo actualizaciones por índice aplicadas.
+            </FormHelperText>
+          )}
 
           {/* Datos de servicios */}
           <SectionTitle>Datos de servicios</SectionTitle>
@@ -762,7 +804,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             Cancelar
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
             disabled={saving}
             fullWidth variant="contained"
             startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
@@ -782,6 +824,25 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         onSaved={handlePropiedadSaved}
         defaultTipoOperacion="Alquiler"
       />
+
+      <Dialog open={!!confirmEdicion} onClose={() => setConfirmEdicion(null)} maxWidth="xs" PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Confirmar cambios</DialogTitle>
+        <DialogContent>
+          {(confirmEdicion ?? []).map(aviso => (
+            <Typography key={aviso} sx={{ fontSize: '0.85rem', color: '#374151', mb: 1 }}>{aviso}</Typography>
+          ))}
+          <Typography sx={{ fontSize: '0.85rem', color: '#374151' }}>¿Guardar los cambios?</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setConfirmEdicion(null)} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
+          <Button
+            onClick={() => { setConfirmEdicion(null); handleSubmit(true) }} variant="contained"
+            sx={{ bgcolor: ACCENT, textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <ContactoPicker
         open={pickerInquilinoOpen}

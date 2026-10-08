@@ -114,7 +114,63 @@ export async function createContrato(payload, files, clienteId) {
   return contrato
 }
 
-export async function updateContrato(id, payload) {
+// Qué condiciones se pueden editar en un contrato ya creado (mismas reglas que la RPC
+// editar_contrato_condiciones, acá solo para bloquear los campos en el formulario).
+export async function getRestriccionesEdicion(contratoId) {
+  const [pagos, actualizaciones] = await Promise.all([
+    supabase.from('pagos_contrato').select('id, periodo_numero, estado').eq('contrato_id', contratoId),
+    supabase.from('actualizaciones_contrato').select('id', { count: 'exact', head: true }).eq('contrato_id', contratoId),
+  ])
+  if (pagos.error) throw pagos.error
+  if (actualizaciones.error) throw actualizaciones.error
+
+  const lista = pagos.data ?? []
+  const pagados = lista.filter(p => p.estado === 'pagado').length
+  const conActualizaciones = (actualizaciones.count ?? 0) > 0
+  const cuota1Pagada = lista.some(p => p.periodo_numero === 1 && p.estado === 'pagado')
+  let cargosPendientes = 0
+  if (lista.length) {
+    const { count, error } = await supabase.from('cargos_extra_contrato')
+      .select('id', { count: 'exact', head: true }).in('pago_id', lista.map(p => p.id))
+    if (error) throw error
+    cargosPendientes = count ?? 0
+  }
+
+  return {
+    totalPagos: lista.length,
+    pagados,
+    cargosPendientes,
+    montoBase: conActualizaciones ? 'El contrato ya tuvo actualizaciones por índice aplicadas.' : null,
+    deposito: conActualizaciones
+      ? 'El contrato ya tuvo actualizaciones por índice aplicadas.'
+      : cuota1Pagada ? 'El depósito ya se cobró con la primera cuota.' : null,
+    actualizacion: conActualizaciones ? 'El contrato ya tuvo actualizaciones por índice aplicadas.' : null,
+    fechaInicio: pagados > 0 ? 'El contrato ya tiene pagos registrados.' : null,
+  }
+}
+
+// anterior: el contrato antes de editar (para saber si cambió la fecha de inicio y hay
+// que rearmar los períodos).
+export async function updateContrato(id, payload, anterior = null) {
+  // Primero las condiciones que impactan en los pagos (monto base, depósito, tipo/plazo de
+  // actualización, fecha de inicio): la RPC valida las reglas y actualiza los pagos en
+  // una transacción. Si algo no se puede cambiar, corta acá y no se guarda nada.
+  const cambiaInicio = anterior && payload.fecha_inicio !== anterior.fecha_inicio
+  const { error: condErr } = await supabase.rpc('editar_contrato_condiciones', {
+    p_contrato_id: id,
+    p_monto_base: payload.monto_base,
+    p_deposito: payload.deposito ?? null,
+    p_tipo_actualizacion: payload.tipo_actualizacion,
+    p_plazo_actualizacion: payload.plazo_actualizacion,
+    p_fecha_inicio: payload.fecha_inicio,
+    p_pagos_regenerados: cambiaInicio
+      ? generarPagos(id, payload.fecha_inicio, payload.fecha_fin, payload.monto_base, payload.plazo_actualizacion)
+        .map(({ periodo_numero, periodo_inicio, periodo_fin, es_periodo_actualizacion }) =>
+          ({ periodo_numero, periodo_inicio, periodo_fin, es_periodo_actualizacion }))
+      : null,
+  })
+  if (condErr) throw condErr
+
   const { data, error } = await supabase
     .from('contratos')
     .update({ ...payload, updated_at: new Date().toISOString() })
