@@ -17,7 +17,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
 import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
-import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, indicesFaltantes } from '../utils/actualizacionContrato.js'
+import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, estaVencido, fechaVencimientoCuota, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
 
 const ACCENT = '#065F46'
@@ -623,7 +623,8 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                 const [py, pm] = p.periodo_inicio.split('-').map(Number)
                 const today = new Date()
                 const efectivo = p.monto_actualizado
-                const isVencido = p.estado === 'pendiente' && new Date(p.periodo_fin + 'T23:59:59') < today
+                const vencimiento = fechaVencimientoCuota(p.periodo_inicio, contrato.dia_vencimiento)
+                const isVencido = estaVencido(p, contrato.dia_vencimiento, today)
                 const pagosCargos = cargos[p.id] ?? []
                 const totalCargos = pagosCargos.reduce((sum, c) => sum + Number(c.monto), 0)
                 // Todavía no guardados (se guardan como cargo al registrar el pago): depósito en
@@ -670,6 +671,7 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                           </Box>
                           <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF' }}>
                             {fmtDate(p.periodo_inicio)} — {fmtDate(p.periodo_fin)}
+                            {p.estado === 'pendiente' && vencimiento && ` · Vence ${vencimiento.toLocaleDateString('es-AR')}`}
                           </Typography>
                         </Box>
                       </Box>

@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/services/supabaseClient'
+import { fechaIsoLocal, fechaVencimientoCuota } from '../utils/actualizacionContrato.js'
 
 // ---- CONTRATOS ----
 
@@ -283,7 +284,7 @@ export async function getPagosContrato(contrato_id) {
 export async function getPagosContratoCliente(clienteId) {
   const { data, error } = await supabase
     .from('pagos_contrato')
-    .select('*, contratos!inner(id, cliente_id, tipo_actualizacion, plazo_actualizacion, finalizado)')
+    .select('*, contratos!inner(id, cliente_id, tipo_actualizacion, plazo_actualizacion, finalizado, dia_vencimiento)')
     .eq('contratos.cliente_id', clienteId)
     .eq('contratos.finalizado', false)
     .eq('contratos.deleted', false)
@@ -351,8 +352,10 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
     const concepto = c.es_compraventa ? 'Cuota' : 'Alquiler'
     const [anio, mesNum] = data.periodo_inicio.split('-').map(Number)
     const periodoMes = `${anio}-${String(mesNum).padStart(2, '0')}-01`
+    // Mismo cálculo que el resto del sistema: día de vencimiento del mes, sin pasarse al
+    // mes siguiente en meses más cortos
     const vencimientoFecha = c.dia_vencimiento
-      ? new Date(anio, mesNum - 1, Number(c.dia_vencimiento)).toISOString().slice(0, 10)
+      ? fechaIsoLocal(fechaVencimientoCuota(data.periodo_inicio, c.dia_vencimiento))
       : null
 
     await crearReciboContrato({

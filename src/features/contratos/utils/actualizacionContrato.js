@@ -109,6 +109,19 @@ export function fechaVencimientoCuota(periodoInicio, diaVencimiento) {
   return new Date(y, m - 1, dia)
 }
 
+// Un pago pendiente está vencido cuando pasó el día de vencimiento de su mes (todo ese
+// día cuenta como en término). Misma regla que la mora.
+export function estaVencido(pago, diaVencimiento, hoy = new Date()) {
+  if (pago.estado !== 'pendiente') return false
+  const v = fechaVencimientoCuota(pago.periodo_inicio, diaVencimiento)
+  return !!v && new Date(v.getFullYear(), v.getMonth(), v.getDate(), 23, 59, 59) < hoy
+}
+
+// YYYY-MM-DD en hora local (toISOString convierte a UTC y puede correr el día)
+export function fechaIsoLocal(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function aFecha(valor) {
   if (valor instanceof Date) return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate())
   const [y, m, d] = String(valor).slice(0, 10).split('-').map(Number)

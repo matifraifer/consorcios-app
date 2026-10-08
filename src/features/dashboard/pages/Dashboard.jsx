@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { getIndicesActualizacion, getPagosContratoCliente } from '../../contratos/services/contratos'
 import { getCRMDashboardData } from '../../crm/services/crm'
 import { getDashboardDeuda, getTotalDepartamentosActivos } from '../../expensas/services/expensas'
-import { computeMontoActualizado } from '../../contratos/utils/actualizacionContrato.js'
+import { computeMontoActualizado, estaVencido } from '../../contratos/utils/actualizacionContrato.js'
 import DashboardFiltros from '../components/DashboardFiltros.jsx'
 import DashboardKPIs from '../components/DashboardKPIs.jsx'
 import DeudaPorConsorcioTable from '../components/DeudaPorConsorcioTable.jsx'
@@ -142,16 +142,17 @@ export default function Dashboard() {
     let corrienteCount = 0
 
     porContrato.forEach(pagosContrato => {
-      const { tipo_actualizacion, plazo_actualizacion } = pagosContrato[0].contratos
+      const { tipo_actualizacion, plazo_actualizacion, dia_vencimiento } = pagosContrato[0].contratos
       pagosContrato.forEach(pago => {
         if (pago.estado !== 'pendiente') return
+        // Vencido: pasó el día de vencimiento de su mes. Corriente: del mes actual, todavía en término.
         const [anio, mes] = pago.periodo_inicio.split('-').map(Number)
-        const esAnterior = anio < anioActual || (anio === anioActual && mes < mesActual)
-        const esCorriente = anio === anioActual && mes === mesActual
-        if (!esAnterior && !esCorriente) return
+        const vencido = estaVencido(pago, dia_vencimiento, hoy)
+        const esCorriente = !vencido && anio === anioActual && mes === mesActual
+        if (!vencido && !esCorriente) return
 
         const monto = computeMontoActualizado(pago, pagosContrato, indices, tipo_actualizacion, plazo_actualizacion)
-        if (esAnterior) {
+        if (vencido) {
           vencidoTotal += monto
         } else {
           corrienteTotal += monto
