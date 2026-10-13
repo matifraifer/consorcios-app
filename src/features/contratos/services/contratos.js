@@ -403,6 +403,11 @@ export async function registrarPagoContrato(pagoId, { monto_pagado, fecha_pago, 
         descuentos: (cargosExtra ?? [])
           .filter(cg => cg.tipo === 'descuento')
           .map(cg => ({ descripcion: cg.descripcion, monto: Math.abs(Number(cg.monto)) })),
+        // Cargos extra que se le rinden al propietario: todos menos la mora (queda para la
+        // inmobiliaria) y los descuentos (van aparte)
+        cargos_extra: (cargosExtra ?? [])
+          .filter(cg => !['mora', 'descuento'].includes(cg.tipo))
+          .map(cg => ({ descripcion: cg.descripcion, monto: Number(cg.monto), tipo: cg.tipo })),
       })
     }
   } catch (reciboErr) {
@@ -471,7 +476,7 @@ export async function getReciboByPago(pagoId) {
 export async function crearReciboPropietario({
   cliente_id, contrato_id, pago_id, fecha_pago, monto, monto_alquiler, comision_pct,
   propietario_nombre, propietario_apellido, direccion_inmueble,
-  cuota_numero, periodo_mes, vencimiento_fecha, descuentos = [],
+  cuota_numero, periodo_mes, vencimiento_fecha, descuentos = [], cargos_extra = [],
 }) {
   const { data, error } = await supabase.rpc('crear_recibo_propietario', {
     p_cliente_id: cliente_id,
@@ -488,6 +493,7 @@ export async function crearReciboPropietario({
     p_periodo_mes: periodo_mes,
     p_vencimiento_fecha: vencimiento_fecha,
     p_descuentos: descuentos,
+    p_cargos_extra: cargos_extra,
   })
   if (error) throw error
   return data

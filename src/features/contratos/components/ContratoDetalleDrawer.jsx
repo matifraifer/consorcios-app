@@ -372,7 +372,10 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     try {
       if (medio !== recibo.medio_rendicion) await setMedioRendicion(recibo.id, medio)
       const firmaUrl = await getFirmaReciboUrl(recibo.file_firma).catch(() => null)
-      await generarReciboPropietario({ recibo: { ...recibo, medio_rendicion: medio }, contrato, pago, clienteConfig, firmaUrl })
+      await generarReciboPropietario({
+        recibo: { ...recibo, medio_rendicion: medio }, contrato, pago, clienteConfig, firmaUrl,
+        cargosExtraPago: cargos[pago.id] ?? [],
+      })
     } catch (e) {
       setError(e.message)
     } finally {

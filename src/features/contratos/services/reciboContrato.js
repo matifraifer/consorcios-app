@@ -344,11 +344,13 @@ export async function generarReciboContrato({ recibo, contrato, pago, cargosExtr
 
 const MEDIO_RENDICION_LABEL = { transferencia: 'Transferencia', efectivo: 'Efectivo' }
 
-// Recibo de rendición al propietario: alquiler cobrado − comisión de gestión − descuentos
-// aplicados al inquilino = neto rendido. La comisión se calcula sobre el alquiler completo
-// (recibo.monto = comisión, recibo.monto_alquiler = alquiler, guardados al registrar el
-// pago); el neto se calcula acá.
-export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl }) {
+// Recibo de rendición al propietario: alquiler cobrado + cargos extra − comisión de
+// gestión − descuentos aplicados al inquilino = neto rendido. La comisión se calcula solo
+// sobre el alquiler (recibo.monto = comisión, recibo.monto_alquiler = alquiler, guardados
+// al registrar el pago); el neto se calcula acá. El interés por mora no se rinde.
+// cargosExtraPago: cargos del pago en vivo, solo para recibos anteriores a 0054 (sin
+// snapshot en recibo.cargos_extra).
+export async function generarReciboPropietario({ recibo, contrato, pago, clienteConfig, firmaUrl, cargosExtraPago = [] }) {
   const propietarioNombre = recibo.propietario_nombre ?? contrato.propietario_nombre
   const propietarioApellido = recibo.propietario_apellido ?? contrato.propietario_apellido
   const direccion = recibo.direccion_inmueble ?? (contrato.propiedades?.direccion || contrato.propiedades?.titulo || 'sin especificar')
@@ -364,10 +366,14 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
   const comision = Number(recibo.monto) || 0
   const descuentos = recibo.descuentos ?? []
   const totalDescuentos = descuentos.reduce((s, d) => s + Number(d.monto), 0)
-  const netoRendido = Math.round((montoAlquiler - comision - totalDescuentos) * 100) / 100
+  const cargosRendidos = recibo.cargos_extra
+    ?? cargosExtraPago.filter(c => !['mora', 'descuento'].includes(c.tipo) && Number(c.monto) > 0)
+  const totalCargos = cargosRendidos.reduce((s, c) => s + Number(c.monto), 0)
+  const netoRendido = Math.round((montoAlquiler + totalCargos - comision - totalDescuentos) * 100) / 100
 
   const conceptoTexto = `Rendición ${tipoConcepto} correspondiente al mes ${mes} de ${anio}`
   const lineas = [
+    ...cargosRendidos.map(c => ({ descripcion: c.descripcion, monto: Number(c.monto) })),
     ...(comisionPct > 0
       ? [{ descripcion: `Comisión de gestión inmobiliaria del mes ${mes} del año ${anio} (${fmtMonto(comisionPct)}% sobre $ ${fmtMonto(montoAlquiler)})`, monto: -comision }]
       : []),
@@ -380,7 +386,7 @@ export async function generarReciboPropietario({ recibo, contrato, pago, cliente
   ].filter(Boolean)
   const textoDeducciones = deducciones.length ? `, una vez deducido ${deducciones.join(' y ')}` : ''
   const montoTexto = montoEnLetras(netoRendido, '').trim()
-  const leyenda = `Por medio de la presente se deja constancia de la rendición y entrega al propietario de la suma de Pesos ${montoTexto} ($ ${fmtMonto(netoRendido)}), correspondientes al ${tipoConcepto} del mes de ${mesDelPeriodo(mesPeriodo)} del inmueble individualizado precedentemente${textoDeducciones}.`
+  const leyenda = `Por medio de la presente se deja constancia de la rendición y entrega al propietario de la suma de Pesos ${montoTexto} ($ ${fmtMonto(netoRendido)}), correspondientes al ${tipoConcepto}${cargosRendidos.length ? ' y cargos adicionales' : ''} del mes de ${mesDelPeriodo(mesPeriodo)} del inmueble individualizado precedentemente${textoDeducciones}.`
 
   await construirYDescargarRecibo({
     recibo, clienteConfig,
