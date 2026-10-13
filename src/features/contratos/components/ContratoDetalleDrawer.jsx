@@ -15,7 +15,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion } from '../services/contratos'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion, setMoraCondonada } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, estaVencido, fechaVencimientoCuota, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
@@ -442,6 +442,18 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
     }
   }
 
+  // La mora de un período pendiente no es un cargo guardado (se calcula en el momento),
+  // así que "eliminarla" es condonarla: queda marcada en el pago y deja de calcularse.
+  async function handleCondonarMora(pagoId, condonar) {
+    setError(null)
+    try {
+      const actualizado = await setMoraCondonada(pagoId, condonar)
+      setPagos(prev => prev.map(p => p.id === pagoId ? { ...p, ...actualizado } : p))
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   async function handleDeleteCargo(pagoId, cargoId) {
     try {
       await deleteCargoExtra(cargoId)
@@ -638,9 +650,10 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                   { label: 'Actualización de depósito', monto: p.deposito_estimado },
                   (() => {
                     const m = computeMora(p, contratoCalc, efectivo, new Date())
-                    return { label: `Interés por mora (${m.dias} días, al día de hoy)`, monto: m.monto }
+                    return { label: `Interés por mora (${m.dias} días, al día de hoy)`, monto: m.monto, esMora: true }
                   })(),
                 ].filter(e => e.monto > 0)
+                const moraCondonada = p.estado !== 'pagado' && p.mora_condonada && Number(contratoCalc?.interes_mora_diario) > 0
                 const total = efectivo + totalCargos + estimados.reduce((s, e) => s + e.monto, 0)
 
                 return (
@@ -723,16 +736,38 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                     </Box>
 
                     {/* Cargos extra */}
-                    {(pagosCargos.length > 0 || estimados.length > 0) && (
+                    {(pagosCargos.length > 0 || estimados.length > 0 || moraCondonada) && (
                       <Box mt={1} pt={1} sx={{ borderTop: '1px dashed #E5E7EB' }}>
                         {estimados.map(e => (
                           <Box key={e.label} display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
                             <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', fontStyle: 'italic', flex: 1 }}>+ {e.label}</Typography>
-                            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#9CA3AF', fontVariantNumeric: 'tabular-nums', mr: 2.5 }}>
-                              $ {fmt(e.monto)}
-                            </Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#9CA3AF', fontVariantNumeric: 'tabular-nums', mr: e.esMora && !contrato.finalizado ? 0 : 2.5 }}>
+                                $ {fmt(e.monto)}
+                              </Typography>
+                              {e.esMora && !contrato.finalizado && (
+                                <Tooltip title="Condonar mora de este período">
+                                  <IconButton size="small" onClick={() => handleCondonarMora(p.id, true)} sx={{ p: 0.2, color: '#D1D5DB', '&:hover': { color: '#EF4444' } }}>
+                                    <DeleteOutlineIcon sx={{ fontSize: 13 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
                           </Box>
                         ))}
+                        {moraCondonada && (
+                          <Box display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
+                            <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', fontStyle: 'italic', flex: 1 }}>Mora condonada</Typography>
+                            {!contrato.finalizado && (
+                              <Button
+                                size="small" onClick={() => handleCondonarMora(p.id, false)}
+                                sx={{ fontSize: '0.68rem', textTransform: 'none', minWidth: 0, py: 0, px: 0.75, color: ACCENT }}
+                              >
+                                Restaurar
+                              </Button>
+                            )}
+                          </Box>
+                        )}
                         {pagosCargos.map(c => (
                           <Box key={c.id} display="flex" alignItems="center" justifyContent="space-between" py={0.25}>
                             <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', flex: 1 }}>{Number(c.monto) < 0 ? '−' : '+'} {c.descripcion}</Typography>
@@ -740,7 +775,8 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                               <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: Number(c.monto) < 0 ? DESCUENTO_COLOR : '#374151', fontVariantNumeric: 'tabular-nums' }}>
                                 {fmtSigned(c.monto)}
                               </Typography>
-                              {!contrato.finalizado && (
+                              {/* Los cargos de un período pagado quedan fijos (ya están en los recibos) */}
+                              {!contrato.finalizado && p.estado !== 'pagado' && (
                                 <IconButton size="small" onClick={() => handleDeleteCargo(p.id, c.id)} sx={{ p: 0.2, color: '#D1D5DB', '&:hover': { color: '#EF4444' } }}>
                                   <DeleteOutlineIcon sx={{ fontSize: 13 }} />
                                 </IconButton>

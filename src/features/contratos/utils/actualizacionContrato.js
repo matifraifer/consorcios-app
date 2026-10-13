@@ -131,9 +131,10 @@ function aFecha(valor) {
 // Interés por mora (interés simple, % diario sobre el alquiler del mes sin cargos extra).
 // Solo corre si se paga DESPUÉS del vencimiento; en ese caso los días se cuentan desde el
 // día 1 del mes del período. fechaReferencia: fecha de pago (o hoy, para estimar).
+// pago.mora_condonada: la mora del período se condonó desde el detalle del contrato.
 export function computeMora(pago, contrato, montoAlquiler, fechaReferencia) {
   const tasa = Number(contrato.interes_mora_diario)
-  if (!tasa || !pago.periodo_inicio || !fechaReferencia) return { dias: 0, monto: 0 }
+  if (!tasa || pago.mora_condonada || !pago.periodo_inicio || !fechaReferencia) return { dias: 0, monto: 0 }
 
   const vencimiento = fechaVencimientoCuota(pago.periodo_inicio, contrato.dia_vencimiento)
   const ref = aFecha(fechaReferencia)

@@ -499,6 +499,24 @@ export async function crearReciboPropietario({
   return data
 }
 
+// Condona (o restaura) el interés por mora de un período pendiente
+export async function setMoraCondonada(pagoId, condonada) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('pagos_contrato')
+    .update({
+      mora_condonada: condonada,
+      mora_condonada_at: condonada ? new Date().toISOString() : null,
+      mora_condonada_por: condonada ? (user?.id ?? null) : null,
+    })
+    .eq('id', pagoId)
+    .eq('estado', 'pendiente')
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function setMedioRendicion(reciboId, medio) {
   const { error } = await supabase
     .from('recibos_propietario')
