@@ -517,6 +517,13 @@ export async function setMoraCondonada(pagoId, condonada) {
   return data
 }
 
+// Elimina un cargo extra de un período YA PAGADO: ajusta el monto pagado y actualiza los
+// recibos del inquilino y del propietario (mismo número, marcados como modificados).
+export async function eliminarCargoPeriodoPagado(cargoId) {
+  const { error } = await supabase.rpc('eliminar_cargo_periodo_pagado', { p_cargo_id: String(cargoId) })
+  if (error) throw error
+}
+
 export async function setMedioRendicion(reciboId, medio) {
   const { error } = await supabase
     .from('recibos_propietario')

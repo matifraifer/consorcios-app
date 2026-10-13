@@ -164,6 +164,12 @@ async function construirYDescargarRecibo({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.text(`Fecha: ${fmtFecha(recibo.fecha_pago)}`, col3X, y + 30)
+  if (recibo.modificado_at) {
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text(`Recibo modificado el ${fmtFecha(recibo.modificado_at)}`, col3X, y + 35)
+  }
 
   y += sec1H + 4
 

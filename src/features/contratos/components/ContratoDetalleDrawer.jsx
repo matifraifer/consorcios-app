@@ -15,7 +15,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion, setMoraCondonada } from '../services/contratos'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion, setMoraCondonada, eliminarCargoPeriodoPagado } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, estaVencido, fechaVencimientoCuota, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
@@ -263,6 +263,8 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [descargandoReciboProp, setDescargandoReciboProp] = useState(null) // pago_id | null
   const [reciboMenu, setReciboMenu] = useState(null) // { anchorEl, pago } | null
   const [rendicionDialog, setRendicionDialog] = useState(null) // { pago, recibo, medio } | null
+  const [cargoPagadoDialog, setCargoPagadoDialog] = useState(null) // { pago, cargo } | null
+  const [eliminandoCargoPagado, setEliminandoCargoPagado] = useState(false)
 
   useEffect(() => {
     if (!open || !contrato) return
@@ -451,6 +453,24 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
       setPagos(prev => prev.map(p => p.id === pagoId ? { ...p, ...actualizado } : p))
     } catch (e) {
       setError(e.message)
+    }
+  }
+
+  // Cargo de un período pagado: se confirma antes, porque cambia el monto pagado y los
+  // recibos ya emitidos se vuelven a generar (mismo número, marcados como modificados).
+  async function handleConfirmarEliminarCargoPagado() {
+    const { cargo } = cargoPagadoDialog
+    setEliminandoCargoPagado(true)
+    setError(null)
+    try {
+      await eliminarCargoPeriodoPagado(cargo.id)
+      setCargoPagadoDialog(null)
+      loadData()
+    } catch (e) {
+      setError(e.message)
+      setCargoPagadoDialog(null)
+    } finally {
+      setEliminandoCargoPagado(false)
     }
   }
 
@@ -775,9 +795,9 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                               <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: Number(c.monto) < 0 ? DESCUENTO_COLOR : '#374151', fontVariantNumeric: 'tabular-nums' }}>
                                 {fmtSigned(c.monto)}
                               </Typography>
-                              {/* Los cargos de un período pagado quedan fijos (ya están en los recibos) */}
-                              {!contrato.finalizado && p.estado !== 'pagado' && (
-                                <IconButton size="small" onClick={() => handleDeleteCargo(p.id, c.id)} sx={{ p: 0.2, color: '#D1D5DB', '&:hover': { color: '#EF4444' } }}>
+                              {/* En un período pagado se pide confirmación: cambia el monto pagado y los recibos */}
+                              {!contrato.finalizado && (
+                                <IconButton size="small" onClick={() => (p.estado === 'pagado' ? setCargoPagadoDialog({ pago: p, cargo: c }) : handleDeleteCargo(p.id, c.id))} sx={{ p: 0.2, color: '#D1D5DB', '&:hover': { color: '#EF4444' } }}>
                                   <DeleteOutlineIcon sx={{ fontSize: 13 }} />
                                 </IconButton>
                               )}
@@ -942,6 +962,48 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
           <ListItemText>Recibo del propietario</ListItemText>
         </MenuItem>
       </Menu>
+
+      {/* Eliminar cargo de un período pagado */}
+      <Dialog open={!!cargoPagadoDialog} onClose={() => !eliminandoCargoPagado && setCargoPagadoDialog(null)} maxWidth="xs" PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Eliminar cargo de un período pagado</DialogTitle>
+        <DialogContent>
+          {cargoPagadoDialog && (() => {
+            const pagadoActual = Number(cargoPagadoDialog.pago.monto_pagado) || 0
+            const pagadoNuevo = pagadoActual - Number(cargoPagadoDialog.cargo.monto)
+            return (
+              <>
+                <Chip
+                  icon={<ErrorOutlineIcon sx={{ fontSize: 16 }} />}
+                  label="El período se encuentra pagado."
+                  size="small"
+                  sx={{
+                    mb: 1.5, fontSize: '0.78rem', fontWeight: 600,
+                    bgcolor: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A',
+                    '& .MuiChip-icon': { color: '#D97706' },
+                  }}
+                />
+                <Typography sx={{ fontSize: '0.8rem', color: '#4B5563', lineHeight: 1.6, mb: 1.5 }}>
+                  Al eliminar "{cargoPagadoDialog.cargo.descripcion}", el monto pagado pasará de $ {fmt(pagadoActual)} a
+                  $ {fmt(pagadoNuevo)} y se volverán a generar el recibo del inquilino y el del propietario.
+                </Typography>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
+                  ¿Desea continuar?
+                </Typography>
+              </>
+            )
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setCargoPagadoDialog(null)} disabled={eliminandoCargoPagado} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
+          <Button
+            onClick={handleConfirmarEliminarCargoPagado} variant="contained" disabled={eliminandoCargoPagado}
+            startIcon={eliminandoCargoPagado ? <CircularProgress size={13} color="inherit" /> : null}
+            sx={{ bgcolor: '#DC2626', textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+          >
+            {eliminandoCargoPagado ? 'Eliminando...' : 'Eliminar y regenerar recibos'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Medio de rendición al propietario */}
       <Dialog open={!!rendicionDialog} onClose={() => setRendicionDialog(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
