@@ -23,6 +23,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 
+const OPERACIONES = ['Venta', 'Alquiler']
 const TIPOS   = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina']
 const ESTADOS = ['Disponible', 'Reservada', 'Vendida', 'Alquilada', 'Baja']
 
@@ -118,6 +119,7 @@ export default function Propiedades() {
 
   // Filtros
   const [search, setSearch]               = useState('')
+  const [filtroOperacion, setFiltroOperacion] = useState('')
   const [filtroTipo, setFiltroTipo]       = useState('')
   const [filtroEstado, setFiltroEstado]   = useState('')
   const [filtroProv, setFiltroProv]       = useState('')
@@ -164,6 +166,7 @@ export default function Propiedades() {
     const q = search.toLowerCase()
     let list = propiedades.filter(p => {
       if (q && !`${p.titulo} ${p.direccion} ${p.localidad} ${p.id}`.toLowerCase().includes(q)) return false
+      if (filtroOperacion && p.tipo_operacion !== filtroOperacion) return false
       if (filtroTipo  && p.tipo_propiedad !== filtroTipo)  return false
       if (filtroEstado && p.estado !== filtroEstado)        return false
       if (filtroProv  && p.provincia !== filtroProv)        return false
@@ -179,7 +182,7 @@ export default function Propiedades() {
     })
 
     return list
-  }, [propiedades, search, filtroTipo, filtroEstado, filtroProv, precioMin, precioMax, sortBy, sortDir])
+  }, [propiedades, search, filtroOperacion, filtroTipo, filtroEstado, filtroProv, precioMin, precioMax, sortBy, sortDir])
 
   const totalPages = Math.ceil(filtered.length / ROWS_PER_PAGE)
   const pageData = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE)
@@ -251,10 +254,10 @@ export default function Propiedades() {
   // Provincias únicas de los datos
   const provincias = useMemo(() => [...new Set(propiedades.map(p => p.provincia).filter(Boolean))].sort(), [propiedades])
 
-  const activeFilters = [search, filtroTipo, filtroEstado, filtroProv, precioMin, precioMax].filter(Boolean).length
+  const activeFilters = [search, filtroOperacion, filtroTipo, filtroEstado, filtroProv, precioMin, precioMax].filter(Boolean).length
 
   function clearFilters() {
-    setSearch(''); setFiltroTipo(''); setFiltroEstado(''); setFiltroProv('')
+    setSearch(''); setFiltroOperacion(''); setFiltroTipo(''); setFiltroEstado(''); setFiltroProv('')
     setPrecioMin(''); setPrecioMax(''); setPage(1)
   }
 
@@ -307,6 +310,14 @@ export default function Propiedades() {
               '& .MuiOutlinedInput-root': { borderRadius: '8px', fontSize: '0.82rem', bgcolor: 'white', '& fieldset': { borderColor: '#E5E7EB' }, '&:hover fieldset': { borderColor: ACCENT }, '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 1 } },
             }}
           />
+
+          {/* Operación */}
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Select value={filtroOperacion} displayEmpty onChange={e => { setFiltroOperacion(e.target.value); setPage(1) }} sx={selectSx}>
+              <MenuItem value="" sx={{ fontSize: '0.82rem', color: '#9CA3AF' }}>Operación</MenuItem>
+              {OPERACIONES.map(o => <MenuItem key={o} value={o} sx={{ fontSize: '0.82rem' }}>{o}</MenuItem>)}
+            </Select>
+          </FormControl>
 
           {/* Tipo */}
           <FormControl size="small" sx={{ minWidth: 140 }}>
