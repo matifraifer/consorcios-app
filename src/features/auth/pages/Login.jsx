@@ -319,8 +319,10 @@ export default function Login() {
               Gestión<br />
               <Box component="span" sx={{ color: 'rgba(255,255,255,0.45)' }}>inteligente</Box><br />
               de{' '}
-              <Box component="span" sx={{ whiteSpace: 'nowrap' }}>
-                {cyclingWord}
+              {/* translate="no": el texto cambia cada 80ms; si un traductor del navegador
+                  reemplaza este nodo, React falla al actualizarlo y deja la pantalla en blanco */}
+              <Box component="span" translate="no" className="notranslate" sx={{ whiteSpace: 'nowrap' }}>
+                {cyclingWord || '​'}
                 <Box component="span" className="typewriter-cursor" />
                 
               </Box>
