@@ -1,7 +1,12 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { getUsuarioByAuthId, resolveEmailForUsername, signInWithEmail, signOutSupabase, updateUserPassword } from './services/auth'
 import { supabase } from '../../shared/services/supabaseClient'
 const AuthContext = createContext(null)
+
+// Se lee al cargar el módulo, antes de que supabase-js limpie el hash de la URL
+// y antes de que el AuthProvider se suscriba (el evento PASSWORD_RECOVERY puede
+// emitirse antes de esa suscripción y perderse).
+const RECOVERY_IN_URL = typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -9,6 +14,9 @@ export function AuthProvider({ children }) {
   const [initializing, setInitializing] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // Entró por un link de recuperación: se exige cambiar la contraseña aunque el
+  // metadata diga must_change_password: false.
+  const recoveryRef = useRef(RECOVERY_IN_URL)
 
   useEffect(() => {
     let active = true
@@ -26,7 +34,7 @@ export function AuthProvider({ children }) {
         setUser(perfil)
         // Por default se exige cambio de contraseña; solo se salta si el
         // metadata dice explícitamente must_change_password: false.
-        setMustChangePassword(session.user.user_metadata?.must_change_password !== false)
+        setMustChangePassword(recoveryRef.current || session.user.user_metadata?.must_change_password !== false)
       }
     }
 
@@ -36,7 +44,8 @@ export function AuthProvider({ children }) {
       })
     })
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') recoveryRef.current = true
       resolveSession(session)
     })
 
@@ -75,10 +84,12 @@ export function AuthProvider({ children }) {
 
   async function changePassword(newPassword) {
     await updateUserPassword(newPassword)
+    recoveryRef.current = false
     setMustChangePassword(false)
   }
 
   async function logout() {
+    recoveryRef.current = false
     await signOutSupabase()
     setUser(null)
     setMustChangePassword(false)

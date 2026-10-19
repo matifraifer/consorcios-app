@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ProtectedRoute from './shared/components/ProtectedRoute'
 import Layout from './shared/components/Layout'
 
@@ -36,6 +36,15 @@ import Proyectos        from './features/proyectos/pages/Proyectos.jsx'
 import ProyectoDetalle  from './features/proyectos/pages/ProyectoDetalle.jsx'
 import DiagramaGantt    from './features/proyectos/pages/DiagramaGantt.jsx'
 import CostosProyecto   from './features/proyectos/pages/CostosProyecto.jsx'
+
+// Los links de recuperación enviados desde el dashboard de Supabase vuelven a la
+// Site URL (raíz) con el token en el hash; se conserva el hash para que
+// supabase-js pueda leerlo y se va directo a cambiar la contraseña.
+function FallbackRedirect() {
+  const { hash } = useLocation()
+  if (hash.includes('type=recovery')) return <Navigate to={{ pathname: '/cambiar-password', hash }} replace />
+  return <Navigate to={{ pathname: '/login', hash }} replace />
+}
 
 export default function App() {
   return (
@@ -81,7 +90,7 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<FallbackRedirect />} />
     </Routes>
   )
 }
