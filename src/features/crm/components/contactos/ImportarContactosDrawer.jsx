@@ -13,9 +13,53 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import GroupAddIcon from '@mui/icons-material/GroupAdd'
 import { importarContactos } from '../../services/crm'
 import { useAuth } from '../../../auth/AuthContext.jsx'
+import { EMBUDO_CONTACTO, ORIGENES_CONTACTO, TIPOS_CONTACTO } from '../../constants/contactos'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
+
+// Columnas de la plantilla, en orden. Las indicaciones se usan en el drawer,
+// en la hoja "Instrucciones" y en el comentario de cada encabezado del Excel.
+const COLUMNAS_PLANTILLA = [
+  { nombre: 'Nombre', obligatorio: true, indicaciones: ['Nombre de pila del contacto.'] },
+  { nombre: 'Apellido', obligatorio: true, indicaciones: ['Apellido del contacto.'] },
+  {
+    nombre: 'Tipo', obligatorio: true, indicaciones: [
+      `Valores admitidos: ${TIPOS_CONTACTO.join(', ')}.`,
+      'Se pueden cargar varios separados por coma (ej. PROPIETARIO, INVERSOR).',
+      'No distingue mayúsculas de minúsculas.',
+    ],
+  },
+  { nombre: 'Teléfono', obligatorio: true, indicaciones: ['Celular con código de área, sin 0 ni 15 (ej. 2641234567).'] },
+  {
+    nombre: 'DNI', obligatorio: false, indicaciones: [
+      'Solo números, sin puntos (ej. 30123456).',
+      'Si ya existe un contacto con ese DNI, la fila se marca como duplicada.',
+    ],
+  },
+  {
+    nombre: 'Correo electrónico', obligatorio: false, indicaciones: [
+      'Ej. juan.garcia@email.com.',
+      'Si ya existe un contacto con ese correo, la fila se marca como duplicada.',
+    ],
+  },
+  {
+    nombre: 'Origen del contacto', obligatorio: false, indicaciones: [
+      `Valores admitidos: ${ORIGENES_CONTACTO.join(', ')}.`,
+      'Un solo valor por fila.',
+    ],
+  },
+  {
+    nombre: 'Embudo de ventas', obligatorio: false, indicaciones: [
+      `Valores admitidos: ${EMBUDO_CONTACTO.join(', ')}.`,
+      'Un solo valor por fila.',
+    ],
+  },
+]
+
+function tituloColumna(col) {
+  return `${col.nombre} (${col.obligatorio ? 'obligatorio' : 'opcional'})`
+}
 
 function SectionLabel({ children }) {
   return (
@@ -59,12 +103,47 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
 
   function descargarPlantilla() {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Nombre', 'Apellido', 'Tipo', 'Teléfono', 'DNI', 'Correo electrónico'],
-      ['Juan', 'García', 'Comprador', '2641234567', '30123456', 'juan.garcia@email.com'],
+      COLUMNAS_PLANTILLA.map(c => c.nombre),
+      ['Juan', 'García', 'COMPRADOR', '2641234567', '30123456', 'juan.garcia@email.com', 'REDES SOCIALES', 'PROSPECTO'],
+      ['María', 'López', 'PROPIETARIO, INVERSOR', '2647654321', '28765432', '', 'AMIGO', '1er contacto'],
     ])
-    ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 26 }]
+    ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 20 }, { wch: 18 }]
+
+    // Comentario en cada encabezado con las indicaciones de la columna (se ve al pasar el mouse)
+    COLUMNAS_PLANTILLA.forEach((col, i) => {
+      const cell = ws[XLSX.utils.encode_cell({ r: 0, c: i })]
+      cell.c = [{ a: 'Granito', t: [tituloColumna(col), ...col.indicaciones.map(b => `• ${b}`)].join('\n') }]
+      cell.c.hidden = true
+    })
+
+    // Hoja de instrucciones: una sección por columna con sus indicaciones en viñetas
+    const instrucciones = XLSX.utils.aoa_to_sheet([
+      ['Cómo completar la plantilla de contactos'],
+      ['• Completá los datos en la hoja "Contactos", una fila por contacto, sin cambiar el orden de las columnas.'],
+      ['• Las filas de ejemplo (Juan García y María López) se pueden borrar o reemplazar.'],
+      ['• Los contactos con un DNI o correo que ya existe en el sistema se informan como duplicados y no se importan.'],
+      [''],
+      ...COLUMNAS_PLANTILLA.flatMap((col, i) => [
+        [`${String.fromCharCode(65 + i)}. ${tituloColumna(col)}`],
+        ...col.indicaciones.map(b => [`   • ${b}`]),
+        [''],
+      ]),
+    ])
+    instrucciones['!cols'] = [{ wch: 110 }]
+
+    // Hoja de referencia con los valores admitidos en cada columna de clasificación
+    const maxLen = Math.max(TIPOS_CONTACTO.length, ORIGENES_CONTACTO.length, EMBUDO_CONTACTO.length)
+    const valores = XLSX.utils.aoa_to_sheet([
+      ['Tipo', 'Origen del contacto', 'Embudo de ventas'],
+      ...Array.from({ length: maxLen }, (_, i) => [TIPOS_CONTACTO[i] ?? '', ORIGENES_CONTACTO[i] ?? '', EMBUDO_CONTACTO[i] ?? '']),
+    ])
+    valores['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 18 }]
+
     const wb = XLSX.utils.book_new()
+    // "Contactos" tiene que quedar primera: la importación lee la primera hoja
     XLSX.utils.book_append_sheet(wb, ws, 'Contactos')
+    XLSX.utils.book_append_sheet(wb, instrucciones, 'Instrucciones')
+    XLSX.utils.book_append_sheet(wb, valores, 'Valores admitidos')
     XLSX.writeFile(wb, 'plantilla_contactos.xlsx')
   }
 
@@ -97,8 +176,10 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
             telefono: String(r[3] ?? '').trim(),
             dni: String(r[4] ?? '').trim(),
             email: String(r[5] ?? '').trim(),
+            origen_contacto: String(r[6] ?? '').trim(),
+            embudo_contacto: String(r[7] ?? '').trim(),
           }))
-          .filter(f => f.nombre || f.apellido || f.tipo || f.telefono || f.dni || f.email)
+          .filter(f => f.nombre || f.apellido || f.tipo || f.telefono || f.dni || f.email || f.origen_contacto || f.embudo_contacto)
         if (filas.length === 0) {
           setFileError('El archivo no contiene filas con datos.')
           return
@@ -157,8 +238,30 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
             {/* Paso 1: plantilla */}
             <SectionLabel>1. Descargá la plantilla</SectionLabel>
             <Typography sx={{ fontSize: '0.8rem', color: '#6B7280', mb: 1.5 }}>
-              Completá el archivo respetando el orden de columnas: Nombre, Apellido, Tipo, Teléfono (obligatorios), DNI y Correo electrónico (opcionales).
+              Completá la hoja "Contactos" respetando el orden de las columnas. La plantilla incluye estas mismas indicaciones en la hoja "Instrucciones".
             </Typography>
+            <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', mb: 2, overflow: 'hidden' }}>
+              {COLUMNAS_PLANTILLA.map((col, i) => (
+                <Box key={col.nombre} sx={{ px: 1.75, py: 1.1, borderBottom: i < COLUMNAS_PLANTILLA.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.25}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#111827' }}>{col.nombre}</Typography>
+                    <Box component="span" sx={{
+                      px: 0.75, py: 0.1, borderRadius: '5px', fontSize: '0.62rem', fontWeight: 700,
+                      ...(col.obligatorio
+                        ? { color: '#B91C1C', bgcolor: '#FEF2F2', border: '1px solid #FECACA' }
+                        : { color: '#6B7280', bgcolor: '#F3F4F6', border: '1px solid #E5E7EB' }),
+                    }}>
+                      {col.obligatorio ? 'Obligatorio' : 'Opcional'}
+                    </Box>
+                  </Box>
+                  <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
+                    {col.indicaciones.map(b => (
+                      <Typography key={b} component="li" sx={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.55 }}>{b}</Typography>
+                    ))}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
@@ -191,7 +294,7 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        {['Fila', 'Nombre', 'Apellido', 'Tipo', 'Teléfono', 'DNI', 'Email'].map(h => (
+                        {['Fila', 'Nombre', 'Apellido', 'Tipo', 'Teléfono', 'DNI', 'Email', 'Origen', 'Embudo'].map(h => (
                           <TableCell key={h} sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF', bgcolor: '#F9FAFB' }}>{h}</TableCell>
                         ))}
                       </TableRow>
@@ -206,6 +309,8 @@ export default function ImportarContactosDrawer({ open, onClose, clienteId, onIm
                           <TableCell sx={{ fontSize: '0.78rem' }}>{f.telefono || '—'}</TableCell>
                           <TableCell sx={{ fontSize: '0.78rem' }}>{f.dni || '—'}</TableCell>
                           <TableCell sx={{ fontSize: '0.78rem' }}>{f.email || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.78rem' }}>{f.origen_contacto || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.78rem' }}>{f.embudo_contacto || '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

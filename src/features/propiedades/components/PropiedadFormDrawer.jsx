@@ -15,16 +15,10 @@ import DocumentacionRespaldatoriaSection from '../../../shared/components/Docume
 import imageCompression from 'browser-image-compression'
 import { buscarContactos, getPropiedadContactos, setPropiedadContactos } from '../../crm/services/crm'
 import { createPropiedad, deletePropiedadImagen, getPropiedadImagenes, getPublicImageUrl, insertPropiedadImagenes, updatePropiedad, uploadPropiedadImagen } from '../services/propiedades'
+import { tipoContactoMeta } from '../../crm/constants/contactos'
 const MAX_SIZE_MB = 15
 const COMPRESS_OPTIONS = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }
 const ACCENT = '#065F46'
-
-const TIPO_META = {
-  Comprador:    { color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-  Vendedor:     { color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
-  Arrendatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
-  Locatario:    { color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
-}
 
 const TIPOS          = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina']
 const TIPOS_OPERACION = ['Venta', 'Alquiler']
@@ -632,7 +626,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
                         {(c.tipos?.length > 0 || c.tipo) && (
                           <Box display="flex" gap={0.5} flexShrink={0}>
                             {(c.tipos?.length ? c.tipos : [c.tipo]).map(t => {
-                              const m = TIPO_META[t] ?? { color: '#374151', bg: '#F3F4F6', border: '#E5E7EB' }
+                              const m = tipoContactoMeta(t)
                               return (
                                 <Box key={t} sx={{ px: 0.75, py: 0.2, borderRadius: '5px', bgcolor: m.bg, border: `1px solid ${m.border}` }}>
                                   <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: m.color }}>{t}</Typography>

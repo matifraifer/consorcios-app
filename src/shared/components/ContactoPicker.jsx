@@ -6,27 +6,13 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { getContactos } from '../../features/crm/services/crm'
+import { TIPOS_CONTACTO, getContactTipos, tipoContactoMeta } from '../../features/crm/constants/contactos'
 const ACCENT = '#065F46'
 
-const TIPOS = ['Todos', 'Comprador', 'Vendedor', 'Arrendatario', 'Locatario']
-
-const TIPO_COLORS = {
-  Comprador:    { bg: '#F5F3FF', color: '#6D28D9' },
-  Vendedor:     { bg: '#FFFBEB', color: '#92400E' },
-  Arrendatario: { bg: '#EFF6FF', color: '#1D4ED8' },
-  Locatario:    { bg: '#ECFDF5', color: '#065F46' },
-}
-
-const TIPO_LEGACY = { Inquilino: 'Arrendatario', Propietario: 'Locatario', Vendedor: 'Vendedor', Comprador: 'Comprador' }
-
-function getContactTipos(c) {
-  if (c.tipos?.length) return c.tipos
-  if (!c.tipo) return []
-  return [TIPO_LEGACY[c.tipo] ?? c.tipo]
-}
+const TIPOS = ['Todos', ...TIPOS_CONTACTO]
 
 function TipoBadge({ tipo }) {
-  const style = TIPO_COLORS[tipo] ?? { bg: '#F3F4F6', color: '#374151' }
+  const style = tipoContactoMeta(tipo)
   return (
     <Box
       component="span"
@@ -56,9 +42,7 @@ export default function ContactoPicker({ open, onClose, onSelect, clienteId, tip
   useEffect(() => {
     if (!open) return
     setSearch('')
-    // Map legacy tipoSugerido to new tipos
-    const mapped = TIPO_LEGACY[tipoSugerido] ?? tipoSugerido
-    const idx = mapped ? TIPOS.indexOf(mapped) : 0
+    const idx = tipoSugerido ? TIPOS.indexOf(tipoSugerido) : 0
     setTabIndex(idx >= 0 ? idx : 0)
     load()
   }, [open])

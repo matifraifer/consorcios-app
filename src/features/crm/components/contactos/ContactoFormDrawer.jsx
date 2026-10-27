@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, TextField, Button,
-  Alert, CircularProgress, Chip, Autocomplete, Select, MenuItem, FormControl, useMediaQuery,
+  Alert, CircularProgress, Chip, Autocomplete, Select, MenuItem, FormControl, Checkbox, useMediaQuery,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import CloseIcon          from '@mui/icons-material/Close'
-import CheckIcon          from '@mui/icons-material/Check'
 import LockOutlinedIcon   from '@mui/icons-material/LockOutlined'
 import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome'
 import AddIcon            from '@mui/icons-material/Add'
@@ -18,12 +17,12 @@ import { getUsuarios } from '../../../auth/services/auth'
 import { checkDniExists, createContacto, createProspecto, getContactoPropiedades, getContactoPropiedadesExt, getEtapasCRM, getPropiedadesExtSugeridas, setContactoPropiedades, updateContacto } from '../../services/crm'
 import { getPropiedades, sugerirPropiedadesPorContacto } from '../../../propiedades/services/propiedades'
 import { useAuth } from '../../../auth/AuthContext.jsx'
+import { EMBUDO_CONTACTO, ORIGENES_CONTACTO, TIPOS_CONTACTO, getContactTipos, tipoContactoMeta } from '../../constants/contactos'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACCENT = '#065F46'
 
-const TIPOS_CONTACTO  = ['Comprador', 'Vendedor', 'Locatario', 'Locador']
 const TIPOS_PROPIEDAD = ['Casa', 'Departamento', 'Terreno', 'Local', 'Oficina', 'Otro']
 const TIPOS_OPERACION = ['Alquiler', 'Compraventa']
 const MONEDAS         = ['ARS', 'USD']
@@ -32,13 +31,6 @@ const ZONAS = [
   'Iglesia','Jáchal','9 de Julio','Pocito','Rawson','Rivadavia',
   'San Martín','Santa Lucía','Sarmiento','Ullum','Valle Fértil','25 de Mayo','Zonda',
 ]
-
-const TIPO_META = {
-  Comprador: { color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-  Vendedor:  { color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
-  Locatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
-  Locador:   { color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
-}
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -49,41 +41,23 @@ const fieldSx = {
   },
 }
 
+const selectSx = {
+  borderRadius: '8px', fontSize: '0.875rem',
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: ACCENT, borderWidth: 1 },
+}
+
 const FORM_EMPTY = {
-  tipos: [], nombre: '', apellido: '', dni: '', telefono: '', email: '', notas: '',
+  tipos: [], origen_contacto: '', embudo_contacto: '', nombre: '', apellido: '', dni: '', telefono: '', email: '', notas: '',
   tipo_propiedad_busca: [], tipo_operacion: '', presupuesto: '', moneda_presupuesto: 'ARS', zona_interes: [],
   asignado_nombre: '',
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TypeCard({ tipo, selected, onToggle }) {
-  const m = TIPO_META[tipo]
-  return (
-    <Box
-      onClick={() => onToggle(tipo)}
-      sx={{
-        p: 1.5, borderRadius: '8px', cursor: 'pointer',
-        border: `1.5px solid ${selected ? m.border : '#E5E7EB'}`,
-        bgcolor: selected ? m.bg : 'white',
-        position: 'relative',
-        transition: 'all 0.15s',
-        '&:hover': { borderColor: m.border, bgcolor: m.bg },
-      }}
-    >
-      {selected && (
-        <Box sx={{ position: 'absolute', top: 7, right: 7, width: 16, height: 16, borderRadius: '50%', bgcolor: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <CheckIcon sx={{ fontSize: 10, color: 'white' }} />
-        </Box>
-      )}
-      <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: selected ? m.color : '#111827', mb: 0.2 }}>
-        {tipo}
-      </Typography>
-      <Typography sx={{ fontSize: '0.67rem', color: '#9CA3AF', lineHeight: 1.3 }}>
-        {m.desc}
-      </Typography>
-    </Box>
-  )
+function Placeholder({ children }) {
+  return <Typography component="span" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>{children}</Typography>
 }
 
 function Label({ children, required, locked }) {
@@ -195,7 +169,11 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const isInmo = user?.rol?.toLowerCase() === 'inmo'
+  // Admin e inmo pueden elegir el operador asignado
+  const puedeAsignar = isAdmin || isInmo
   const isEdit = !!contacto
+  const dniBloqueado = isEdit && !!contacto?.dni
   const [form, setForm]                             = useState(FORM_EMPTY)
   const [propiedadesVinculadas, setPropVinculadas]  = useState([])
   const [propiedadesExtVinculadas, setPropExtVinculadas] = useState([])
@@ -209,8 +187,6 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   const [saving, setSaving]                         = useState(false)
   const [error, setError]                           = useState(null)
   const [creandoSeguimiento, setCreandoSeguimiento] = useState(false)
-
-  const showDemandFields = form.tipos.includes('Comprador') || form.tipos.includes('Arrendatario')
 
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -232,7 +208,9 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
 
     if (isEdit && contacto) {
       setForm({
-        tipos:               contacto.tipos ?? (contacto.tipo ? [contacto.tipo] : []),
+        tipos:               getContactTipos(contacto),
+        origen_contacto:     contacto.origen_contacto     ?? '',
+        embudo_contacto:     contacto.embudo_contacto     ?? '',
         nombre:              contacto.nombre              ?? '',
         apellido:            contacto.apellido            ?? '',
         dni:                 contacto.dni                 ?? '',
@@ -269,24 +247,6 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
   function toggleChip(field, val) {
     setForm(p => ({ ...p, [field]: p[field].includes(val) ? p[field].filter(v => v !== val) : [...p[field], val] }))
   }
-  function toggleTipo(tipo) {
-    setForm(prev => {
-      const newTipos = prev.tipos.includes(tipo)
-        ? prev.tipos.filter(t => t !== tipo)
-        : [...prev.tipos, tipo]
-
-      const hasCompraventa = newTipos.some(t => t === 'Comprador' || t === 'Vendedor')
-      const hasAlquiler    = newTipos.some(t => t === 'Arrendatario' || t === 'Locatario')
-
-      let newOp = prev.tipo_operacion
-      if (newTipos.length === 0 || (hasCompraventa && hasAlquiler)) newOp = ''
-      else if (hasCompraventa) newOp = 'Compraventa'
-      else if (hasAlquiler)    newOp = 'Alquiler'
-
-      return { ...prev, tipos: newTipos, tipo_operacion: newOp }
-    })
-  }
-
   // ── AI suggestion ──────────────────────────────────────────────────────────
   function parsePrecioExt(texto) {
     if (!texto || texto === 'N/D') return { valor: null, moneda: null }
@@ -347,9 +307,8 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
     if (!form.tipos.length)    return 'Seleccioná al menos un tipo de contacto.'
     if (!form.nombre.trim())   return 'El nombre es obligatorio.'
     if (!form.apellido.trim()) return 'El apellido es obligatorio.'
-    if (!form.dni.trim())      return 'El DNI es obligatorio.'
     if (!form.telefono.trim()) return 'El teléfono es obligatorio.'
-    if (!isEdit && form.dni.trim()) {
+    if (!dniBloqueado && form.dni.trim()) {
       const exists = await checkDniExists(form.dni, clienteId)
       if (exists) return 'Ya existe un contacto registrado con este DNI.'
     }
@@ -361,6 +320,8 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
     const payload = {
       tipos: form.tipos.length ? form.tipos : null,
       tipo:  form.tipos[0] ?? null,
+      origen_contacto: form.origen_contacto || null,
+      embudo_contacto: form.embudo_contacto || null,
       nombre: form.nombre.trim(), apellido: form.apellido.trim(),
       telefono: form.telefono.trim(), email: form.email.trim() || null,
       notas: form.notas.trim() || null,
@@ -372,8 +333,9 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
       asignado_nombre: form.asignado_nombre || null,
       cliente_id: clienteId,
     }
+    // El DNI es opcional; una vez cargado no se modifica
+    if (!dniBloqueado) payload.dni = form.dni.trim() || null
     if (!isEdit) {
-      payload.dni = form.dni.trim()
       payload.activo = true
       payload.origen = 'APP'
       payload.creado_por = user?.nombre_usuario ?? null
@@ -459,19 +421,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
       {/* Body */}
       <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 4 }}>
 
-        {error && (
-          <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>
-        )}
-
         {!isEdit && <ConsultaBanner consulta={prefill?.consulta} />}
-
-        {/* Tipo de contacto */}
-        <SectionTitle>Tipo de contacto</SectionTitle>
-        <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5}>
-          {TIPOS_CONTACTO.map(t => (
-            <TypeCard key={t} tipo={t} selected={form.tipos.includes(t)} onToggle={toggleTipo} />
-          ))}
-        </Box>
 
         {/* Datos personales */}
         <SectionTitle>Datos personales</SectionTitle>
@@ -488,20 +438,17 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         </Box>
 
         <Box mb={2}>
-          <Label required locked={isEdit}>DNI</Label>
+          <Label locked={dniBloqueado}>DNI</Label>
           <TextField
             fullWidth size="small" value={form.dni}
-            onChange={e => !isEdit && set('dni', e.target.value)}
-            InputProps={{ readOnly: isEdit }}
-            placeholder={isEdit ? '' : 'Número de documento'}
+            onChange={e => !dniBloqueado && set('dni', e.target.value)}
+            InputProps={{ readOnly: dniBloqueado }}
+            placeholder={dniBloqueado ? '' : 'Número de documento'}
             sx={fieldSx}
-            helperText={isEdit ? 'El DNI no puede modificarse una vez creado.' : undefined}
+            helperText={dniBloqueado ? 'El DNI no puede modificarse una vez cargado.' : undefined}
             FormHelperTextProps={{ sx: { fontSize: '0.68rem', color: '#9CA3AF', ml: 0, mt: 0.5 } }}
           />
         </Box>
-
-        {/* Datos de contacto */}
-        <SectionTitle>Datos de contacto</SectionTitle>
 
         <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5} mb={2}>
           <Box>
@@ -511,6 +458,81 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           <Box>
             <Label>Email</Label>
             <TextField fullWidth size="small" type="email" value={form.email} onChange={e => set('email', e.target.value)} sx={fieldSx} />
+          </Box>
+        </Box>
+
+        {/* Características del contacto */}
+        <SectionTitle>Características del contacto</SectionTitle>
+
+        <Box mb={2}>
+          <Label required>Tipo de contacto</Label>
+          <FormControl fullWidth size="small">
+            <Select
+              multiple
+              displayEmpty
+              value={form.tipos}
+              onChange={e => set('tipos', e.target.value)}
+              sx={selectSx}
+              renderValue={selected => selected.length === 0
+                ? <Placeholder>Seleccioná uno o más tipos</Placeholder>
+                : (
+                  <Box display="flex" gap={0.5} flexWrap="wrap">
+                    {selected.map(t => {
+                      const m = tipoContactoMeta(t)
+                      return (
+                        <Chip key={t} label={t} size="small" sx={{
+                          height: 22, fontSize: '0.68rem', fontWeight: 600,
+                          color: m.color, bgcolor: m.bg, border: `1px solid ${m.border}`,
+                        }} />
+                      )
+                    })}
+                  </Box>
+                )}
+            >
+              {TIPOS_CONTACTO.map(t => (
+                <MenuItem key={t} value={t} sx={{ fontSize: '0.875rem' }}>
+                  <Checkbox size="small" checked={form.tipos.includes(t)} sx={{ p: 0.5, mr: 1, '&.Mui-checked': { color: ACCENT } }} />
+                  {t}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+
+        <Box display="grid" gridTemplateColumns={isMobile ? '1fr' : '1fr 1fr'} gap={1.5} mb={2}>
+          <Box>
+            <Label>Origen del contacto</Label>
+            <FormControl fullWidth size="small">
+              <Select
+                displayEmpty
+                value={form.origen_contacto}
+                onChange={e => set('origen_contacto', e.target.value)}
+                sx={selectSx}
+                renderValue={v => v || <Placeholder>Seleccionar</Placeholder>}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Sin especificar</MenuItem>
+                {ORIGENES_CONTACTO.map(o => (
+                  <MenuItem key={o} value={o} sx={{ fontSize: '0.875rem' }}>{o}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          <Box>
+            <Label>Embudo de ventas</Label>
+            <FormControl fullWidth size="small">
+              <Select
+                displayEmpty
+                value={form.embudo_contacto}
+                onChange={e => set('embudo_contacto', e.target.value)}
+                sx={selectSx}
+                renderValue={v => v || <Placeholder>Seleccionar</Placeholder>}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.875rem', color: '#9CA3AF' }}>Sin especificar</MenuItem>
+                {EMBUDO_CONTACTO.map(o => (
+                  <MenuItem key={o} value={o} sx={{ fontSize: '0.875rem' }}>{o}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
         </Box>
 
@@ -557,70 +579,64 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
           </Box>
         )}
 
-        {showDemandFields && (
-          <>
-            <Box mb={2}>
-              <Label>Presupuesto disponible</Label>
-              <Box display="flex" gap={1} mt={0.5} alignItems="center">
-                <Box sx={{ display: 'flex', border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
-                  {MONEDAS.map(m => (
-                    <Box key={m} onClick={() => set('moneda_presupuesto', m)} sx={{
-                      px: 1.5, py: 0.9,
-                      bgcolor: form.moneda_presupuesto === m ? ACCENT : 'transparent',
-                      color: form.moneda_presupuesto === m ? 'white' : '#6B7280',
-                      fontSize: '0.75rem', fontWeight: 700,
-                      cursor: 'pointer', transition: 'all 0.15s',
-                      '&:hover': { bgcolor: form.moneda_presupuesto === m ? '#047857' : '#F9FAFB' },
-                    }}>
-                      {m}
-                    </Box>
-                  ))}
+        <Box mb={2}>
+          <Label>Presupuesto disponible</Label>
+          <Box display="flex" gap={1} mt={0.5} alignItems="center">
+            <Box sx={{ display: 'flex', border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+              {MONEDAS.map(m => (
+                <Box key={m} onClick={() => set('moneda_presupuesto', m)} sx={{
+                  px: 1.5, py: 0.9,
+                  bgcolor: form.moneda_presupuesto === m ? ACCENT : 'transparent',
+                  color: form.moneda_presupuesto === m ? 'white' : '#6B7280',
+                  fontSize: '0.75rem', fontWeight: 700,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  '&:hover': { bgcolor: form.moneda_presupuesto === m ? '#047857' : '#F9FAFB' },
+                }}>
+                  {m}
                 </Box>
-                <TextField size="small" type="number" placeholder="0" value={form.presupuesto} onChange={e => set('presupuesto', e.target.value)} sx={{ flex: 1, ...fieldSx }} />
-              </Box>
+              ))}
             </Box>
+            <TextField size="small" type="number" placeholder="0" value={form.presupuesto} onChange={e => set('presupuesto', e.target.value)} sx={{ flex: 1, ...fieldSx }} />
+          </Box>
+        </Box>
 
-            <Box mb={2}>
-              <Label>Zona de interés</Label>
-              <Box display="flex" flexWrap="wrap" gap={0.6} mt={0.5}>
-                {ZONAS.map(z => {
-                  const active = form.zona_interes.includes(z)
-                  return (
-                    <Chip key={z} label={z} onClick={() => toggleChip('zona_interes', z)} size="small" sx={{
-                      fontSize: '0.7rem', fontWeight: active ? 600 : 400, cursor: 'pointer',
-                      bgcolor: active ? ACCENT : 'white', color: active ? 'white' : '#6B7280',
-                      border: `1px solid ${active ? ACCENT : '#E5E7EB'}`, borderRadius: '6px',
-                      '&:hover': { bgcolor: active ? '#047857' : '#F9FAFB', borderColor: active ? '#047857' : ACCENT },
-                    }} />
-                  )
-                })}
-              </Box>
-            </Box>
-          </>
-        )}
+        <Box mb={2}>
+          <Label>Zona de interés</Label>
+          <Box display="flex" flexWrap="wrap" gap={0.6} mt={0.5}>
+            {ZONAS.map(z => {
+              const active = form.zona_interes.includes(z)
+              return (
+                <Chip key={z} label={z} onClick={() => toggleChip('zona_interes', z)} size="small" sx={{
+                  fontSize: '0.7rem', fontWeight: active ? 600 : 400, cursor: 'pointer',
+                  bgcolor: active ? ACCENT : 'white', color: active ? 'white' : '#6B7280',
+                  border: `1px solid ${active ? ACCENT : '#E5E7EB'}`, borderRadius: '6px',
+                  '&:hover': { bgcolor: active ? '#047857' : '#F9FAFB', borderColor: active ? '#047857' : ACCENT },
+                }} />
+              )
+            })}
+          </Box>
+        </Box>
 
         {/* Propiedades vinculadas */}
         <SectionTitle>Propiedades vinculadas</SectionTitle>
 
-        {showDemandFields && (
-          <Box mb={2}>
-            <Button
-              onClick={handleSuggestIA}
-              disabled={loadingIA || loadingProps}
-              startIcon={loadingIA ? <CircularProgress size={13} color="inherit" /> : <AutoAwesomeIcon sx={{ fontSize: 14 }} />}
-              variant="outlined"
-              size="small"
-              sx={{
-                borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.78rem',
-                borderColor: ACCENT, color: ACCENT,
-                '&:hover': { bgcolor: '#ECFDF5', borderColor: ACCENT },
-                '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
-              }}
-            >
-              {loadingIA ? 'Analizando...' : 'Sugerir propiedades coincidentes'}
-            </Button>
-          </Box>
-        )}
+        <Box mb={2}>
+          <Button
+            onClick={handleSuggestIA}
+            disabled={loadingIA || loadingProps}
+            startIcon={loadingIA ? <CircularProgress size={13} color="inherit" /> : <AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+            variant="outlined"
+            size="small"
+            sx={{
+              borderRadius: '8px', textTransform: 'none', fontWeight: 600, fontSize: '0.78rem',
+              borderColor: ACCENT, color: ACCENT,
+              '&:hover': { bgcolor: '#ECFDF5', borderColor: ACCENT },
+              '&.Mui-disabled': { borderColor: '#E5E7EB', color: '#9CA3AF' },
+            }}
+          >
+            {loadingIA ? 'Analizando...' : 'Sugerir propiedades coincidentes'}
+          </Button>
+        </Box>
 
         {showSugeridas && (
           <Box mb={2} sx={{ borderRadius: '8px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
@@ -808,7 +824,7 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         )}
 
         {/* Operador asignado */}
-        {isAdmin && (
+        {puedeAsignar && (
           <>
             <SectionTitle>Operador asignado</SectionTitle>
             <FormControl fullWidth size="small" sx={{ mb: 2 }}>
@@ -846,8 +862,15 @@ export default function ContactoFormDrawer({ open, onClose, contacto, clienteId,
         </Box>
       </Box>
 
+      {/* Error: fijo arriba de los botones para que se vea sin hacer scroll */}
+      {error && (
+        <Box sx={{ px: 3, pt: 1.5, borderTop: '1px solid #E5E7EB', flexShrink: 0 }}>
+          <Alert severity="error" onClose={() => setError(null)} sx={{ borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>
+        </Box>
+      )}
+
       {/* Footer */}
-      <Box sx={{ px: 3, py: 2, borderTop: '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
+      <Box sx={{ px: 3, py: 2, borderTop: error ? 'none' : '1px solid #E5E7EB', display: 'flex', gap: 1.5, flexShrink: 0 }}>
         <Button
           variant="contained"
           onClick={handleSubmit}

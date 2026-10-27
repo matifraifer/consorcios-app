@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/services/supabaseClient'
+import { EMBUDO_CONTACTO, ORIGENES_CONTACTO, TIPOS_CONTACTO, TIPO_COMPRADOR, TIPO_INQUILINO, matchOpcion } from '../constants/contactos'
 
 // ---- CRM PROSPECTOS ----
 
@@ -230,7 +231,8 @@ export async function createProspectoPublico({
     .insert([{
       nombre, apellido, telefono, email: email || null,
       cliente_id, activo: true, origen: 'WEB',
-      tipos: [esAlquiler ? 'Arrendatario' : 'Comprador'],
+      tipos: [esAlquiler ? TIPO_INQUILINO : TIPO_COMPRADOR],
+      tipo:  esAlquiler ? TIPO_INQUILINO : TIPO_COMPRADOR,
       presupuesto: presupuesto || null,
       tipo_operacion: esAlquiler ? 'Alquiler' : 'Compraventa',
     }])
@@ -279,6 +281,99 @@ export async function getContactos(cliente_id) {
     ...c,
     propiedades_count: c.contactos_propiedades?.length ?? 0,
   }))
+}
+
+// ---- CONTACTOS: listado paginado (server-side) ----
+
+export const CONTACTOS_SIN_DATO = '__sin_dato__'
+
+// Escapa un valor para usarlo entre comillas dentro de un filtro or()/and() de PostgREST
+function pgrstQuote(v) {
+  return `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+const CONTACTOS_ORDEN = {
+  apellido:          [['apellido'], ['nombre']],
+  dni:               [['dni']],
+  telefono:          [['telefono']],
+  origen:            [['origen']],
+  propiedades_count: [['propiedades_count']],
+  asignado_nombre:   [['asignado_nombre']],
+  creado_por:        [['creado_por']],
+}
+
+// Listado de contactos paginado, filtrado y ordenado en la base (vista contactos_listado).
+// restriccion: { soloCreadoPor } (operador) | { creadoOAsignado } (otros roles sin vista completa) | null
+export async function getContactosPaginados({
+  clienteId, page = 0, pageSize = 25, search = '', filtros = {},
+  sortBy = 'apellido', sortDir = 'asc', restriccion = null,
+}) {
+  let q = supabase
+    .from('contactos_listado')
+    .select('*', { count: 'exact' })
+    .eq('cliente_id', clienteId)
+    .eq('activo', true)
+
+  // Condiciones con OR (restricción por rol, búsqueda, "sin especificar") combinadas en un único and(...)
+  const grupos = []
+  if (restriccion?.soloCreadoPor) {
+    q = q.eq('creado_por', restriccion.soloCreadoPor)
+  } else if (restriccion?.creadoOAsignado) {
+    const u = pgrstQuote(restriccion.creadoOAsignado)
+    grupos.push(`or(creado_por.eq.${u},asignado_nombre.eq.${u})`)
+  }
+  const texto = search.trim()
+  if (texto) {
+    const like = pgrstQuote(`%${texto.replace(/[%_]/g, m => `\\${m}`)}%`)
+    grupos.push(`or(${['nombre', 'apellido', 'dni', 'telefono', 'email'].map(c => `${c}.ilike.${like}`).join(',')})`)
+  }
+  const igualOSinDato = (col, valor) => {
+    if (!valor) return
+    if (valor === CONTACTOS_SIN_DATO) grupos.push(`or(${col}.is.null,${col}.eq."")`)
+    else q = q.eq(col, valor)
+  }
+  if (filtros.tipo) q = q.contains('tipos', [filtros.tipo])
+  igualOSinDato('origen_contacto', filtros.origen_contacto)
+  igualOSinDato('embudo_contacto', filtros.embudo)
+  igualOSinDato('tipo_operacion', filtros.operacion)
+  igualOSinDato('creado_por', filtros.creado_por)
+  if (filtros.propiedades === 'con') q = q.gt('propiedades_count', 0)
+  if (filtros.propiedades === 'sin') q = q.eq('propiedades_count', 0)
+
+  // Un único parámetro or=(and(...)) para que los grupos no se pisen entre sí
+  if (grupos.length) q = q.or(`and(${grupos.join(',')})`)
+
+  const ascending = sortDir === 'asc'
+  for (const [col] of CONTACTOS_ORDEN[sortBy] ?? CONTACTOS_ORDEN.apellido) {
+    q = q.order(col, { ascending, nullsFirst: ascending })
+  }
+  q = q.order('id', { ascending: true }) // desempate estable entre páginas
+
+  const from = page * pageSize
+  const { data, count, error } = await q.range(from, from + pageSize - 1)
+  if (error) throw error
+  return { data: data ?? [], count: count ?? 0 }
+}
+
+// Total de contactos visibles (sin filtros) y opciones de "Creado por", respetando la restricción por rol
+export async function getContactosResumen({ clienteId, restriccion = null }) {
+  let q = supabase
+    .from('contactos')
+    .select('creado_por')
+    .eq('cliente_id', clienteId)
+    .eq('activo', true)
+  if (restriccion?.soloCreadoPor) q = q.eq('creado_por', restriccion.soloCreadoPor)
+  else if (restriccion?.creadoOAsignado) {
+    const u = pgrstQuote(restriccion.creadoOAsignado)
+    q = q.or(`creado_por.eq.${u},asignado_nombre.eq.${u}`)
+  }
+  const { data, error } = await q
+  if (error) throw error
+  const rows = data ?? []
+  return {
+    total: rows.length,
+    creadoPorOptions: [...new Set(rows.map(r => r.creado_por).filter(Boolean))].sort(),
+  }
 }
 
 export async function checkDniExists(dni, clienteId) {
@@ -453,8 +548,6 @@ export async function updateContacto(id, data) {
   return result
 }
 
-const TIPOS_CONTACTO_VALIDOS = ['Comprador', 'Vendedor', 'Locatario', 'Locador']
-
 export async function importarContactos(filas, clienteId, creadoPor = null) {
   const { data: existentes, error: exErr } = await supabase
     .from('contactos')
@@ -468,16 +561,31 @@ export async function importarContactos(filas, clienteId, creadoPor = null) {
 
   const resultados = []
   for (const fila of filas) {
-    const { _fila, nombre, apellido, tipo, telefono, dni, email } = fila
+    const { _fila, nombre, apellido, tipo, telefono, dni, email, origen_contacto, embudo_contacto } = fila
 
     if (!nombre || !apellido || !tipo || !telefono) {
       resultados.push({ fila: _fila, estado: 'error', motivo: 'Faltan campos obligatorios (Nombre, Apellido, Tipo o Teléfono).' })
       continue
     }
 
-    const tipoNormalizado = TIPOS_CONTACTO_VALIDOS.find(t => t.toLowerCase() === tipo.toLowerCase())
-    if (!tipoNormalizado) {
-      resultados.push({ fila: _fila, estado: 'error', motivo: `Tipo "${tipo}" inválido. Use: ${TIPOS_CONTACTO_VALIDOS.join(', ')}.` })
+    // Tipo admite varios valores separados por coma (ej. "COMPRADOR, INVERSOR")
+    const tiposFila = tipo.split(',').map(t => t.trim()).filter(Boolean)
+    const tiposNormalizados = [...new Set(tiposFila.map(t => matchOpcion(TIPOS_CONTACTO, t)).filter(Boolean))]
+    const tipoInvalido = tiposFila.find(t => !matchOpcion(TIPOS_CONTACTO, t))
+    if (tipoInvalido || !tiposNormalizados.length) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: `Tipo "${tipoInvalido ?? tipo}" inválido. Use: ${TIPOS_CONTACTO.join(', ')}.` })
+      continue
+    }
+
+    const origenNormalizado = matchOpcion(ORIGENES_CONTACTO, origen_contacto)
+    if (origen_contacto && !origenNormalizado) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: `Origen del contacto "${origen_contacto}" inválido. Use: ${ORIGENES_CONTACTO.join(', ')}.` })
+      continue
+    }
+
+    const embudoNormalizado = matchOpcion(EMBUDO_CONTACTO, embudo_contacto)
+    if (embudo_contacto && !embudoNormalizado) {
+      resultados.push({ fila: _fila, estado: 'error', motivo: `Embudo de ventas "${embudo_contacto}" inválido. Use: ${EMBUDO_CONTACTO.join(', ')}.` })
       continue
     }
 
@@ -490,7 +598,8 @@ export async function importarContactos(filas, clienteId, creadoPor = null) {
 
     try {
       const { error } = await supabase.from('contactos').insert([{
-        nombre, apellido, tipos: [tipoNormalizado], tipo: tipoNormalizado,
+        nombre, apellido, tipos: tiposNormalizados, tipo: tiposNormalizados[0],
+        origen_contacto: origenNormalizado, embudo_contacto: embudoNormalizado,
         telefono, dni: dni || null, email: email || null,
         cliente_id: clienteId, activo: true, origen: 'IMPORTADO', creado_por: creadoPor,
       }])

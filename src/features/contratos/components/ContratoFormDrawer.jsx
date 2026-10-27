@@ -18,6 +18,7 @@ import { ACCEPT_CONTRATO, prepararContrato } from '../utils/extraerTextoContrato
 import { useAuth } from '../../auth/AuthContext'
 import PropiedadFormDrawer from '../../propiedades/components/PropiedadFormDrawer'
 import ContactoPicker from '../../../shared/components/ContactoPicker'
+import { TIPO_COMPRADOR, TIPO_INQUILINO, TIPO_PROPIETARIO } from '../../crm/constants/contactos'
 import DocumentacionRespaldatoriaSection from '../../../shared/components/DocumentacionRespaldatoriaSection'
 
 const ACCENT = '#065F46'
@@ -375,7 +376,8 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           apellido: payload.inquilino_apellido,
           dni: payload.inquilino_dni,
           telefono: payload.inquilino_telefono,
-          tipo: 'Locatario',
+          // En compraventa el "inquilino" del contrato es el comprador
+          tipo: form.es_compraventa ? TIPO_COMPRADOR : TIPO_INQUILINO,
           creado_por: user?.nombre_usuario,
           origen: cargadoIA ? 'IA' : 'APP',
         })
@@ -385,7 +387,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           apellido: payload.propietario_apellido,
           dni: payload.propietario_dni,
           telefono: payload.propietario_telefono,
-          tipo: 'Locador',
+          tipo: TIPO_PROPIETARIO,
           creado_por: user?.nombre_usuario,
           origen: cargadoIA ? 'IA' : 'APP',
         })

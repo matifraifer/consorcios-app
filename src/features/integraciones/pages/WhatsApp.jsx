@@ -14,17 +14,11 @@ import CloseIcon from '@mui/icons-material/Close'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { getContactoPropiedades, getContactos } from '../../crm/services/crm'
 import { getWhatsappMensajes, marcarMensajesWhatsappLeidos, sendWhatsappMensaje } from '../services/whatsapp'
+import { tipoContactoMeta } from '../../crm/constants/contactos'
 const ACCENT   = '#065F46'
 const POLL_MS  = 5000
 const LIST_W   = 300
 const INFO_W   = 300
-
-const TIPO_META = {
-  Comprador:    { color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-  Vendedor:     { color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
-  Arrendatario: { color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
-  Locatario:    { color: ACCENT,    bg: '#ECFDF5', border: '#6EE7B7' },
-}
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -439,7 +433,7 @@ export default function WhatsApp() {
                 </Typography>
                 <Box display="flex" gap={0.5} flexWrap="wrap">
                   {contactoActual.tipos.map(t => {
-                    const m = TIPO_META[t] ?? { color: '#374151', bg: '#F3F4F6', border: '#E5E7EB' }
+                    const m = tipoContactoMeta(t)
                     return (
                       <Chip key={t} label={t} size="small" sx={{
                         fontSize: '0.68rem', fontWeight: 600, height: 22,
