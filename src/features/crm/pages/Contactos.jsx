@@ -78,6 +78,8 @@ function getContactTipos(c) {
 export default function Contactos() {
   const { user } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const isOperador = user?.rol?.toLowerCase() === 'operador'
+  const isInmo = user?.rol?.toLowerCase() === 'inmo'
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [contactos, setContactos] = useState([])
@@ -115,7 +117,10 @@ export default function Contactos() {
   const filtrados = useMemo(() => {
     const q = search.toLowerCase().trim()
     let list = contactos.filter(c => {
-      if (!isAdmin && c.creado_por !== user?.nombre_usuario && c.asignado_nombre !== user?.nombre_usuario) return false
+      // El operador solo ve los contactos que cargó él mismo
+      if (isOperador && c.creado_por !== user?.nombre_usuario) return false
+      // Admin e inmo ven todos los contactos
+      if (!isAdmin && !isInmo && c.creado_por !== user?.nombre_usuario && c.asignado_nombre !== user?.nombre_usuario) return false
       if (tipoFiltro !== 'Todos') {
         if (!getContactTipos(c).includes(tipoFiltro)) return false
       }
@@ -146,7 +151,7 @@ export default function Contactos() {
     })
 
     return list
-  }, [contactos, search, tipoFiltro, origenFiltro, sortBy, sortDir, isAdmin, user?.nombre_usuario])
+  }, [contactos, search, tipoFiltro, origenFiltro, sortBy, sortDir, isAdmin, isOperador, isInmo, user?.nombre_usuario])
 
   function toggleSort(col) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')

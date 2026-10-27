@@ -95,6 +95,7 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const nombre = user?.nombre_usuario?.split(' ')[0] ?? ''
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
+  const isOperador = user?.rol?.toLowerCase() === 'operador'
 
   const [copiedId, setCopiedId]     = useState(null)
   const [snackOpen, setSnackOpen]   = useState(false)
@@ -554,7 +555,7 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
     <Box sx={{ pb: 6 }}>
       {heroSection}
 
-      {alquileresKpis && (
+      {alquileresKpis && !isOperador && (
         <AlquileresKPIs
           vencidoTotal={alquileresKpis.vencidoTotal}
           corrienteTotal={alquileresKpis.corrienteTotal}

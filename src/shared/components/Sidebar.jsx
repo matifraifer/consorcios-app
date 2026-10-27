@@ -169,6 +169,7 @@ export default function Sidebar() {
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const isConsorcio = user?.rol?.toLowerCase() === 'consorcio'
   const isInmo = user?.rol?.toLowerCase() === 'inmo'
+  const isOperador = user?.rol?.toLowerCase() === 'operador'
   const [collapsed, setCollapsed] = useState(false)
 
   const [adminOpen, setAdminOpen] = useState(true)
@@ -403,31 +404,35 @@ export default function Sidebar() {
               </>
             )}
 
-            {/* Divisor */}
-            <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
-
-            {/* Grupo: Gestión de alquileres */}
-            {collapsed ? (
-              contratosItems.map(item => (
-                <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
-              ))
-            ) : (
-              <>
-                <SectionHeader label="Gestión de alquileres" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
-                <Collapse in={contratosOpen}>
-                  {contratosItems.map(item => (
-                    <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
-                  ))}
-                </Collapse>
-              </>
-            )}
-
-            {!isInmo && (
+            {/* Grupo: Gestión de alquileres (oculto para el rol operador) */}
+            {!isOperador && (
               <>
                 {/* Divisor */}
                 <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
 
-                {/* Grupo: Gestión de proyectos */}
+                {collapsed ? (
+                  contratosItems.map(item => (
+                    <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />
+                  ))
+                ) : (
+                  <>
+                    <SectionHeader label="Gestión de alquileres" cls="gcon" open={contratosOpen} onToggle={() => setContratosOpen(p => !p)} />
+                    <Collapse in={contratosOpen}>
+                      {contratosItems.map(item => (
+                        <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={false} indented onClick={() => navigate(item.path)} />
+                      ))}
+                    </Collapse>
+                  </>
+                )}
+              </>
+            )}
+
+            {!isInmo && !isOperador && (
+              <>
+                {/* Divisor */}
+                <Box sx={{ mx: collapsed ? 1.25 : 2, my: 1.5, height: '1px', bgcolor: BORDER }} />
+
+                {/* Grupo: Gestión de proyectos (oculto para inmo y operador) */}
                 {collapsed ? (
                   proyectosItems.map(item => (
                     <NavItem key={item.path} item={item} active={location.pathname === item.path} collapsed={true} onClick={() => navigate(item.path)} />

@@ -37,15 +37,23 @@ const moreItems = [
   { label: 'Índices',                  path: '/indices',              icon: <ShowChartIcon /> },
 ]
 
+const ALQUILERES_PATHS = ['/contratos', '/indices']
+
 export default function MobileBottomNav() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, logout } = useAuth()
   const isAdmin = user?.rol?.toLowerCase() === 'admin'
   const isInmo = user?.rol?.toLowerCase() === 'inmo'
+  const isOperador = user?.rol?.toLowerCase() === 'operador'
   const [moreOpen, setMoreOpen] = useState(false)
 
-  const morePaths = moreItems.map(i => i.path).concat((isAdmin || isInmo) ? ['/configuracion'] : [])
+  // El rol operador no ve la gestión de alquileres (Contratos / Índices)
+  const visibleMoreItems = isOperador
+    ? moreItems.filter(i => !ALQUILERES_PATHS.includes(i.path))
+    : moreItems
+
+  const morePaths = visibleMoreItems.map(i => i.path).concat((isAdmin || isInmo) ? ['/configuracion'] : [])
   const isMoreActive = morePaths.includes(location.pathname)
 
   const activeValue = isMoreActive
@@ -116,7 +124,7 @@ export default function MobileBottomNav() {
           <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: BORDER, mx: 'auto', mb: 1.5 }} />
 
           <List sx={{ py: 0 }}>
-            {moreItems.map(item => (
+            {visibleMoreItems.map(item => (
               <ListItemButton key={item.path} onClick={() => goTo(item.path)}
                 selected={location.pathname === item.path}
                 sx={{ '&.Mui-selected': { bgcolor: 'rgba(16,185,129,0.08)' } }}
