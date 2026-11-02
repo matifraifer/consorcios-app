@@ -15,6 +15,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { getUsuarios } from '../../auth/services/auth'
 import GraficoDeudaPorPeriodo from './GraficoDeudaPorPeriodo.jsx'
 import AlquileresKPIs from './AlquileresKPIs.jsx'
+import RecordatoriosAgenda from './RecordatoriosAgenda.jsx'
 
 const ACCENT = '#065F46'
 
@@ -554,6 +555,8 @@ export default function CRMSection({ prospectos, etapas, visitas, consultasPendi
   return (
     <Box sx={{ pb: 6 }}>
       {heroSection}
+
+      <RecordatoriosAgenda />
 
       {alquileresKpis && !isOperador && (
         <AlquileresKPIs

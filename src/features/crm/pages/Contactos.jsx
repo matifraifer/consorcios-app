@@ -3,8 +3,9 @@ import {
   Box, Typography, Button, Paper, TextField, Select, MenuItem,
   FormControl, Table, TableHead, TableRow, TableCell, TableBody,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  Snackbar, Alert, CircularProgress, Tooltip, Chip, InputAdornment, Collapse, TablePagination, LinearProgress, useMediaQuery,
+  Snackbar, Alert, CircularProgress, Tooltip, Chip, InputAdornment, Collapse, TablePagination, LinearProgress, useMediaQuery, Badge,
 } from '@mui/material'
+import EventNoteIcon from '@mui/icons-material/EventNote'
 import { useTheme } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
@@ -23,6 +24,8 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { CONTACTOS_SIN_DATO, deleteContacto, getContactosPaginados, getContactosResumen } from '../services/crm'
 import ContactoFormDrawer from '../components/contactos/ContactoFormDrawer.jsx'
 import ImportarContactosDrawer from '../components/contactos/ImportarContactosDrawer.jsx'
+import ContactoActividadDrawer from '../components/contactos/ContactoActividadDrawer.jsx'
+import { estadoRecordatorio, etiquetaFecha } from '../utils/recordatorios'
 import { EMBUDO_CONTACTO, ORIGENES_CONTACTO, TIPOS_CONTACTO, tipoContactoMeta } from '../constants/contactos'
 
 const ACCENT = '#065F46'
@@ -95,6 +98,28 @@ function OrigenBadge({ origen }) {
   )
 }
 
+// Abre "Actividad del contacto". El contador muestra los recordatorios pendientes:
+// rojo si el próximo está vencido, ámbar si es hoy.
+function ActividadButton({ contacto, onClick }) {
+  const pendientes = contacto.recordatorios_pendientes ?? 0
+  const estado = pendientes ? estadoRecordatorio(contacto.proximo_recordatorio) : null
+  const colorBadge = estado === 'vencido' ? '#DC2626' : estado === 'hoy' ? '#D97706' : ACCENT
+  const tooltip = !pendientes
+    ? 'Actividad: recordatorios y comentarios'
+    : `${pendientes} ${pendientes === 1 ? 'recordatorio pendiente' : 'recordatorios pendientes'} · próximo: ${etiquetaFecha(contacto.proximo_recordatorio)}`
+  return (
+    <Tooltip title={tooltip}>
+      <IconButton size="small" onClick={e => { e.stopPropagation(); onClick() }}
+        sx={{ color: estado === 'vencido' ? '#DC2626' : '#9CA3AF', '&:hover': { color: ACCENT } }}>
+        <Badge badgeContent={pendientes} max={9}
+          sx={{ '& .MuiBadge-badge': { bgcolor: colorBadge, color: 'white', fontSize: '0.6rem', height: 15, minWidth: 15, px: 0.4 } }}>
+          <EventNoteIcon sx={{ fontSize: 17 }} />
+        </Badge>
+      </IconButton>
+    </Tooltip>
+  )
+}
+
 function TiposBadges({ tipos, tipo }) {
   const list = tipos?.length ? tipos : (tipo ? [tipo] : [])
   if (!list.length) return <Typography sx={{ fontSize: '0.78rem', color: '#9CA3AF' }}>—</Typography>
@@ -127,6 +152,7 @@ export default function Contactos() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [actividadTarget, setActividadTarget] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [snack, setSnack] = useState({ open: false, msg: '', severity: 'success' })
@@ -522,9 +548,10 @@ export default function Contactos() {
                     </TableCell>
                   )}
 
-                  {/* WhatsApp (mobile) */}
+                  {/* Actividad + WhatsApp (mobile) */}
                   {isMobile && (
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      <ActividadButton contacto={c} onClick={() => setActividadTarget(c)} />
                       {c.telefono ? (
                         <IconButton
                           size="small"
@@ -537,9 +564,7 @@ export default function Contactos() {
                         >
                           <WhatsAppIcon sx={{ fontSize: 20 }} />
                         </IconButton>
-                      ) : (
-                        <Typography sx={{ fontSize: '0.78rem', color: '#D1D5DB' }}>—</Typography>
-                      )}
+                      ) : null}
                     </TableCell>
                   )}
 
@@ -547,6 +572,7 @@ export default function Contactos() {
                   {!isMobile && (
                     <TableCell align="right">
                       <Box className="row-actions" display="flex" gap={0.5} justifyContent="flex-end" onClick={e => e.stopPropagation()}>
+                        <ActividadButton contacto={c} onClick={() => setActividadTarget(c)} />
                         {c.email && (
                           <Tooltip title="Copiar correo">
                             <IconButton size="small" onClick={() => copyToClipboard(c.email, 'Correo')} sx={{ color: '#9CA3AF', '&:hover': { color: '#1D4ED8' } }}>
@@ -601,6 +627,14 @@ export default function Contactos() {
         contacto={selected}
         clienteId={user.cliente_id}
         onSaved={handleSaved}
+      />
+
+      <ContactoActividadDrawer
+        open={!!actividadTarget}
+        onClose={() => setActividadTarget(null)}
+        contacto={actividadTarget}
+        clienteId={user.cliente_id}
+        onChanged={load}
       />
 
       <ImportarContactosDrawer

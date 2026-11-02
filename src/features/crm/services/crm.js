@@ -483,17 +483,25 @@ export async function getPropiedadContactos(propiedad_id) {
   return (data ?? []).map(r => r.contactos).filter(Boolean)
 }
 
-export async function setPropiedadContactos(propiedad_id, contacto_ids) {
-  const { error: delErr } = await supabase
-    .from('contactos_propiedades')
-    .delete()
-    .eq('propiedad_id', propiedad_id)
-  if (delErr) throw delErr
-  if (!contacto_ids?.length) return
-  const { error } = await supabase
-    .from('contactos_propiedades')
-    .insert(contacto_ids.map(contacto_id => ({ propiedad_id, contacto_id })))
-  if (error) throw error
+// Solo borra/inserta los vínculos que cambiaron: cada vínculo queda en el historial del
+// contacto (trigger 0064) y así se conserva el tipo del vínculo (ej. 'Locador').
+export async function setPropiedadContactos(propiedad_id, contacto_ids = []) {
+  const { data: existing, error: selErr } = await supabase
+    .from('contactos_propiedades').select('contacto_id').eq('propiedad_id', propiedad_id)
+  if (selErr) throw selErr
+  const existingIds = (existing ?? []).map(r => r.contacto_id)
+  const toDelete = existingIds.filter(id => !contacto_ids.includes(id))
+  const toInsert = [...new Set(contacto_ids)].filter(id => !existingIds.includes(id))
+  if (toDelete.length) {
+    const { error } = await supabase.from('contactos_propiedades').delete()
+      .eq('propiedad_id', propiedad_id).in('contacto_id', toDelete)
+    if (error) throw error
+  }
+  if (toInsert.length) {
+    const { error } = await supabase.from('contactos_propiedades')
+      .insert(toInsert.map(contacto_id => ({ propiedad_id, contacto_id })))
+    if (error) throw error
+  }
 }
 
 export async function sugerirPropiedadesPorContacto({
@@ -769,4 +777,118 @@ export async function vincularPropietariosPropiedad(propiedad_id, propietarios) 
   })
   if (error) throw error
   return data ?? []
+}
+
+// ---- ACTIVIDAD DEL CONTACTO (recordatorios, comentarios, historial — 0064) ----
+
+export async function getRecordatoriosContacto(contacto_id) {
+  const { data, error } = await supabase
+    .from('recordatorios_contacto')
+    .select('*')
+    .eq('contacto_id', contacto_id)
+    .order('completado', { ascending: true })
+    .order('fecha', { ascending: true })
+    .order('hora', { ascending: true, nullsFirst: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createRecordatorio({ cliente_id, contacto_id, descripcion, fecha, hora, asignado_nombre, creado_por }) {
+  const { data, error } = await supabase
+    .from('recordatorios_contacto')
+    .insert([{ cliente_id, contacto_id, descripcion, fecha, hora: hora || null, asignado_nombre: asignado_nombre || null, creado_por: creado_por || null }])
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateRecordatorio(id, cambios) {
+  const { data, error } = await supabase
+    .from('recordatorios_contacto')
+    .update({ ...cambios, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function setRecordatorioCompletado(id, completado, usuario) {
+  return updateRecordatorio(id, {
+    completado,
+    completado_at: completado ? new Date().toISOString() : null,
+    completado_por: completado ? (usuario || null) : null,
+  })
+}
+
+export async function deleteRecordatorio(id) {
+  const { error } = await supabase.from('recordatorios_contacto').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getHistorialContacto(contacto_id) {
+  const { data, error } = await supabase
+    .from('contactos_historial')
+    .select('*')
+    .eq('contacto_id', contacto_id)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createComentarioContacto({ cliente_id, contacto_id, texto, usuario_nombre }) {
+  const { data, error } = await supabase
+    .from('contactos_historial')
+    .insert([{ cliente_id, contacto_id, tipo: 'comentario', texto, usuario_nombre }])
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateComentarioContacto(id, texto) {
+  const { data, error } = await supabase
+    .from('contactos_historial')
+    .update({ texto, editado_at: new Date().toISOString() })
+    .eq('id', id)
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteComentarioContacto(id) {
+  const { error } = await supabase.from('contactos_historial').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Agenda del inicio: pendientes hasta `hasta` (incluye todos los vencidos), de contactos activos.
+// asignado = nombre_usuario para ver solo los propios; null para todo el equipo.
+export async function getRecordatoriosAgenda({ clienteId, hasta, asignado = null }) {
+  let q = supabase
+    .from('recordatorios_contacto')
+    .select('*, contactos!inner(id, nombre, apellido, telefono, email, tipo, tipos, activo)')
+    .eq('cliente_id', clienteId)
+    .eq('completado', false)
+    .eq('contactos.activo', true)
+    .lte('fecha', hasta)
+    .order('fecha', { ascending: true })
+    .order('hora', { ascending: true, nullsFirst: true })
+    .limit(500)
+  if (asignado) q = q.eq('asignado_nombre', asignado)
+  const { data, error } = await q
+  if (error) throw error
+  return data ?? []
+}
+
+export async function contarRecordatoriosPosteriores({ clienteId, desde, asignado = null }) {
+  let q = supabase
+    .from('recordatorios_contacto')
+    .select('id, contactos!inner(activo)', { count: 'exact', head: true })
+    .eq('cliente_id', clienteId)
+    .eq('completado', false)
+    .eq('contactos.activo', true)
+    .gt('fecha', desde)
+  if (asignado) q = q.eq('asignado_nombre', asignado)
+  const { count, error } = await q
+  if (error) throw error
+  return count ?? 0
 }
