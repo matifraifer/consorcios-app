@@ -1,8 +1,10 @@
+import { Suspense } from 'react'
 import { Box, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar.jsx'
 import MobileBottomNav from './MobileBottomNav.jsx'
+import PageLoader from './PageLoader.jsx'
 
 export default function Layout() {
   const theme = useTheme()
@@ -20,7 +22,10 @@ export default function Layout() {
           minHeight: '100vh',
         }}
       >
-        <Outlet />
+        {/* Suspense propio: al cambiar de página el sidebar queda visible mientras carga */}
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </Box>
       {isMobile && <MobileBottomNav />}
     </Box>

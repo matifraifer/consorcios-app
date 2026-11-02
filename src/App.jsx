@@ -1,41 +1,45 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ProtectedRoute from './shared/components/ProtectedRoute'
 import Layout from './shared/components/Layout'
+import PageLoader from './shared/components/PageLoader'
 
-import Login             from './features/auth/pages/Login.jsx'
-import OlvidePassword    from './features/auth/pages/OlvidePassword.jsx'
-import CambiarPassword   from './features/auth/pages/CambiarPassword.jsx'
-import Dashboard         from './features/dashboard/pages/Dashboard.jsx'
-import Consorcios        from './features/consorcios/pages/Consorcios.jsx'
-import ConsorcioDetalle  from './features/consorcios/pages/ConsorcioDetalle.jsx'
-import NuevoConsorcio    from './features/consorcios/pages/NuevoConsorcio.jsx'
-import NuevoDepartamento       from './features/consorcios/pages/NuevoDepartamento.jsx'
-import Departamentos           from './features/consorcios/pages/Departamentos.jsx'
-import Propietarios      from './features/consorcios/pages/Propietarios.jsx'
-import NuevoPropietario  from './features/consorcios/pages/NuevoPropietario.jsx'
-import Reclamos         from './features/reclamos/pages/Reclamos.jsx'
-import Propiedades      from './features/propiedades/pages/Propiedades.jsx'
-import Prospectos       from './features/crm/pages/Prospectos.jsx'
-import Expensas         from './features/expensas/pages/Expensas.jsx'
-import NuevoPeriodo     from './features/expensas/pages/NuevoPeriodo.jsx'
-import ExpensasDetalle  from './features/expensas/pages/ExpensasDetalle.jsx'
-import PropiedadPublica from './features/propiedades/pages/PropiedadPublica.jsx'
-import InmobiliariaPublica from './features/propiedades/pages/InmobiliariaPublica.jsx'
-import PortalVecino from './features/portal/pages/PortalVecino.jsx'
-import PortalSelector from './features/portal/pages/PortalSelector.jsx'
-import Contratos        from './features/contratos/pages/Contratos.jsx'
-import Indices          from './features/contratos/pages/Indices.jsx'
-import Contactos        from './features/crm/pages/Contactos.jsx'
-import ConsultasWeb     from './features/crm/pages/ConsultasWeb.jsx'
-import WhatsApp         from './features/integraciones/pages/WhatsApp.jsx'
-// import MlCallback       from './features/integraciones/pages/MlCallback.jsx' // MercadoLibre — deshabilitado temporalmente
-import MpCallback       from './features/integraciones/pages/MpCallback.jsx'
-import Configuracion          from './features/integraciones/pages/Configuracion.jsx'
-import PropiedadesComunidad  from './features/propiedades/pages/PropiedadesComunidad.jsx'
-import Proyectos        from './features/proyectos/pages/Proyectos.jsx'
-import ProyectoDetalle  from './features/proyectos/pages/ProyectoDetalle.jsx'
-import DiagramaGantt    from './features/proyectos/pages/DiagramaGantt.jsx'
-import CostosProyecto   from './features/proyectos/pages/CostosProyecto.jsx'
+// Cada página se descarga recién al entrar a su ruta (code splitting): así las páginas
+// públicas (/p, /inmobiliaria, /consulta, /portal) no cargan el código del panel.
+const Login             = lazy(() => import('./features/auth/pages/Login.jsx'))
+const OlvidePassword    = lazy(() => import('./features/auth/pages/OlvidePassword.jsx'))
+const CambiarPassword   = lazy(() => import('./features/auth/pages/CambiarPassword.jsx'))
+const Dashboard         = lazy(() => import('./features/dashboard/pages/Dashboard.jsx'))
+const Consorcios        = lazy(() => import('./features/consorcios/pages/Consorcios.jsx'))
+const ConsorcioDetalle  = lazy(() => import('./features/consorcios/pages/ConsorcioDetalle.jsx'))
+const NuevoConsorcio    = lazy(() => import('./features/consorcios/pages/NuevoConsorcio.jsx'))
+const NuevoDepartamento = lazy(() => import('./features/consorcios/pages/NuevoDepartamento.jsx'))
+const Departamentos     = lazy(() => import('./features/consorcios/pages/Departamentos.jsx'))
+const Propietarios      = lazy(() => import('./features/consorcios/pages/Propietarios.jsx'))
+const NuevoPropietario  = lazy(() => import('./features/consorcios/pages/NuevoPropietario.jsx'))
+const Reclamos          = lazy(() => import('./features/reclamos/pages/Reclamos.jsx'))
+const Propiedades       = lazy(() => import('./features/propiedades/pages/Propiedades.jsx'))
+const Prospectos        = lazy(() => import('./features/crm/pages/Prospectos.jsx'))
+const Expensas          = lazy(() => import('./features/expensas/pages/Expensas.jsx'))
+const NuevoPeriodo      = lazy(() => import('./features/expensas/pages/NuevoPeriodo.jsx'))
+const ExpensasDetalle   = lazy(() => import('./features/expensas/pages/ExpensasDetalle.jsx'))
+const PropiedadPublica  = lazy(() => import('./features/propiedades/pages/PropiedadPublica.jsx'))
+const InmobiliariaPublica = lazy(() => import('./features/propiedades/pages/InmobiliariaPublica.jsx'))
+const PortalVecino      = lazy(() => import('./features/portal/pages/PortalVecino.jsx'))
+const PortalSelector    = lazy(() => import('./features/portal/pages/PortalSelector.jsx'))
+const Contratos         = lazy(() => import('./features/contratos/pages/Contratos.jsx'))
+const Indices           = lazy(() => import('./features/contratos/pages/Indices.jsx'))
+const Contactos         = lazy(() => import('./features/crm/pages/Contactos.jsx'))
+const ConsultasWeb      = lazy(() => import('./features/crm/pages/ConsultasWeb.jsx'))
+const WhatsApp          = lazy(() => import('./features/integraciones/pages/WhatsApp.jsx'))
+// const MlCallback     = lazy(() => import('./features/integraciones/pages/MlCallback.jsx')) // MercadoLibre — deshabilitado temporalmente
+const MpCallback        = lazy(() => import('./features/integraciones/pages/MpCallback.jsx'))
+const Configuracion     = lazy(() => import('./features/integraciones/pages/Configuracion.jsx'))
+const PropiedadesComunidad = lazy(() => import('./features/propiedades/pages/PropiedadesComunidad.jsx'))
+const Proyectos         = lazy(() => import('./features/proyectos/pages/Proyectos.jsx'))
+const ProyectoDetalle   = lazy(() => import('./features/proyectos/pages/ProyectoDetalle.jsx'))
+const DiagramaGantt     = lazy(() => import('./features/proyectos/pages/DiagramaGantt.jsx'))
+const CostosProyecto    = lazy(() => import('./features/proyectos/pages/CostosProyecto.jsx'))
 
 // Los links de recuperación enviados desde el dashboard de Supabase vuelven a la
 // Site URL (raíz) con el token en el hash; se conserva el hash para que
@@ -48,6 +52,7 @@ function FallbackRedirect() {
 
 export default function App() {
   return (
+    <Suspense fallback={<PageLoader fullScreen />}>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/olvide-password" element={<OlvidePassword />} />
@@ -92,5 +97,6 @@ export default function App() {
 
       <Route path="*" element={<FallbackRedirect />} />
     </Routes>
+    </Suspense>
   )
 }

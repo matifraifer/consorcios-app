@@ -221,6 +221,7 @@ VITE_WHATSAPP_SERVICE_URL=   # URL pública del servicio Railway de whatsapp-ser
 - **Chips de estado**: variant="outlined" con color semántico + fondo claro mediante sx
 - **Modales (Dialog)**: para formularios de gastos, registro de pagos, confirmación de cierre de período
 - Todos los formularios validan en cliente antes de llamar a Supabase
+- **Carga por página (code splitting)**: todas las páginas de `App.jsx` se importan con `React.lazy` (página nueva → `const X = lazy(() => import(...))`, nunca import estático, o vuelve a entrar al bundle principal). `Suspense` con `PageLoader` en `App.jsx` (pantalla completa) y alrededor del `Outlet` de `Layout.jsx` (el sidebar queda visible). `main.jsx` escucha `vite:preloadError` y recarga una vez si una pestaña vieja pide un chunk que ya no existe después de un deploy
 
 ## Lógica de liquidación (ExpensasDetalle)
 - Cada gasto puede asignarse a un subconjunto de departamentos via `departamentos_ids INTEGER[]`
