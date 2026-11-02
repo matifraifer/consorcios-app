@@ -13,6 +13,7 @@ import RoomIcon             from '@mui/icons-material/Room'
 import CloseRoundedIcon     from '@mui/icons-material/CloseRounded'
 import ContactoFormDrawer from '../../crm/components/contactos/ContactoFormDrawer.jsx'
 import DocumentacionRespaldatoriaSection from '../../../shared/components/DocumentacionRespaldatoriaSection'
+import DatosInmuebleFields from '../../../shared/components/DatosInmuebleFields'
 import imageCompression from 'browser-image-compression'
 import { buscarContactos, buscarContactosCoincidentes, getPropiedadContactos, setPropiedadContactos, vincularPropietariosPropiedad } from '../../crm/services/crm'
 import { CAMPOS_INMUEBLE, createPropiedad, deletePropiedadImagen, extraerDatosPropiedad, getPropiedadImagenes, getPublicImageUrl, insertPropiedadImagenes, updatePropiedad, uploadPropiedadImagen } from '../services/propiedades'
@@ -84,6 +85,19 @@ function nombrePropio(s) {
   return t.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep, letra) => sep + letra.toUpperCase())
 }
 
+// Errores de la base al guardar, en un mensaje entendible para el usuario
+const ETIQUETAS_CAMPOS = {
+  titulo: 'Título', provincia: 'Provincia', localidad: 'Localidad', direccion: 'Dirección',
+  tipo_propiedad: 'Tipo de propiedad', tipo_operacion: 'Tipo de operación',
+  precio_publicacion: 'Precio de publicación', moneda: 'Moneda', estado: 'Estado',
+}
+
+function mensajeErrorGuardado(err) {
+  const campo = err?.message?.match(/null value in column "([^"]+)"/)?.[1]
+  if (campo) return `No se pudo guardar: el campo "${ETIQUETAS_CAMPOS[campo] ?? campo}" es obligatorio.`
+  return err?.message ?? 'No se pudo guardar la propiedad.'
+}
+
 async function conCoincidencias(persona) {
   try {
     const coincidencias = await buscarContactosCoincidentes(persona)
@@ -152,6 +166,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
   const [iaMsg, setIaMsg]                       = useState(null)   // { severity, text }
   const [propietariosIA, setPropietariosIA]     = useState([])     // personas detectadas, ver handleIaFilesSelected
   const [propiedadGuardada, setPropiedadGuardada] = useState(false) // la propiedad se creó pero falló vincular propietarios
+  const [cargadoIA, setCargadoIA]               = useState(false)  // se guarda en propiedades.cargado_ia
   const iaFileRef                               = useRef(null)
 
   // Images — unified list: { type: 'existing'|'new', id?, storage_path?, publicUrl?, file?, preview? }
@@ -192,6 +207,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
     setIaMsg(null)
     setPropietariosIA([])
     setPropiedadGuardada(false)
+    setCargadoIA(false)
 
     if (mode === 'edit' && propiedad) {
       setForm({
@@ -333,6 +349,14 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         setImages(prev => [...prev, ...entries])
       }
 
+      // Los archivos originales quedan como documentación respaldatoria pendiente de guardar
+      // (salvo las fotos del inmueble, que ya van a la galería). Se pueden editar o quitar antes de guardar.
+      const tiposPorArchivo = new Map((Array.isArray(datos.documentos) ? datos.documentos : []).map(d => [d.numero, d.tipo]))
+      const archivosDocs = files
+        .map((file, i) => ({ file, tipoNombre: tiposPorArchivo.get(i + 1) ?? null }))
+        .filter(({ file }) => !fotos.includes(file))
+      docsRef.current?.agregarArchivos(archivosDocs)
+
       // Personas: solo los titulares quedan marcados para crear/vincular; el resto se muestra para decidir
       const vistos = new Set()
       const personas = (Array.isArray(datos.personas) ? datos.personas : [])
@@ -359,12 +383,14 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       setPropietariosIA(await Promise.all(personas.map(conCoincidencias)))
 
       const camposCompletados = Object.entries(update).filter(([, v]) => v !== '').length
-      if (!camposCompletados && !fotos.length && !personas.length) {
+      if (!camposCompletados && !fotos.length && !personas.length && !archivosDocs.length) {
         setIaMsg({ severity: 'info', text: 'No se encontraron datos de la propiedad en los archivos cargados.' })
         return
       }
+      setCargadoIA(true)
       const partes = [`se completaron ${camposCompletados} campo${camposCompletados === 1 ? '' : 's'}`]
       if (fotos.length) partes.push(`se agregaron ${fotos.length} foto${fotos.length === 1 ? '' : 's'} a la galería`)
+      if (archivosDocs.length) partes.push(`se sumaron ${archivosDocs.length} archivo${archivosDocs.length === 1 ? '' : 's'} a la documentación respaldatoria`)
       if (personas.length) partes.push(`se detectaron ${personas.length} persona${personas.length === 1 ? '' : 's'} (ver "Propietarios detectados")`)
       setIaMsg({
         severity: 'warning',
@@ -500,7 +526,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       if (mode === 'edit') {
         result = await updatePropiedad(propiedad.id, payload)
       } else {
-        result = await createPropiedad({ ...payload, cliente_id: clienteId })
+        result = await createPropiedad({ ...payload, cliente_id: clienteId, cargado_ia: cargadoIA })
       }
 
       // Delete removed existing images
@@ -525,10 +551,17 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       }
 
       await setPropiedadContactos(result.id, contactosVinculados.map(c => c.id))
-      await docsRef.current?.persist(result.id)
 
-      // Propietarios detectados por IA: la RPC crea/reutiliza los contactos y los vincula en una transacción.
-      // Si falla, la propiedad ya quedó creada: se avisa y se bloquea el botón para no duplicarla.
+      // Documentación y propietarios detectados por IA (la RPC crea/reutiliza los contactos y los
+      // vincula en una transacción). Si algo falla en un alta, la propiedad ya quedó creada: se avisa
+      // y se bloquea el botón para no duplicarla.
+      const fallas = []
+      try {
+        await docsRef.current?.persist(result.id)
+      } catch (err) {
+        if (mode === 'edit') throw err
+        fallas.push(`la documentación respaldatoria (${err.message})`)
+      }
       const propietarios = propietariosIA.filter(p => p.incluir)
       if (propietarios.length) {
         try {
@@ -537,17 +570,20 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
             nombre: p.nombre, apellido: p.apellido, dni: p.dni, telefono: p.telefono, email: p.email,
           })))
         } catch (err) {
-          setPropiedadGuardada(true)
-          onSaved(result)
-          setError(`La propiedad se guardó, pero no se pudieron crear ni vincular los propietarios detectados (${err.message}). Podés vincularlos después editando la propiedad.`)
-          return
+          fallas.push(`los propietarios detectados (${err.message})`)
         }
+      }
+      if (fallas.length) {
+        setPropiedadGuardada(true)
+        onSaved(result)
+        setError(`La propiedad se guardó, pero no se pudo guardar ${fallas.join(' ni ')}. Podés completarlo después editando la propiedad.`)
+        return
       }
 
       onSaved(result)
       onClose()
     } catch (err) {
-      setError(err.message)
+      setError(mensajeErrorGuardado(err))
     } finally {
       setSaving(false)
     }
@@ -581,8 +617,6 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
 
         {/* Body */}
         <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 4 }}>
-          {error && <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
-
           {mode !== 'edit' && (
             <Box mt={2}>
               <input ref={iaFileRef} type="file" hidden multiple accept={ACCEPT_DOCUMENTOS_PROPIEDAD} onChange={handleIaFilesSelected} />
@@ -805,33 +839,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
 
             {/* ── 3b. Datos catastrales y servicios ── */}
             <SectionTitle>Datos catastrales y servicios</SectionTitle>
-            <Box mb={2}>
-              <Label>Nomenclatura catastral (N.C.)</Label>
-              <TextField fullWidth size="small" value={form.nomenclatura_catastral}
-                onChange={e => set('nomenclatura_catastral', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-            </Box>
-            <Grid container spacing={1.5} mb={2}>
-              <Grid item xs={6}>
-                <Label>Cuenta o suministro de agua</Label>
-                <TextField fullWidth size="small" value={form.servicio_agua}
-                  onChange={e => set('servicio_agua', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-              </Grid>
-              <Grid item xs={6}>
-                <Label>Cuenta o suministro de gas</Label>
-                <TextField fullWidth size="small" value={form.servicio_gas}
-                  onChange={e => set('servicio_gas', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-              </Grid>
-              <Grid item xs={6}>
-                <Label>Cuenta o suministro de energía</Label>
-                <TextField fullWidth size="small" value={form.servicio_energia}
-                  onChange={e => set('servicio_energia', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-              </Grid>
-              <Grid item xs={6}>
-                <Label>Cuenta municipal</Label>
-                <TextField fullWidth size="small" value={form.servicio_municipalidad}
-                  onChange={e => set('servicio_municipalidad', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-              </Grid>
-            </Grid>
+            <DatosInmuebleFields values={form} onChange={set} />
 
             {/* ── 4. Precio y estado ── */}
             <SectionTitle>Precio y estado</SectionTitle>
@@ -1220,6 +1228,13 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
                 value={(uploadProgress.current / uploadProgress.total) * 100}
                 sx={{ borderRadius: 4, height: 4, bgcolor: '#E5E7EB', '& .MuiLinearProgress-bar': { bgcolor: ACCENT, borderRadius: 4 } }}
               />
+            </Box>
+          )}
+          {error && (
+            <Box sx={{ px: 3, pt: 1.5 }}>
+              <Alert severity="error" onClose={() => setError(null)} sx={{ borderRadius: '8px', fontSize: '0.8rem' }}>
+                {error}
+              </Alert>
             </Box>
           )}
           <Box sx={{ px: 3, py: 2, display: 'flex', gap: 1.5 }}>

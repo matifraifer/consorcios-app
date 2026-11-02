@@ -17,7 +17,11 @@ import { deleteDocumentoRespaldatorio, getDocumentoRespaldatorioUrl, getDocument
 const ACCENT       = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
 const OTROS        = 'otros'
-const EXTENSIONES_PERMITIDAS = ['pdf', 'jpg', 'jpeg', 'mp4']
+const EXTENSIONES_PERMITIDAS = ['pdf', 'docx', 'jpg', 'jpeg', 'png', 'webp', 'mp4']
+
+function normalizarTexto(s) {
+  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -46,7 +50,7 @@ function FileTypeIcon({ nombre }) {
   const ext = (nombre ?? '').split('.').pop()?.toLowerCase()
   if (ext === 'pdf') return <PictureAsPdfIcon sx={{ fontSize: 18, color: '#DC2626', flexShrink: 0 }} />
   if (ext === 'mp4') return <VideocamIcon sx={{ fontSize: 18, color: '#7C3AED', flexShrink: 0 }} />
-  if (ext === 'jpg' || ext === 'jpeg') return <ImageIcon sx={{ fontSize: 18, color: '#0284C7', flexShrink: 0 }} />
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return <ImageIcon sx={{ fontSize: 18, color: '#0284C7', flexShrink: 0 }} />
   return <InsertDriveFileIcon sx={{ fontSize: 18, color: '#9CA3AF', flexShrink: 0 }} />
 }
 
@@ -134,6 +138,19 @@ const DocumentacionRespaldatoriaSection = forwardRef(function DocumentacionRespa
   }, [entidadId, entidadTipo])
 
   useImperativeHandle(ref, () => ({
+    // Suma archivos como pendientes de guardar (los usa la carga de propiedades con IA).
+    // tipoNombre se busca entre los tipos configurados; si no está, queda como tipo personalizado.
+    agregarArchivos(items) {
+      setDocumentos(prev => [...prev, ...items.map(({ file, tipoNombre }) => {
+        const tipo = tipoNombre ? tipos.find(t => normalizarTexto(t.nombre) === normalizarTexto(tipoNombre)) : null
+        return {
+          kind: 'new', key: `n-${Date.now()}-${Math.random()}`,
+          file, nombre_archivo: file.name, titulo: file.name,
+          tipo_documentacion_id: tipo?.id ?? null,
+          tipo_personalizado: tipo ? null : (tipoNombre?.trim() || 'Documentación'),
+        }
+      })])
+    },
     async persist(finalEntidadId) {
       for (const item of toDeleteRef.current) {
         await deleteDocumentoRespaldatorio(item.id, item.storage_path)
@@ -158,7 +175,7 @@ const DocumentacionRespaldatoriaSection = forwardRef(function DocumentacionRespa
         }
       }
     },
-  }), [documentos, clienteId, entidadTipo])
+  }), [documentos, clienteId, entidadTipo, tipos])
 
   function handleFileSelected(e) {
     const file = e.target.files[0]
@@ -166,7 +183,7 @@ const DocumentacionRespaldatoriaSection = forwardRef(function DocumentacionRespa
     if (!file) return
     const ext = file.name.split('.').pop()?.toLowerCase()
     if (!EXTENSIONES_PERMITIDAS.includes(ext)) {
-      setFileError(`Formato no permitido (.${ext}). Solo se aceptan PDF, JPG/JPEG y MP4.`)
+      setFileError(`Formato no permitido (.${ext}). Solo se aceptan PDF, Word (.docx), JPG, PNG, WEBP y MP4.`)
       return
     }
     setFileError(null)
@@ -293,7 +310,7 @@ const DocumentacionRespaldatoriaSection = forwardRef(function DocumentacionRespa
 
   return (
     <Box>
-      <input ref={fileInputRef} type="file" hidden accept=".pdf,.jpg,.jpeg,.mp4" onChange={handleFileSelected} />
+      <input ref={fileInputRef} type="file" hidden accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,.mp4" onChange={handleFileSelected} />
 
       <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mt: 3, mb: 1.5 }}>
         <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: ACCENT }}>

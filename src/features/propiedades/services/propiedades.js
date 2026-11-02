@@ -302,6 +302,7 @@ export async function crearPropiedadDesdeContrato({
     precio_publicacion: Number(monto_base),
     moneda: moneda === 'USD' ? 'USD' : 'ARS',
     estado: 'Alquilada',
+    cargado_ia: true,
     ...Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, datosInmueble[c] || null])),
   })
 

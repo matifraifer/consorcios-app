@@ -444,6 +444,7 @@ export default function Propiedades() {
                       sx={{
                         cursor: 'pointer',
                         opacity: isBaja ? 0.6 : 1,
+                        borderLeft: p.cargado_ia ? '3px solid #7C3AED' : '3px solid transparent',
                         '&:last-child td': { border: 0 },
                         '& td': { borderBottom: '1px solid #F3F4F6' },
                         '&:hover': { bgcolor: '#F9FAFB', '& .row-actions': { opacity: 1 } },
@@ -451,15 +452,24 @@ export default function Propiedades() {
                     >
                       {/* Título */}
                       <TableCell sx={{ py: 1.5, px: isMobile ? 1 : 2, maxWidth: isMobile ? 120 : 200 }}>
-                        <Typography sx={{
-                          fontSize: '0.875rem', fontWeight: 600, color: '#111827',
-                          textDecoration: isBaja ? 'line-through' : 'none',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>
-                          {p.titulo}
-                        </Typography>
+                        <Box display="flex" alignItems="center" gap={0.6} minWidth={0}>
+                          <Typography sx={{
+                            fontSize: '0.875rem', fontWeight: 600, color: '#111827',
+                            textDecoration: isBaja ? 'line-through' : 'none',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>
+                            {p.titulo || 'Sin título'}
+                          </Typography>
+                          {p.cargado_ia && (
+                            <Tooltip title="Propiedad cargada con autocompletado por IA">
+                              <Box component="span" sx={{ display: 'inline-block', flexShrink: 0, px: 0.7, py: 0.1, borderRadius: '5px', bgcolor: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+                                IA
+                              </Box>
+                            </Tooltip>
+                          )}
+                        </Box>
                         <Typography sx={{ fontSize: '0.72rem', color: '#9CA3AF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {p.localidad}, {p.provincia}
+                          {[p.localidad, p.provincia].filter(Boolean).join(', ') || '—'}
                         </Typography>
                       </TableCell>
 

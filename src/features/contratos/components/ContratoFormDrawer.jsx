@@ -20,6 +20,7 @@ import PropiedadFormDrawer from '../../propiedades/components/PropiedadFormDrawe
 import ContactoPicker from '../../../shared/components/ContactoPicker'
 import { TIPO_COMPRADOR, TIPO_INQUILINO, TIPO_PROPIETARIO } from '../../crm/constants/contactos'
 import DocumentacionRespaldatoriaSection from '../../../shared/components/DocumentacionRespaldatoriaSection'
+import DatosInmuebleFields from '../../../shared/components/DatosInmuebleFields'
 
 const ACCENT = '#065F46'
 const ACCENT_LIGHT = '#ECFDF5'
@@ -827,19 +828,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
                 : 'Se guardan en la propiedad que se crea a partir del contrato.'}
             </Typography>
           )}
-          {[
-            ['nomenclatura_catastral', 'Nomenclatura catastral (N.C.)'],
-            ['servicio_agua', 'Número de cuenta o suministro de Agua'],
-            ['servicio_gas', 'Número de cuenta o suministro de Gas'],
-            ['servicio_energia', 'Número de cuenta o suministro de Energía'],
-            ['servicio_municipalidad', 'Número de cuenta de Municipalidad'],
-          ].map(([campo, label]) => (
-            <Box mb={1.5} key={campo}>
-              <Label>{label}</Label>
-              <TextField fullWidth size="small" value={form[campo]} onChange={e => set(campo, e.target.value)}
-                disabled={!inmuebleEditable || loadingInmueble} placeholder="Opcional" sx={fieldSx} />
-            </Box>
-          ))}
+          <DatosInmuebleFields values={form} onChange={set} disabled={!inmuebleEditable || loadingInmueble} />
 
           {/* Documentación respaldatoria */}
           <DocumentacionRespaldatoriaSection

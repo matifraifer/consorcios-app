@@ -96,13 +96,26 @@ const EXTRACT_TOOL = {
         items: { type: 'integer' },
         description: 'Números de archivo que son fotos del inmueble en sí (no de documentos)',
       },
+      documentos: {
+        type: 'array',
+        description: 'Tipo de cada archivo recibido, para guardarlo como documentación respaldatoria',
+        items: {
+          type: 'object',
+          properties: {
+            numero: { type: 'integer', description: 'Número de archivo' },
+            tipo: { type: 'string', description: 'Tipo de documento, breve' },
+          },
+          required: ['numero', 'tipo'],
+          additionalProperties: false,
+        },
+      },
     },
     required: [
       'titulo', 'tipo_propiedad', 'tipo_operacion', 'direccion', 'localidad', 'provincia',
       'metros_cubiertos', 'metros_totales', 'ambientes', 'dormitorios', 'banios', 'cochera',
       'precio_publicacion', 'moneda', 'descripcion', 'observaciones_internas',
       'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia', 'servicio_municipalidad',
-      'personas', 'fotos_inmueble',
+      'personas', 'fotos_inmueble', 'documentos',
     ],
     additionalProperties: false,
   },
@@ -141,7 +154,11 @@ Personas:
 - nombre y apellido por separado (los apellidos suelen venir en mayúsculas o primero). dni: solo el número de documento (no CUIT/CUIL; si solo hay CUIT, el DNI son los 8 dígitos del medio). documento: nombre del archivo de donde lo sacaste.
 - Si no hay personas, devolvé una lista vacía.
 Fotos:
-- fotos_inmueble: números de los archivos que son fotos del inmueble (fachada, ambientes, terreno), no fotos de documentos. Lista vacía si no hay.`
+- fotos_inmueble: números de los archivos que son fotos del inmueble (fachada, ambientes, terreno), no fotos de documentos. Lista vacía si no hay.
+Documentos:
+- documentos: un elemento por CADA archivo recibido, con su número y el tipo de documento en pocas palabras. Usá preferentemente
+  uno de: Escritura, Boleto de compraventa, Plano, Tasación, Informe de dominio, Autorización de venta, Autorización de alquiler,
+  Boleta de servicio, Impuesto inmobiliario, Reglamento de copropiedad, Foto del inmueble. Si no encaja en ninguno, escribí un tipo breve.`
 
 const MEDIA_TYPES_IMAGEN = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_ARCHIVOS = 8
