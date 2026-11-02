@@ -592,6 +592,19 @@ export default function PropiedadDetalleDrawer({ open, onClose, propiedad, onEdi
           inmediato
         />
 
+        {/* Datos catastrales y servicios */}
+        {(propiedad.nomenclatura_catastral || propiedad.servicio_agua || propiedad.servicio_gas
+          || propiedad.servicio_energia || propiedad.servicio_municipalidad) && (
+          <>
+            <SectionTitle>Datos catastrales y servicios</SectionTitle>
+            <Row label="Nomenclatura catastral" value={propiedad.nomenclatura_catastral} mono />
+            <Row label="Agua"                   value={propiedad.servicio_agua} mono />
+            <Row label="Gas"                    value={propiedad.servicio_gas} mono />
+            <Row label="Energía"                value={propiedad.servicio_energia} mono />
+            <Row label="Cuenta municipal"       value={propiedad.servicio_municipalidad} mono />
+          </>
+        )}
+
         {/* Observaciones internas */}
         {propiedad.observaciones_internas && (
           <>

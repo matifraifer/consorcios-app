@@ -10,20 +10,20 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
 //   documento/imagen. Las fotos se achican antes de enviar (la API acepta hasta 5 MB por
 //   imagen y una foto de celular puede superarlo).
 
-const MIN_CARACTERES_TEXTO = 200          // menos que esto en un PDF = escaneado
-const MAX_PDF_BYTES = 15 * 1024 * 1024    // margen bajo el límite de 32 MB por pedido (base64 suma ~33%)
-const MAX_PAGINAS_PDF = 100               // límite de páginas de Claude Haiku 4.5
+export const MIN_CARACTERES_TEXTO = 200          // menos que esto en un PDF = escaneado
+export const MAX_PDF_BYTES = 15 * 1024 * 1024    // margen bajo el límite de 32 MB por pedido (base64 suma ~33%)
+export const MAX_PAGINAS_PDF = 100               // límite de páginas de Claude Haiku 4.5
 const MAX_FOTOS = 20
 const MAX_LADO_FOTO = 2000                // px; Claude reduce igual las imágenes más grandes
-const EXT_IMAGEN = ['jpg', 'jpeg', 'png', 'webp']
+export const EXT_IMAGEN = ['jpg', 'jpeg', 'png', 'webp']
 
 export const ACCEPT_CONTRATO = '.pdf,.docx,.jpg,.jpeg,.png,.webp'
 
-function extension(file) {
+export function extension(file) {
   return file.name.split('.').pop()?.toLowerCase()
 }
 
-function aBase64(blob) {
+export function aBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => resolve(String(reader.result).split(',')[1])
@@ -32,7 +32,7 @@ function aBase64(blob) {
   })
 }
 
-async function leerPdf(file) {
+export async function leerPdf(file) {
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
   const paginas = []
@@ -44,13 +44,13 @@ async function leerPdf(file) {
   return { texto: paginas.join('\n'), numPaginas: pdf.numPages }
 }
 
-async function extraerTextoDocx(file) {
+export async function extraerTextoDocx(file) {
   const buffer = await file.arrayBuffer()
   const { value } = await mammoth.extractRawText({ arrayBuffer: buffer })
   return value
 }
 
-async function comprimirFoto(file) {
+export async function comprimirFoto(file) {
   const bitmap = await createImageBitmap(file)
   const escala = Math.min(1, MAX_LADO_FOTO / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')

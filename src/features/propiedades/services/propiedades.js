@@ -37,6 +37,22 @@ export async function updatePropiedad(id, data) {
   return result
 }
 
+// Datos catastrales y de servicios del inmueble (0061). Antes vivían en contratos;
+// el form de contrato los muestra y los guarda en la propiedad vinculada.
+export const CAMPOS_INMUEBLE = [
+  'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia', 'servicio_municipalidad',
+]
+
+export async function getDatosInmueble(propiedadId) {
+  const { data, error } = await supabase
+    .from('propiedades')
+    .select(CAMPOS_INMUEBLE.join(', '))
+    .eq('id', propiedadId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 // ---- PROPIEDADES IMAGENES ----
 
 const IMAGE_BUCKET = 'propiedades-imagenes'
@@ -266,6 +282,7 @@ const TIPOS_PROPIEDAD_VALIDOS = ['Casa', 'Departamento', 'Terreno', 'Local', 'Of
 
 export async function crearPropiedadDesdeContrato({
   cliente_id, contacto_locador_id, direccion, localidad, provincia, tipo_propiedad, moneda, monto_base,
+  datosInmueble = {},
 }) {
   const propiedad = await createPropiedad({
     cliente_id,
@@ -285,6 +302,7 @@ export async function crearPropiedadDesdeContrato({
     precio_publicacion: Number(monto_base),
     moneda: moneda === 'USD' ? 'USD' : 'ARS',
     estado: 'Alquilada',
+    ...Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, datosInmueble[c] || null])),
   })
 
   const { error } = await supabase
@@ -321,4 +339,19 @@ export async function sugerirPropiedadesPorContacto({
       ...p,
       sobre_presupuesto: presupuesto ? Number(p.precio_publicacion) > Number(presupuesto) : false,
     }))
+}
+
+export async function extraerDatosPropiedad(documentos) {
+  const { data, error } = await supabase.functions.invoke('extraer-propiedad-ia', { body: { documentos } })
+  if (error) {
+    // En respuestas 4xx/5xx el mensaje de la función viene en el body, no en error.message
+    let message = error.message
+    try {
+      const body = await error.context?.json()
+      if (body?.error) message = body.error
+    } catch { /* body no JSON */ }
+    throw new Error(message)
+  }
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+  return data.data
 }

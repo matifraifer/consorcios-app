@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Box, Typography, Drawer, IconButton, TextField,
   Button, Alert, CircularProgress, Select, MenuItem,
-  FormControl, Grid, LinearProgress, Tooltip, Autocomplete,
+  FormControl, Grid, LinearProgress, Tooltip, Autocomplete, Checkbox,
 } from '@mui/material'
+import UploadFileIcon       from '@mui/icons-material/UploadFile'
 import CloseIcon            from '@mui/icons-material/Close'
 import SellIcon             from '@mui/icons-material/Sell'
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
@@ -13,9 +14,10 @@ import CloseRoundedIcon     from '@mui/icons-material/CloseRounded'
 import ContactoFormDrawer from '../../crm/components/contactos/ContactoFormDrawer.jsx'
 import DocumentacionRespaldatoriaSection from '../../../shared/components/DocumentacionRespaldatoriaSection'
 import imageCompression from 'browser-image-compression'
-import { buscarContactos, getPropiedadContactos, setPropiedadContactos } from '../../crm/services/crm'
-import { createPropiedad, deletePropiedadImagen, getPropiedadImagenes, getPublicImageUrl, insertPropiedadImagenes, updatePropiedad, uploadPropiedadImagen } from '../services/propiedades'
+import { buscarContactos, buscarContactosCoincidentes, getPropiedadContactos, setPropiedadContactos, vincularPropietariosPropiedad } from '../../crm/services/crm'
+import { CAMPOS_INMUEBLE, createPropiedad, deletePropiedadImagen, extraerDatosPropiedad, getPropiedadImagenes, getPublicImageUrl, insertPropiedadImagenes, updatePropiedad, uploadPropiedadImagen } from '../services/propiedades'
 import { tipoContactoMeta } from '../../crm/constants/contactos'
+import { ACCEPT_DOCUMENTOS_PROPIEDAD, MAX_ARCHIVOS_PROPIEDAD, esImagen, prepararDocumentosPropiedad } from '../utils/prepararDocumentosPropiedad'
 const MAX_SIZE_MB = 15
 const COMPRESS_OPTIONS = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }
 const ACCENT = '#065F46'
@@ -48,9 +50,49 @@ const FORM_EMPTY = {
   ambientes: '', dormitorios: '', banios: '', cochera: false,
   descripcion: '',
   observaciones_internas: '',
+  nomenclatura_catastral: '', servicio_agua: '', servicio_gas: '', servicio_energia: '', servicio_municipalidad: '',
   precio_publicacion: '', moneda: 'USD', estado: 'Disponible',
   comprador_nombre: '', comprador_dni: '', comprador_telefono: '',
   fecha_venta: '', precio_final_venta: '',
+}
+
+const ROL_PERSONA_LABEL = {
+  titular: 'Titular', vendedor: 'Vendedor', comprador: 'Comprador', apoderado: 'Apoderado', otro: 'Otro',
+}
+
+// Helpers para volcar la respuesta de la IA al formato del form (strings, valores de las listas)
+function normalizarTexto(s) {
+  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+function buscarEnLista(lista, valor) {
+  if (!valor) return null
+  const n = normalizarTexto(valor)
+  return lista.find(x => normalizarTexto(x) === n) ?? null
+}
+
+function numeroIA(valor, entero) {
+  const n = Number(valor)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return String(entero ? Math.round(n) : n)
+}
+
+// Las escrituras suelen traer los nombres en mayúsculas
+function nombrePropio(s) {
+  const t = String(s ?? '').trim()
+  if (!t || t !== t.toUpperCase()) return t
+  return t.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep, letra) => sep + letra.toUpperCase())
+}
+
+async function conCoincidencias(persona) {
+  try {
+    const coincidencias = await buscarContactosCoincidentes(persona)
+    const porDni = coincidencias.find(c => c.coincidencia === 'dni')
+    const elegidoSigue = coincidencias.some(c => c.id === persona.contactoId)
+    return { ...persona, coincidencias, contactoId: porDni?.id ?? (elegidoSigue ? persona.contactoId : null) }
+  } catch {
+    return { ...persona, coincidencias: [], contactoId: null }
+  }
 }
 
 const fieldSx = {
@@ -105,6 +147,13 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
   const [contactosVinculados, setContactosVinculados] = useState([])  // [{...contacto, tipo}]
   const [loadingContactos, setLoadingContactos] = useState(false)
 
+  // Carga con IA (solo alta)
+  const [extrayendo, setExtrayendo]             = useState(false)
+  const [iaMsg, setIaMsg]                       = useState(null)   // { severity, text }
+  const [propietariosIA, setPropietariosIA]     = useState([])     // personas detectadas, ver handleIaFilesSelected
+  const [propiedadGuardada, setPropiedadGuardada] = useState(false) // la propiedad se creó pero falló vincular propietarios
+  const iaFileRef                               = useRef(null)
+
   // Images — unified list: { type: 'existing'|'new', id?, storage_path?, publicUrl?, file?, preview? }
   const [images, setImages]       = useState([])
   const [dragOver, setDragOver]   = useState(null)
@@ -134,10 +183,15 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       setImages([])
       origExisting.current = []
       setContactosVinculados([])
+      setPropietariosIA([])
+      setIaMsg(null)
       return
     }
 
     setError(null)
+    setIaMsg(null)
+    setPropietariosIA([])
+    setPropiedadGuardada(false)
 
     if (mode === 'edit' && propiedad) {
       setForm({
@@ -157,7 +211,12 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         cochera:                propiedad.cochera                ?? false,
         descripcion:            propiedad.descripcion            ?? '',
         observaciones_internas: propiedad.observaciones_internas ?? '',
-        precio_publicacion:     propiedad.precio_publicacion     ?? '',
+        nomenclatura_catastral: propiedad.nomenclatura_catastral ?? '',
+        servicio_agua:          propiedad.servicio_agua          ?? '',
+        servicio_gas:           propiedad.servicio_gas           ?? '',
+        servicio_energia:       propiedad.servicio_energia       ?? '',
+        servicio_municipalidad: propiedad.servicio_municipalidad ?? '',
+        precio_publicacion:    propiedad.precio_publicacion     ?? '',
         moneda:                 propiedad.moneda                 ?? 'USD',
         estado:                 propiedad.estado                 ?? 'Disponible',
         comprador_nombre:       propiedad.comprador_nombre       ?? '',
@@ -217,6 +276,120 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
     }
   }
 
+  async function handleIaFilesSelected(e) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!files.length) return
+
+    setExtrayendo(true)
+    setIaMsg(null)
+    setError(null)
+    try {
+      const documentos = await prepararDocumentosPropiedad(files)
+      const datos = await extraerDatosPropiedad(documentos)
+
+      const update = {}
+      for (const campo of ['titulo', 'direccion', 'descripcion', 'observaciones_internas', ...CAMPOS_INMUEBLE]) {
+        if (datos[campo]) update[campo] = String(datos[campo]).trim()
+      }
+      const tipo = buscarEnLista(TIPOS, datos.tipo_propiedad)
+      if (tipo) update.tipo_propiedad = tipo
+      const operacion = buscarEnLista(TIPOS_OPERACION, datos.tipo_operacion)
+      if (operacion) update.tipo_operacion = operacion
+      const moneda = buscarEnLista(MONEDAS, datos.moneda)
+      if (moneda) update.moneda = moneda
+
+      const provincia = buscarEnLista(PROVINCIAS, datos.provincia)
+      if (provincia) update.provincia = provincia
+      const provinciaFinal = provincia ?? form.provincia
+      if (datos.localidad && provinciaFinal) {
+        const localidad = provinciaFinal === 'San Juan'
+          ? buscarEnLista(LOCALIDADES_SAN_JUAN, datos.localidad)
+          : String(datos.localidad).trim()
+        if (localidad) update.localidad = localidad
+      }
+      if (provincia && !update.localidad) update.localidad = ''
+
+      for (const campo of ['metros_cubiertos', 'metros_totales', 'precio_publicacion']) {
+        const v = numeroIA(datos[campo], false)
+        if (v) update[campo] = v
+      }
+      for (const campo of ['ambientes', 'dormitorios', 'banios']) {
+        const v = numeroIA(datos[campo], true)
+        if (v) update[campo] = v
+      }
+      if (typeof datos.cochera === 'boolean') update.cochera = datos.cochera
+
+      setForm(prev => ({ ...prev, ...update }))
+
+      // Fotos del inmueble (no de documentos): se suman a la galería, se pueden quitar con la X
+      const indicesFotos = [...new Set(Array.isArray(datos.fotos_inmueble) ? datos.fotos_inmueble : [])]
+      const fotos = indicesFotos.map(n => files[n - 1]).filter(f => f && esImagen(f))
+      if (fotos.length) {
+        const entries = await Promise.all(fotos.map(async file => {
+          const compressed = await imageCompression(file, COMPRESS_OPTIONS)
+          return { type: 'new', file: compressed, preview: URL.createObjectURL(compressed) }
+        }))
+        setImages(prev => [...prev, ...entries])
+      }
+
+      // Personas: solo los titulares quedan marcados para crear/vincular; el resto se muestra para decidir
+      const vistos = new Set()
+      const personas = (Array.isArray(datos.personas) ? datos.personas : [])
+        .filter(p => p?.nombre || p?.apellido)
+        .map((p, i) => ({
+          key: `${Date.now()}-${i}`,
+          nombre: nombrePropio(p.nombre),
+          apellido: nombrePropio(p.apellido),
+          dni: String(p.dni ?? '').replace(/\D/g, ''),
+          telefono: p.telefono ? String(p.telefono).trim() : '',
+          email: p.email ? String(p.email).trim().toLowerCase() : '',
+          rol: ROL_PERSONA_LABEL[p.rol] ? p.rol : 'otro',
+          documento: p.documento || null,
+          incluir: p.rol === 'titular',
+          contactoId: null,
+          coincidencias: [],
+        }))
+        .filter(p => {
+          const clave = p.dni || normalizarTexto(`${p.nombre} ${p.apellido}`)
+          if (vistos.has(clave)) return false
+          vistos.add(clave)
+          return true
+        })
+      setPropietariosIA(await Promise.all(personas.map(conCoincidencias)))
+
+      const camposCompletados = Object.entries(update).filter(([, v]) => v !== '').length
+      if (!camposCompletados && !fotos.length && !personas.length) {
+        setIaMsg({ severity: 'info', text: 'No se encontraron datos de la propiedad en los archivos cargados.' })
+        return
+      }
+      const partes = [`se completaron ${camposCompletados} campo${camposCompletados === 1 ? '' : 's'}`]
+      if (fotos.length) partes.push(`se agregaron ${fotos.length} foto${fotos.length === 1 ? '' : 's'} a la galería`)
+      if (personas.length) partes.push(`se detectaron ${personas.length} persona${personas.length === 1 ? '' : 's'} (ver "Propietarios detectados")`)
+      setIaMsg({
+        severity: 'warning',
+        text: `A partir de los archivos ${partes.join(', ')}. Verificá todos los datos antes de guardar: la información se leyó automáticamente y puede contener errores.`,
+      })
+    } catch (err) {
+      setIaMsg({ severity: 'error', text: err.message ?? 'No se pudieron leer los archivos.' })
+    } finally {
+      setExtrayendo(false)
+    }
+  }
+
+  function setPersona(key, field, value) {
+    setPropietariosIA(prev => prev.map(p => (p.key === key ? { ...p, [field]: value } : p)))
+  }
+
+  async function refrescarCoincidencias(key) {
+    const persona = propietariosIA.find(p => p.key === key)
+    if (!persona) return
+    const actualizada = await conCoincidencias(persona)
+    setPropietariosIA(prev => prev.map(p => (p.key === key
+      ? { ...p, coincidencias: actualizada.coincidencias, contactoId: actualizada.contactoId }
+      : p)))
+  }
+
   async function handleFilesSelected(e) {
     const raw = Array.from(e.target.files)
     e.target.value = ''
@@ -273,6 +446,8 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       if (!form.precio_final_venta || Number(form.precio_final_venta) <= 0)
         return 'El precio final de venta es obligatorio y debe ser mayor a 0.'
     }
+    if (propietariosIA.some(p => p.incluir && !p.contactoId && (!p.nombre.trim() || !p.apellido.trim())))
+      return 'Completá nombre y apellido de cada propietario detectado que se va a crear como contacto.'
     return null
   }
 
@@ -300,7 +475,12 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       cochera:                form.cochera,
       descripcion:            form.descripcion.trim() || null,
       observaciones_internas: form.observaciones_internas.trim() || null,
-      precio_publicacion:     Number(form.precio_publicacion),
+      nomenclatura_catastral: form.nomenclatura_catastral.trim() || null,
+      servicio_agua:          form.servicio_agua.trim()          || null,
+      servicio_gas:           form.servicio_gas.trim()           || null,
+      servicio_energia:       form.servicio_energia.trim()       || null,
+      servicio_municipalidad: form.servicio_municipalidad.trim() || null,
+      precio_publicacion:    Number(form.precio_publicacion),
       moneda:                 form.moneda,
       estado:                 form.estado,
       ...(isVendida ? {
@@ -347,6 +527,23 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
       await setPropiedadContactos(result.id, contactosVinculados.map(c => c.id))
       await docsRef.current?.persist(result.id)
 
+      // Propietarios detectados por IA: la RPC crea/reutiliza los contactos y los vincula en una transacción.
+      // Si falla, la propiedad ya quedó creada: se avisa y se bloquea el botón para no duplicarla.
+      const propietarios = propietariosIA.filter(p => p.incluir)
+      if (propietarios.length) {
+        try {
+          await vincularPropietariosPropiedad(result.id, propietarios.map(p => ({
+            contacto_id: p.contactoId,
+            nombre: p.nombre, apellido: p.apellido, dni: p.dni, telefono: p.telefono, email: p.email,
+          })))
+        } catch (err) {
+          setPropiedadGuardada(true)
+          onSaved(result)
+          setError(`La propiedad se guardó, pero no se pudieron crear ni vincular los propietarios detectados (${err.message}). Podés vincularlos después editando la propiedad.`)
+          return
+        }
+      }
+
       onSaved(result)
       onClose()
     } catch (err) {
@@ -385,6 +582,61 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
         {/* Body */}
         <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 4 }}>
           {error && <Alert severity="error" sx={{ mt: 2, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
+
+          {mode !== 'edit' && (
+            <Box mt={2}>
+              <input ref={iaFileRef} type="file" hidden multiple accept={ACCEPT_DOCUMENTOS_PROPIEDAD} onChange={handleIaFilesSelected} />
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                disabled={extrayendo || saving}
+                startIcon={extrayendo ? <CircularProgress size={14} color="inherit" /> : <UploadFileIcon sx={{ fontSize: 16 }} />}
+                onClick={() => iaFileRef.current?.click()}
+                sx={{
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  py: 1,
+                  border: '1.5px solid transparent',
+                  color: ACCENT,
+                  backgroundImage: `linear-gradient(#fff, #fff), linear-gradient(90deg, ${ACCENT}, #10B981, #6366F1, #10B981, ${ACCENT})`,
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                  backgroundSize: '100% 100%, 300% 100%',
+                  backgroundPosition: '0 0, 0% 50%',
+                  animation: 'propiedadIaBorde 3s linear infinite',
+                  transition: 'color 0.25s ease',
+                  '@keyframes propiedadIaBorde': {
+                    '0%': { backgroundPosition: '0 0, 0% 50%' },
+                    '100%': { backgroundPosition: '0 0, 200% 50%' },
+                  },
+                  '@keyframes propiedadIaGradient': {
+                    '0%': { backgroundPosition: '0% 50%' },
+                    '100%': { backgroundPosition: '200% 50%' },
+                  },
+                  '&:hover': {
+                    color: '#fff',
+                    backgroundImage: `linear-gradient(90deg, ${ACCENT}, #10B981, #6366F1, #10B981, ${ACCENT})`,
+                    backgroundSize: '300% 100%',
+                    animation: 'propiedadIaGradient 1.5s linear infinite',
+                  },
+                }}
+              >
+                {extrayendo ? 'Leyendo documentos...' : 'Cargar documentos y autocompletar'}
+              </Button>
+              <Typography sx={{ fontSize: '0.68rem', color: '#9CA3AF', mt: 0.75 }}>
+                Hasta {MAX_ARCHIVOS_PROPIEDAD} archivos: escritura, boleto, plano, tasación o fotos (PDF, Word, JPG, PNG o WEBP).
+                Los documentos se procesan con un servicio de inteligencia artificial externo.
+              </Typography>
+              {iaMsg && (
+                <Alert severity={iaMsg.severity} sx={{ mt: 1.5, borderRadius: '8px', fontSize: '0.78rem' }}>
+                  {iaMsg.text}
+                </Alert>
+              )}
+            </Box>
+          )}
 
           <form id="prop-form" onSubmit={handleSubmit}>
 
@@ -551,6 +803,36 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
               </Grid>
             </Grid>
 
+            {/* ── 3b. Datos catastrales y servicios ── */}
+            <SectionTitle>Datos catastrales y servicios</SectionTitle>
+            <Box mb={2}>
+              <Label>Nomenclatura catastral (N.C.)</Label>
+              <TextField fullWidth size="small" value={form.nomenclatura_catastral}
+                onChange={e => set('nomenclatura_catastral', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+            </Box>
+            <Grid container spacing={1.5} mb={2}>
+              <Grid item xs={6}>
+                <Label>Cuenta o suministro de agua</Label>
+                <TextField fullWidth size="small" value={form.servicio_agua}
+                  onChange={e => set('servicio_agua', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+              </Grid>
+              <Grid item xs={6}>
+                <Label>Cuenta o suministro de gas</Label>
+                <TextField fullWidth size="small" value={form.servicio_gas}
+                  onChange={e => set('servicio_gas', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+              </Grid>
+              <Grid item xs={6}>
+                <Label>Cuenta o suministro de energía</Label>
+                <TextField fullWidth size="small" value={form.servicio_energia}
+                  onChange={e => set('servicio_energia', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+              </Grid>
+              <Grid item xs={6}>
+                <Label>Cuenta municipal</Label>
+                <TextField fullWidth size="small" value={form.servicio_municipalidad}
+                  onChange={e => set('servicio_municipalidad', e.target.value)} placeholder="Opcional" sx={fieldSx} />
+              </Grid>
+            </Grid>
+
             {/* ── 4. Precio y estado ── */}
             <SectionTitle>Precio y estado</SectionTitle>
 
@@ -597,6 +879,105 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
                 placeholder="Notas internas del equipo (no visibles al cliente)..."
                 sx={fieldSx} />
             </Box>
+
+            {/* ── 7a. Propietarios detectados por IA ── */}
+            {propietariosIA.length > 0 && (
+              <>
+                <SectionTitle>Propietarios detectados</SectionTitle>
+                <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', mb: 1.5 }}>
+                  Marcá las personas que querés cargar como propietario. Al guardar se crean como contacto (o se usa el contacto existente) y se vinculan a la propiedad.
+                </Typography>
+                {propietariosIA.map(p => {
+                  const porDni = p.coincidencias.find(c => c.coincidencia === 'dni')
+                  const porNombre = p.coincidencias.filter(c => c.coincidencia === 'nombre')
+                  return (
+                    <Box key={p.key} sx={{
+                      border: `1px solid ${p.incluir ? '#A7F3D0' : '#E5E7EB'}`, bgcolor: p.incluir ? '#F0FDF4' : '#FFFFFF',
+                      borderRadius: '8px', p: 1.5, mb: 1.5,
+                    }}>
+                      <Box display="flex" alignItems="center" gap={1} mb={p.incluir ? 1 : 0}>
+                        <Checkbox size="small" checked={p.incluir} onChange={e => setPersona(p.key, 'incluir', e.target.checked)}
+                          sx={{ p: 0.25, color: '#D1D5DB', '&.Mui-checked': { color: ACCENT } }} />
+                        <Box flex={1} minWidth={0}>
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111827' }}>
+                            {[p.apellido, p.nombre].filter(Boolean).join(', ') || 'Sin nombre'}
+                          </Typography>
+                          {p.documento && (
+                            <Typography sx={{ fontSize: '0.66rem', color: '#9CA3AF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              Fuente: {p.documento}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ px: 0.75, py: 0.2, borderRadius: '5px', flexShrink: 0,
+                          bgcolor: p.rol === 'titular' ? '#ECFDF5' : '#F3F4F6',
+                          border: `1px solid ${p.rol === 'titular' ? '#A7F3D0' : '#E5E7EB'}` }}>
+                          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: p.rol === 'titular' ? ACCENT : '#6B7280' }}>
+                            {ROL_PERSONA_LABEL[p.rol]}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {p.incluir && (
+                        <>
+                          <Grid container spacing={1}>
+                            <Grid item xs={6}>
+                              <Label required>Nombre</Label>
+                              <TextField fullWidth size="small" value={p.nombre} sx={fieldSx}
+                                onChange={e => setPersona(p.key, 'nombre', e.target.value)}
+                                onBlur={() => refrescarCoincidencias(p.key)} />
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Label required>Apellido</Label>
+                              <TextField fullWidth size="small" value={p.apellido} sx={fieldSx}
+                                onChange={e => setPersona(p.key, 'apellido', e.target.value)}
+                                onBlur={() => refrescarCoincidencias(p.key)} />
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Label>DNI</Label>
+                              <TextField fullWidth size="small" value={p.dni} sx={fieldSx}
+                                onChange={e => setPersona(p.key, 'dni', e.target.value.replace(/\D/g, ''))}
+                                onBlur={() => refrescarCoincidencias(p.key)} />
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Label>Teléfono</Label>
+                              <TextField fullWidth size="small" value={p.telefono} sx={fieldSx}
+                                onChange={e => setPersona(p.key, 'telefono', e.target.value)} />
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Label>Email</Label>
+                              <TextField fullWidth size="small" value={p.email} sx={fieldSx}
+                                onChange={e => setPersona(p.key, 'email', e.target.value)} />
+                            </Grid>
+                          </Grid>
+
+                          {porDni ? (
+                            <Alert severity="info" sx={{ mt: 1, borderRadius: '8px', fontSize: '0.74rem', py: 0 }}>
+                              Ya existe en contactos con el mismo DNI: <strong>{porDni.apellido}, {porDni.nombre}</strong>. Se vinculará ese contacto.
+                              Si el DNI está mal leído, corregilo.
+                            </Alert>
+                          ) : porNombre.length > 0 && (
+                            <Box mt={1}>
+                              <Label>Ya existe un contacto con el mismo nombre</Label>
+                              <FormControl fullWidth size="small">
+                                <Select value={p.contactoId ?? 'nuevo'} sx={selectSx}
+                                  onChange={e => setPersona(p.key, 'contactoId', e.target.value === 'nuevo' ? null : e.target.value)}>
+                                  <MenuItem value="nuevo" sx={{ fontSize: '0.82rem' }}>Crear un contacto nuevo</MenuItem>
+                                  {porNombre.map(c => (
+                                    <MenuItem key={c.id} value={c.id} sx={{ fontSize: '0.82rem' }}>
+                                      Usar existente: {c.apellido}, {c.nombre}{c.dni ? ` · DNI ${c.dni}` : ''}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Box>
+                          )}
+                        </>
+                      )}
+                    </Box>
+                  )
+                })}
+              </>
+            )}
 
             {/* ── 7. Contactos vinculados ── */}
             <SectionTitle>Contactos vinculados</SectionTitle>
@@ -846,7 +1227,7 @@ export default function PropiedadFormDrawer({ open, onClose, mode, propiedad, on
               type="submit"
               form="prop-form"
               variant="contained"
-              disabled={saving}
+              disabled={saving || extrayendo || propiedadGuardada}
               startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
               sx={{
                 bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none',

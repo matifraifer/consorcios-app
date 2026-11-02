@@ -752,3 +752,21 @@ export async function linkContactoPropiedad(contacto_id, propiedad_id) {
     .insert([{ contacto_id, propiedad_id }])
   if (error && error.code !== '23505') throw error
 }
+
+// Contactos que coinciden con una persona detectada por IA (DNI normalizado o nombre + apellido)
+export async function buscarContactosCoincidentes({ dni, nombre, apellido }) {
+  const { data, error } = await supabase.rpc('buscar_contactos_coincidentes', {
+    p_dni: dni || null, p_nombre: nombre || null, p_apellido: apellido || null,
+  })
+  if (error) throw error
+  return data ?? []
+}
+
+// Crea o reutiliza los contactos de los propietarios y los vincula a la propiedad, en una transacción
+export async function vincularPropietariosPropiedad(propiedad_id, propietarios) {
+  const { data, error } = await supabase.rpc('vincular_propietarios_propiedad', {
+    p_propiedad_id: propiedad_id, p_propietarios: propietarios,
+  })
+  if (error) throw error
+  return data ?? []
+}

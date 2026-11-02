@@ -13,7 +13,7 @@ import { getPropietarioCRM } from '../../consorcios/services/consorcios'
 import { createContrato, getRestriccionesEdicion, updateContrato } from '../services/contratos'
 import { vincularContactoDesdeContrato } from '../../crm/services/crm'
 import { extraerDatosContrato } from '../../portal/services/portal'
-import { crearPropiedadDesdeContrato, getPropiedades } from '../../propiedades/services/propiedades'
+import { CAMPOS_INMUEBLE, crearPropiedadDesdeContrato, getDatosInmueble, getPropiedades, updatePropiedad } from '../../propiedades/services/propiedades'
 import { ACCEPT_CONTRATO, prepararContrato } from '../utils/extraerTextoContrato.js'
 import { useAuth } from '../../auth/AuthContext'
 import PropiedadFormDrawer from '../../propiedades/components/PropiedadFormDrawer'
@@ -26,6 +26,15 @@ const ACCENT_LIGHT = '#ECFDF5'
 
 const TIPOS_ACTUALIZACION = ['IPC', 'ICL', 'Otro']
 const PLAZOS_ACTUALIZACION = ['Mensual', 'Trimestral', 'Cuatrimestral', 'Semestral', 'Anual', 'Otro']
+
+// Nomenclatura catastral y cuentas de servicios viven en la propiedad vinculada (0061).
+// Valor de cada campo: el de la propiedad; si está vacío, el del contrato (columnas viejas
+// en edición, o lo leído por la IA en el alta), que al guardar se copia a la propiedad.
+const INMUEBLE_VACIO = Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, '']))
+
+function mezclarInmueble(propiedad, contrato) {
+  return Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, propiedad?.[c] || contrato[c] || '']))
+}
 
 const FORM_EMPTY = {
   inquilino_nombre: '',
@@ -105,6 +114,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   const [extraccionMsg, setExtraccionMsg] = useState(null)
   const [cargadoIA, setCargadoIA] = useState(false)
   const [datosPropiedadIA, setDatosPropiedadIA] = useState(null)
+  const [inmuebleContrato, setInmuebleContrato] = useState(INMUEBLE_VACIO)   // ver mezclarInmueble
+  const [inmueblePropiedad, setInmueblePropiedad] = useState(null)           // valores actuales de la propiedad vinculada
+  const [loadingInmueble, setLoadingInmueble] = useState(false)
   const docsRef = useRef(null)
   // Edición: qué condiciones ya no se pueden cambiar (ver getRestriccionesEdicion) y
   // avisos a confirmar antes de guardar cambios que impactan en los pagos.
@@ -118,6 +130,9 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     .filter(t => t && !TIPOS_ACTUALIZACION.includes(t))
     .sort((a, b) => a.localeCompare(b))
   const tiposActualizacion = [...TIPOS_ACTUALIZACION.filter(t => t !== 'Otro'), ...tiposPropios, 'Otro']
+
+  // Con propiedad vinculada, o en un alta con IA (se crea la propiedad al guardar)
+  const inmuebleEditable = !!form.propiedad_id || (!isEdit && cargadoIA)
 
   useEffect(() => {
     if (!open) return
@@ -164,7 +179,29 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
     } else {
       setForm(FORM_EMPTY)
     }
+
+    const legado = isEdit && contrato
+      ? Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, contrato[c] ?? '']))
+      : INMUEBLE_VACIO
+    setInmuebleContrato(legado)
+    setInmueblePropiedad(null)
+    setLoadingInmueble(false)
+    if (isEdit && contrato?.propiedad_id) {
+      setLoadingInmueble(true)
+      getDatosInmueble(contrato.propiedad_id)
+        .then(datos => {
+          setInmueblePropiedad(datos)
+          setForm(prev => (prev.propiedad_id === contrato.propiedad_id ? { ...prev, ...mezclarInmueble(datos, legado) } : prev))
+        })
+        .catch(() => {})
+        .finally(() => setLoadingInmueble(false))
+    }
   }, [open])
+
+  function aplicarInmueble(propiedad) {
+    setInmueblePropiedad(propiedad ? Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, propiedad[c] ?? null])) : null)
+    setForm(prev => ({ ...prev, ...(propiedad ? mezclarInmueble(propiedad, inmuebleContrato) : inmuebleContrato) }))
+  }
 
   async function loadPropiedades() {
     setLoadingProps(true)
@@ -204,7 +241,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         'inquilino_nombre', 'inquilino_apellido', 'inquilino_dni', 'inquilino_telefono',
         'propietario_nombre', 'propietario_apellido', 'propietario_dni', 'propietario_telefono',
         'fecha_inicio', 'fecha_fin', 'observaciones',
-        'nomenclatura_catastral', 'servicio_agua', 'servicio_gas', 'servicio_energia', 'servicio_municipalidad',
       ]
       const update = {}
       for (const campo of camposTexto) {
@@ -223,7 +259,14 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
       if (TIPOS_ACTUALIZACION.includes(datos.tipo_actualizacion)) update.tipo_actualizacion = datos.tipo_actualizacion
       if (PLAZOS_ACTUALIZACION.includes(datos.plazo_actualizacion)) update.plazo_actualizacion = datos.plazo_actualizacion
 
-      setForm(prev => ({ ...prev, ...update }))
+      // Datos del inmueble: si ya hay una propiedad vinculada, solo se completan los campos vacíos
+      const inmuebleIA = Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, datos[c] ? String(datos[c]).trim() : '']))
+      setInmuebleContrato(inmuebleIA)
+      setForm(prev => ({
+        ...prev,
+        ...update,
+        ...Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, prev[c] || inmuebleIA[c]])),
+      }))
       setDatosPropiedadIA({
         direccion: datos.direccion || null,
         localidad: datos.localidad || null,
@@ -247,6 +290,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   async function handlePropiedadChange(propiedadId) {
     set('propiedad_id', propiedadId)
     const prop = propiedades.find(p => p.id === propiedadId)
+    aplicarInmueble(prop ?? null)
     if (prop?.propietario_id) {
       const propietario = await getPropietarioCRM(prop.propietario_id)
       if (propietario) {
@@ -268,6 +312,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
   async function handlePropiedadSaved(nueva) {
     setPropiedades(prev => [nueva, ...prev])
     setForm(prev => ({ ...prev, propiedad_id: nueva.id }))
+    aplicarInmueble(nueva)
     // Autocompletar propietario si la nueva propiedad tiene uno
     if (nueva.propietario_id) {
       const propietario = await getPropietarioCRM(nueva.propietario_id)
@@ -350,8 +395,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         propietario_dni:      form.propietario_dni.trim() || null,
         propietario_telefono: form.propietario_telefono.trim() || null,
         propiedad_id:         form.propiedad_id || null,
-        nomenclatura_catastral: form.nomenclatura_catastral.trim() || null,
-        es_compraventa:       form.es_compraventa,
+        es_compraventa:      form.es_compraventa,
         fecha_inicio:         form.fecha_inicio,
         fecha_fin:            form.fecha_fin,
         dia_vencimiento:      form.dia_vencimiento || null,
@@ -363,11 +407,8 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         plazo_actualizacion:  form.plazo_actualizacion,
         observaciones:        form.observaciones.trim() || null,
         cargado_ia:           cargadoIA,
-        servicio_agua:        form.servicio_agua.trim() || null,
-        servicio_gas:         form.servicio_gas.trim() || null,
-        servicio_energia:     form.servicio_energia.trim() || null,
-        servicio_municipalidad: form.servicio_municipalidad.trim() || null,
       }
+      const inmueble = Object.fromEntries(CAMPOS_INMUEBLE.map(c => [c, form[c].trim() || null]))
       let locador = null
       try {
         await vincularContactoDesdeContrato({
@@ -396,6 +437,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
         console.error('No se pudo sincronizar el contacto del contrato:', contactoErr)
       }
 
+      let propiedadCreada = false
       if (!isEdit && cargadoIA && !payload.propiedad_id && datosPropiedadIA && locador) {
         try {
           const propiedad = await crearPropiedadDesdeContrato({
@@ -403,12 +445,29 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             contacto_locador_id: locador.id,
             monto_base: payload.monto_base,
             ...datosPropiedadIA,
+            datosInmueble: inmueble,
           })
           payload.propiedad_id = propiedad.id
+          propiedadCreada = true
         } catch (propiedadErr) {
           // no bloquea el guardado del contrato si falla la creación de la propiedad
           console.error('No se pudo crear la propiedad desde el contrato:', propiedadErr)
         }
+      }
+
+      // Nomenclatura y servicios: se guardan en la propiedad y se vacían las columnas viejas del
+      // contrato. Sin propiedad, el contrato conserva lo que tenía (en edición no se envían) salvo
+      // en un alta con IA en que no se pudo crear la propiedad: ahí quedan en el contrato de respaldo.
+      if (payload.propiedad_id) {
+        if (!propiedadCreada) {
+          const cambios = Object.fromEntries(CAMPOS_INMUEBLE
+            .filter(c => inmueble[c] !== (inmueblePropiedad?.[c] || null))
+            .map(c => [c, inmueble[c]]))
+          if (Object.keys(cambios).length) await updatePropiedad(payload.propiedad_id, cambios)
+        }
+        CAMPOS_INMUEBLE.forEach(c => { payload[c] = null })
+      } else if (!isEdit && cargadoIA) {
+        Object.assign(payload, inmueble)
       }
 
       let result
@@ -628,11 +687,6 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           </Box>
 
           <Box mb={1.5}>
-            <Label>Nomenclatura catastral (N.C.)</Label>
-            <TextField fullWidth size="small" value={form.nomenclatura_catastral} onChange={e => set('nomenclatura_catastral', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-          </Box>
-
-          <Box mb={1.5}>
             <FormControlLabel
               control={
                 <Checkbox
@@ -759,24 +813,33 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
             </FormHelperText>
           )}
 
-          {/* Datos de servicios */}
-          <SectionTitle>Datos de servicios</SectionTitle>
-          <Box mb={1.5}>
-            <Label>Número de cuenta o suministro de Agua</Label>
-            <TextField fullWidth size="small" value={form.servicio_agua} onChange={e => set('servicio_agua', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-          </Box>
-          <Box mb={1.5}>
-            <Label>Número de cuenta o suministro de Gas</Label>
-            <TextField fullWidth size="small" value={form.servicio_gas} onChange={e => set('servicio_gas', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-          </Box>
-          <Box mb={1.5}>
-            <Label>Número de cuenta o suministro de Energía</Label>
-            <TextField fullWidth size="small" value={form.servicio_energia} onChange={e => set('servicio_energia', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-          </Box>
-          <Box mb={1.5}>
-            <Label>Número de cuenta de Municipalidad</Label>
-            <TextField fullWidth size="small" value={form.servicio_municipalidad} onChange={e => set('servicio_municipalidad', e.target.value)} placeholder="Opcional" sx={fieldSx} />
-          </Box>
+          {/* Datos catastrales y servicios: se guardan en la propiedad vinculada */}
+          <SectionTitle>Datos catastrales y servicios</SectionTitle>
+          {!inmuebleEditable ? (
+            <Alert severity="info" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.78rem' }}>
+              Estos datos son del inmueble y se guardan en la propiedad. Vinculá una propiedad para cargarlos.
+              {CAMPOS_INMUEBLE.some(c => form[c]) && ' Los valores que se ven quedaron cargados en el contrato: al vincular una propiedad se copian a ella.'}
+            </Alert>
+          ) : (
+            <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', mb: 1.5 }}>
+              {form.propiedad_id
+                ? 'Se guardan en la propiedad vinculada: los ven y comparten todos sus contratos.'
+                : 'Se guardan en la propiedad que se crea a partir del contrato.'}
+            </Typography>
+          )}
+          {[
+            ['nomenclatura_catastral', 'Nomenclatura catastral (N.C.)'],
+            ['servicio_agua', 'Número de cuenta o suministro de Agua'],
+            ['servicio_gas', 'Número de cuenta o suministro de Gas'],
+            ['servicio_energia', 'Número de cuenta o suministro de Energía'],
+            ['servicio_municipalidad', 'Número de cuenta de Municipalidad'],
+          ].map(([campo, label]) => (
+            <Box mb={1.5} key={campo}>
+              <Label>{label}</Label>
+              <TextField fullWidth size="small" value={form[campo]} onChange={e => set(campo, e.target.value)}
+                disabled={!inmuebleEditable || loadingInmueble} placeholder="Opcional" sx={fieldSx} />
+            </Box>
+          ))}
 
           {/* Documentación respaldatoria */}
           <DocumentacionRespaldatoriaSection
@@ -807,7 +870,7 @@ export default function ContratoFormDrawer({ open, onClose, clienteId, onSaved, 
           </Button>
           <Button
             onClick={() => handleSubmit()}
-            disabled={saving}
+            disabled={saving || loadingInmueble}
             fullWidth variant="contained"
             startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
             sx={{ bgcolor: ACCENT, borderRadius: '8px', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#047857', boxShadow: 'none' } }}
