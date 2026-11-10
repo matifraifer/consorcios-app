@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Alert, CircularProgress, Select, MenuItem, FormControl,
 } from '@mui/material'
 import TimelineIcon from '@mui/icons-material/Timeline'
-import { getIndicesActualizacion } from '../services/contratos'
+import { getIndicesActualizacion, getUltimoIndiceDiario } from '../services/contratos'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import GraficoIndices from '../components/GraficoIndices.jsx'
 import { agruparIndices, labelPeriodoLargo, listarTiposIndices, PERIODOS } from '../utils/agruparIndices.js'
@@ -79,11 +79,16 @@ export default function Indices() {
   const [error, setError] = useState(null)
   const [periodo, setPeriodo] = useState('mensual')
 
+  const [iclDiario, setIclDiario] = useState(null)
+
   useEffect(() => {
+    // Las entradas diarias (diario: true) son solo para el cálculo de actualizaciones;
+    // las tablas y el gráfico de esta página son de variaciones mensuales.
     getIndicesActualizacion(clienteId)
-      .then(setIndices)
+      .then(data => setIndices(data.filter(i => !i.diario)))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
+    getUltimoIndiceDiario('ICL').then(setIclDiario).catch(() => setIclDiario(null))
   }, [clienteId])
 
   const tablas = useMemo(() => listarTiposIndices(indices).map(({ tipo, color }) => ({
@@ -118,6 +123,18 @@ export default function Indices() {
           </FormControl>
         )}
       </Box>
+
+      {iclDiario && (
+        <Paper variant="outlined" sx={{ borderRadius: '12px', border: '1px solid #E5E7EB', px: 2.5, py: 2, mb: 3 }}>
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
+            ICL diario (BCRA): {Number(iclDiario.valor).toLocaleString('es-AR', { minimumFractionDigits: 2 })} al {iclDiario.fecha.split('-').reverse().join('/')}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: '#6B7280', mt: 0.5 }}>
+            Se actualiza automáticamente todos los días. Las actualizaciones de los contratos ICL se calculan
+            dividiendo el valor del ICL al inicio del período de actualización por el valor al inicio del período anterior.
+          </Typography>
+        </Paper>
+      )}
 
       {indices.length === 0 && !loading ? (
         <Paper variant="outlined" sx={{ borderRadius: '12px', border: '1px solid #E5E7EB', py: 8, textAlign: 'center' }}>

@@ -155,8 +155,18 @@ function RegistrarPagoDialog({ open, pago, contrato, onClose, onPaid }) {
         {error && <Alert severity="error" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.82rem' }}>{error}</Alert>}
         {faltantes.length > 0 && (
           <Alert severity="warning" sx={{ mb: 1.5, borderRadius: '8px', fontSize: '0.8rem' }}>
-            Este período tiene una actualización y faltan índices {contrato?.tipo_actualizacion} de: {faltantes.join(', ')}.
-            Cargalos desde "Índices" antes de registrar el pago.
+            {faltantes.some(f => f.length === 10) ? (
+              // Índice diario (dd/mm/aaaa): se sincroniza solo desde el BCRA.
+              <>
+                Este período tiene una actualización y todavía no está publicado el {contrato?.tipo_actualizacion} de: {faltantes.join(', ')}.
+                Se carga automáticamente todos los días desde el BCRA.
+              </>
+            ) : (
+              <>
+                Este período tiene una actualización y faltan índices {contrato?.tipo_actualizacion} de: {faltantes.join(', ')}.
+                Cargalos desde "Índices" antes de registrar el pago.
+              </>
+            )}
           </Alert>
         )}
         <Box display="flex" flexDirection="column" gap={1.5}>

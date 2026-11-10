@@ -616,10 +616,38 @@ export async function getDocumentoRespaldatorioUrl(storagePath) {
 
 export async function getIndicesActualizacion() {
   // Sin filtro de cliente_id: la RLS ya devuelve los propios + los marcados como externo=true de otros clientes.
-  const { data, error } = await supabase
-    .from('indices_actualizacion').select('*').order('anio').order('mes')
+  const [{ data, error }, diarios] = await Promise.all([
+    supabase.from('indices_actualizacion').select('*').order('anio').order('mes'),
+    getIndicesDiariosContratos(),
+  ])
   if (error) throw error
-  return data ?? []
+  return [...(data ?? []), ...diarios]
+}
+
+// Valores diarios (ICL del BCRA) en las fechas de inicio de período de los contratos del
+// cliente, como entradas `{ tipo, fecha, valor, diario: true }` — las usa
+// actualizacionContrato.js. Sin cliente_id, así que no se mezclan con los índices propios
+// del dialog "Índices". Si la RPC todavía no existe (0066 sin correr), se sigue con el
+// método mensual.
+async function getIndicesDiariosContratos() {
+  const { data, error } = await supabase.rpc('indices_diarios_contratos')
+  if (error) {
+    console.warn('indices_diarios_contratos:', error.message)
+    return []
+  }
+  return (data ?? []).map(d => ({ tipo: d.tipo, fecha: d.fecha, valor: d.valor, diario: true }))
+}
+
+// Último valor publicado de un índice diario hasta hoy (para mostrar en /indices).
+export async function getUltimoIndiceDiario(tipo) {
+  const hoy = new Date()
+  const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+  const { data, error } = await supabase
+    .from('indices_diarios').select('fecha, valor')
+    .eq('tipo', tipo).lte('fecha', hoyIso)
+    .order('fecha', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw error
+  return data
 }
 
 export async function upsertIndice({ tipo, mes, anio, valor, clienteId, externo }) {

@@ -8,10 +8,34 @@ export function esActualizacion(periodoNumero, plazoActualizacion) {
   return plazoMeses > 0 && periodoNumero > 1 && (periodoNumero - 1) % plazoMeses === 0
 }
 
-// Coeficiente de UNA actualización: los índices (IPC/ICL) se cargan como variación
-// MENSUAL, así que se compone la variación de los `plazoMeses` meses del período recién
-// finalizado. Devuelve también los meses sin índice cargado.
+function fechaDDMMYYYY(iso) {
+  const [y, m, d] = String(iso).slice(0, 10).split('-')
+  return `${d}/${m}/${y}`
+}
+
+// Coeficiente de UNA actualización. Devuelve también las fechas/meses sin índice.
+// - Índice con serie DIARIA (ICL del BCRA, entradas `diario: true` que trae
+//   indices_diarios_contratos / _portal_indices, una por fecha de inicio de período):
+//   valor(inicio del período de actualización) / valor(inicio del período anterior),
+//   igual que las calculadoras de mercado y que la RPC aplicar_actualizaciones_contrato.
+// - Si no (IPC, índices propios): los índices se cargan como variación MENSUAL, así que se
+//   compone la variación de los `plazoMeses` meses del período recién finalizado.
 function factorActualizacion(up, allPagos, indices, tipoActualizacion, plazoMeses) {
+  const diarios = indices.filter(i => i.diario && i.tipo === tipoActualizacion)
+  if (diarios.length) {
+    const desde = allPagos.find(p => p.periodo_numero === up.periodo_numero - plazoMeses)?.periodo_inicio
+    const valorDe = fecha => {
+      const v = diarios.find(i => i.fecha === String(fecha).slice(0, 10))?.valor
+      return v == null ? null : Number(v)
+    }
+    const vDesde = desde ? valorDe(desde) : null
+    const vHasta = valorDe(up.periodo_inicio)
+    const faltantes = []
+    if (vDesde == null && desde) faltantes.push(fechaDDMMYYYY(desde))
+    if (vHasta == null) faltantes.push(fechaDDMMYYYY(up.periodo_inicio))
+    return { factor: vDesde && vHasta ? vHasta / vDesde : 1, faltantes }
+  }
+
   const mesesPeriodo = allPagos.filter(
     p => p.periodo_numero >= up.periodo_numero - plazoMeses && p.periodo_numero <= up.periodo_numero - 1
   )
@@ -19,7 +43,7 @@ function factorActualizacion(up, allPagos, indices, tipoActualizacion, plazoMese
   const faltantes = []
   for (const mp of mesesPeriodo) {
     const [y, m] = mp.periodo_inicio.split('-').map(Number)
-    const idx = indices.find(i => i.tipo === tipoActualizacion && i.mes === m && i.anio === y)
+    const idx = indices.find(i => !i.diario && i.tipo === tipoActualizacion && i.mes === m && i.anio === y)
     if (idx) factor *= (1 + idx.valor / 100)
     else faltantes.push(`${String(m).padStart(2, '0')}/${y}`)
   }
