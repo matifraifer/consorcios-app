@@ -461,11 +461,13 @@ export async function getFirmaReciboUrl(fileFirma) {
   return data.signedUrl
 }
 
+// Recibo vigente del pago (los recibos de un pago revertido quedan anulados)
 export async function getReciboByPago(pagoId) {
   const { data, error } = await supabase
     .from('recibos_contrato')
     .select('*')
     .eq('pago_id', pagoId)
+    .is('anulado_at', null)
     .maybeSingle()
   if (error) throw error
   return data
@@ -537,9 +539,28 @@ export async function getReciboPropietarioByPago(pagoId) {
     .from('recibos_propietario')
     .select('*')
     .eq('pago_id', pagoId)
+    .is('anulado_at', null)
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+// Revierte el último pago registrado de un contrato (solo admin/inmo, lo valida la RPC):
+// el período vuelve a pendiente, se borran los cargos de mora y depósito inicial que se
+// generan al pagar y se anulan sus recibos (conservan el número). El comprobante adjunto
+// se borra del storage después; si falla, el pago igual queda revertido.
+export async function revertirPagoContrato(pagoId, motivo = '') {
+  const { data, error } = await supabase.rpc('revertir_pago_contrato', {
+    p_pago_id: pagoId,
+    p_motivo: motivo,
+  })
+  if (error) throw error
+
+  const path = data?.comprobante_path
+  if (path) {
+    const { error: rmErr } = await supabase.storage.from(CONTRATOS_BUCKET).remove([path])
+    if (rmErr) console.error('No se pudo borrar el comprobante del pago revertido:', rmErr)
+  }
 }
 
 // ---- DOCUMENTACIÓN RESPALDATORIA (propiedades y contratos) ----

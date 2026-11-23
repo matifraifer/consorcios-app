@@ -49,6 +49,7 @@ serve(async (req) => {
       .from('recibos_contrato')
       .select('file_firma')
       .eq('pago_id', pago_id)
+      .is('anulado_at', null)
       .maybeSingle()
     if (reciboError) throw reciboError
     if (!recibo?.file_firma) return json({ url: null })

@@ -15,7 +15,8 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
-import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion, setMoraCondonada, eliminarCargoPeriodoPagado } from '../services/contratos'
+import UndoIcon from '@mui/icons-material/Undo'
+import { createCargoExtra, deleteCargoExtra, deleteContratoAdjunto, finalizarContrato, getCargosExtraByPagos, getComprobanteUrl, getContratoAdjuntoUrl, getContratoAdjuntos, getContratoCondiciones, getFirmaReciboUrl, getPagosContrato, getReciboByPago, getReciboPropietarioByPago, registrarPagoContrato, setMedioRendicion, setMoraCondonada, eliminarCargoPeriodoPagado, revertirPagoContrato } from '../services/contratos'
 import { getClienteConfig } from '../../propiedades/services/propiedades'
 import { esActualizacion, computeMontoActualizado, computeDiferenciaDeposito, computeDepositoInicial, computeMora, estaVencido, fechaVencimientoCuota, indicesFaltantes } from '../utils/actualizacionContrato.js'
 import { generarReciboContrato, generarReciboPropietario } from '../services/reciboContrato.js'
@@ -275,6 +276,17 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
   const [rendicionDialog, setRendicionDialog] = useState(null) // { pago, recibo, medio } | null
   const [cargoPagadoDialog, setCargoPagadoDialog] = useState(null) // { pago, cargo } | null
   const [eliminandoCargoPagado, setEliminandoCargoPagado] = useState(false)
+  // { pago, recibos: [{ label, numero }], motivo } | null
+  const [revertirDialog, setRevertirDialog] = useState(null)
+  const [revirtiendo, setRevirtiendo] = useState(false)
+
+  // Revertir un pago: solo admin/inmo, solo el último período pagado y contrato no
+  // finalizado (la RPC revertir_pago_contrato vuelve a validar todo)
+  const puedeRevertir = isAdmin || isInmo
+  const ultimoPagadoNumero = useMemo(
+    () => pagos.reduce((max, p) => (p.estado === 'pagado' && p.periodo_numero > max ? p.periodo_numero : max), 0),
+    [pagos],
+  )
 
   useEffect(() => {
     if (!open || !contrato) return
@@ -481,6 +493,40 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
       setCargoPagadoDialog(null)
     } finally {
       setEliminandoCargoPagado(false)
+    }
+  }
+
+  // Antes de confirmar se muestran los números de recibo que se van a anular
+  async function openRevertirDialog(pago) {
+    setError(null)
+    try {
+      const [rInq, rProp] = await Promise.all([
+        getReciboByPago(pago.id),
+        getReciboPropietarioByPago(pago.id),
+      ])
+      const recibos = [
+        rInq && { label: 'Recibo del inquilino', numero: `${rInq.serie}-${String(rInq.numero).padStart(8, '0')}` },
+        rProp && { label: 'Recibo del propietario', numero: `${rProp.serie}-${String(rProp.numero).padStart(8, '0')}` },
+      ].filter(Boolean)
+      setRevertirDialog({ pago, recibos, motivo: '' })
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function handleConfirmarRevertir() {
+    const { pago, motivo } = revertirDialog
+    setRevirtiendo(true)
+    setError(null)
+    try {
+      await revertirPagoContrato(pago.id, motivo.trim())
+      setRevertirDialog(null)
+      loadData()
+    } catch (e) {
+      setError(e.message)
+      setRevertirDialog(null)
+    } finally {
+      setRevirtiendo(false)
     }
   }
 
@@ -755,6 +801,17 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
                             </span>
                           </Tooltip>
                         )}
+                        {p.estado === 'pagado' && puedeRevertir && !contrato.finalizado && p.periodo_numero === ultimoPagadoNumero && (
+                          <Tooltip title="Revertir pago">
+                            <IconButton
+                              size="small"
+                              onClick={() => openRevertirDialog(p)}
+                              sx={{ color: '#DC2626', '&:hover': { color: '#B91C1C', bgcolor: '#FEF2F2' } }}
+                            >
+                              <UndoIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         {p.estado === 'pagado' && p.comprobante_path && (
                           <Tooltip title="Ver comprobante">
                             <IconButton size="small" onClick={() => handleDownloadComprobante(p.comprobante_path)} sx={{ color: '#9CA3AF', '&:hover': { color: ACCENT } }}>
@@ -972,6 +1029,55 @@ export default function ContratoDetalleDrawer({ open, onClose, contrato, indices
           <ListItemText>Recibo del propietario</ListItemText>
         </MenuItem>
       </Menu>
+
+      {/* Revertir pago */}
+      <Dialog open={!!revertirDialog} onClose={() => !revirtiendo && setRevertirDialog(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Revertir pago</DialogTitle>
+        <DialogContent>
+          {revertirDialog && (() => {
+            const [ry, rm] = revertirDialog.pago.periodo_inicio.split('-').map(Number)
+            return (
+              <>
+                <Typography sx={{ fontSize: '0.8rem', color: '#4B5563', lineHeight: 1.6, mb: 1.5 }}>
+                  El período {MESES_SHORT[rm - 1]} {ry} (pagado $ {fmt(Number(revertirDialog.pago.monto_pagado) || 0)}) volverá
+                  a quedar pendiente. Se eliminarán el interés por mora y el depósito inicial registrados con el pago
+                  {revertirDialog.pago.comprobante_path ? ', y el comprobante adjunto' : ''}. Los recargos y descuentos
+                  cargados a mano se mantienen.
+                </Typography>
+                {revertirDialog.recibos.length > 0 && (
+                  <Box sx={{ mb: 1.5, p: 1.25, borderRadius: '8px', bgcolor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#991B1B', mb: 0.5 }}>
+                      Se anularán los siguientes recibos:
+                    </Typography>
+                    {revertirDialog.recibos.map(r => (
+                      <Typography key={r.label} sx={{ fontSize: '0.75rem', color: '#7F1D1D' }}>
+                        {r.label}: N° {r.numero}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+                <TextField
+                  label="Motivo (opcional)"
+                  value={revertirDialog.motivo}
+                  onChange={e => setRevertirDialog(prev => ({ ...prev, motivo: e.target.value }))}
+                  fullWidth size="small" multiline minRows={2}
+                  disabled={revirtiendo}
+                />
+              </>
+            )
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setRevertirDialog(null)} disabled={revirtiendo} sx={{ textTransform: 'none', borderRadius: '8px', color: '#6B7280' }}>Cancelar</Button>
+          <Button
+            onClick={handleConfirmarRevertir} variant="contained" disabled={revirtiendo}
+            startIcon={revirtiendo ? <CircularProgress size={13} color="inherit" /> : null}
+            sx={{ bgcolor: '#DC2626', textTransform: 'none', borderRadius: '8px', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}
+          >
+            {revirtiendo ? 'Revirtiendo...' : 'Revertir pago'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Eliminar cargo de un período pagado */}
       <Dialog open={!!cargoPagadoDialog} onClose={() => !eliminandoCargoPagado && setCargoPagadoDialog(null)} maxWidth="xs" PaperProps={{ sx: { borderRadius: '14px' } }}>
